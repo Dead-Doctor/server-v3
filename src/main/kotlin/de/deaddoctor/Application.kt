@@ -197,12 +197,3 @@ val styles by CSSRules {
         textDecoration = TextDecoration(setOf(TextDecorationLine.underline))
     }
 }
-
-/*fun Application.moduleSample() {
-    configureSecurity()
-    configureHTTP()
-    configureSerialization()
-    configureTemplating()
-    configureSockets()
-    configureRouting()
-}*/
