@@ -35,5 +35,8 @@ out/
 ### VS Code ###
 .vscode/
 
-### TypeScript Outpu ###
+### TypeScript Output ###
 /src/main/resources/static/*.js
+
+### Run data ###
+/run/*

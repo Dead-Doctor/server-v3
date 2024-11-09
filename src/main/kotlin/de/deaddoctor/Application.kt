@@ -3,10 +3,7 @@ package de.deaddoctor
 import de.deaddoctor.CSSResource.Companion.getStyles
 import de.deaddoctor.CSSResource.Companion.addStyles
 import de.deaddoctor.Module.Companion.enable
-import de.deaddoctor.modules.ChatModule
-import de.deaddoctor.modules.SnakeModule
-import de.deaddoctor.modules.TestModule
-import de.deaddoctor.modules.WebsocketModule
+import de.deaddoctor.modules.*
 import io.ktor.client.*
 import io.ktor.client.engine.apache.*
 import io.ktor.http.*
@@ -99,16 +96,18 @@ fun Application.module() {
     routing {
         get("/") {
             call.respondTemplate("Ktor Test") {
-                a(href = "/test") { +"Test" }
-                a(href = "/ws") { +"Websockets" }
-                a(href = "/chat") { +"Chat" }
-                a(href = "/snake") { +"Snake" }
+                a(href = "/${TestModule.path()}") { +"Test" }
+                a(href = "/${WebsocketModule.path()}") { +"Websockets" }
+                a(href = "/${ChatModule.path()}") { +"Chat" }
+                a(href = "/${SnakeModule.path()}") { +"Snake" }
+                a(href = "/${MusicGuesserModule.path()}") { +MusicGuesserModule.NAME }
             }
         }
         enable(TestModule)
         enable(WebsocketModule)
         enable(ChatModule)
         enable(SnakeModule)
+        enable(MusicGuesserModule)
         authenticate("discord") {
             get("login") {}
             route("login/callback") {
