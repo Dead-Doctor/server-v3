@@ -84,31 +84,25 @@ fun Application.module() {
     }
     install(StatusPages) {
         status(HttpStatusCode.NotFound, HttpStatusCode.InternalServerError) { call, status ->
-            call.respondHtml {
-                template("Ktor Test", call.getAccount(), call.request.uri) {
-                    h1 { +status.value.toString() }
-                    h3 { +status.description }
-                }
+            call.respondTemplate("Ktor Test") {
+                h1 { +status.value.toString() }
+                h3 { +status.description }
             }
         }
         exception<Throwable> { call, cause ->
-            call.respondHtml {
-                template("Ktor Test", call.getAccount(), call.request.uri) {
-                    h1 { +"500" }
-                    h3 { +"${cause::class.simpleName}: ${cause.message}" }
-                }
+            call.respondTemplate("Ktor Test") {
+                h1 { +"500" }
+                h3 { +"${cause::class.simpleName}: ${cause.message}" }
             }
         }
     }
     routing {
         get("/") {
-            call.respondHtml {
-                template("Ktor Test", this@get.call.getAccount(), call.request.uri) {
-                    a(href = "/test") { +"Test" }
-                    a(href = "/ws") { +"Websockets" }
-                    a(href = "/chat") { +"Chat" }
-                    a(href = "/snake") { +"Snake" }
-                }
+            call.respondTemplate("Ktor Test") {
+                a(href = "/test") { +"Test" }
+                a(href = "/ws") { +"Websockets" }
+                a(href = "/chat") { +"Chat" }
+                a(href = "/snake") { +"Snake" }
             }
         }
         enable(TestModule)
@@ -143,27 +137,31 @@ fun Application.module() {
     }
 }
 
-fun HTML.template(title: String, account: Account, uri: String, head: HEAD.() -> Unit = {}, content: MAIN.() -> Unit) {
-    head {
-        title { +title }
-        addStyles(styles)
-        link(rel = "icon", type = "image/x-icon", href = "/favicon.ico")
-        head()
-    }
-    body {
-        header {
-            h1 { a(href = "/", classes = "title") { +title } }
-            span {
-                if (!account.loggedIn) {
-                    a(href = "/login?redirectUrl=${uri.encodeURLParameter()}") { +"Login" }
-                } else {
-                    span { +"Hello, ${account.name}" }
-                    a(href = "/logout?redirectUrl=${uri.encodeURLParameter()}") { +"Logout" }
+suspend fun ApplicationCall.respondTemplate(title: String, head: HEAD.() -> Unit = {}, content: MAIN.() -> Unit) {
+    val account = getAccount()
+    val uri = request.uri
+    respondHtml {
+        head {
+            title { +title }
+            addStyles(styles)
+            link(rel = "icon", type = "image/x-icon", href = "/favicon.ico")
+            head()
+        }
+        body {
+            header {
+                h1 { a(href = "/", classes = "title") { +title } }
+                span {
+                    if (!account.loggedIn) {
+                        a(href = "/login?redirectUrl=${uri.encodeURLParameter()}") { +"Login" }
+                    } else {
+                        span { +"Hello, ${account.name}" }
+                        a(href = "/logout?redirectUrl=${uri.encodeURLParameter()}") { +"Logout" }
+                    }
                 }
             }
-        }
-        main {
-            content()
+            main {
+                content()
+            }
         }
     }
 }

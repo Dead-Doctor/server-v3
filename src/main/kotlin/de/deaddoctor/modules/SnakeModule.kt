@@ -40,7 +40,7 @@ object SnakeModule : Module {
 
     override fun Route.route() {
         get {
-            call.respondPage("Snake Game", {
+            call.respondTemplate("Snake Game", {
                 addStyles(snakeStyles, call.request.url)
                 addScript("snake")
             }) {

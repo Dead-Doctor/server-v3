@@ -23,7 +23,7 @@ object WebsocketModule : Module {
 
     override fun Route.route() {
         get {
-            call.respondPage("WebSocket", {
+            call.respondTemplate("WebSocket", {
                 addStyles(styles, call.request.url)
                 addScript("wsTest")
             }) {

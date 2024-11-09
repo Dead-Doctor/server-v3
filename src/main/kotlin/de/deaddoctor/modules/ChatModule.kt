@@ -13,7 +13,7 @@ object ChatModule : Module {
 
     override fun Route.route() {
         get {
-            call.respondPage("Chat App", {
+            call.respondTemplate("Chat App", {
                 addStyles(chatStyle, call.request.url)
                 addScript("chat")
             }) {

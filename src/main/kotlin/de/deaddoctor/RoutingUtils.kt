@@ -67,17 +67,6 @@ suspend fun ApplicationCall.respondCss(css: String) {
     this.respondText(css, ContentType.Text.CSS)
 }
 
-suspend fun ApplicationCall.respondPage(
-    title: String,
-    head: HEAD.() -> Unit = {},
-    content: MAIN.() -> Unit
-) {
-    val account = getAccount()
-    respondHtml {
-        template(title, account, request.uri, head, content)
-    }
-}
-
 fun FlowOrMetaDataOrPhrasingContent.addScript(name: String) {
     script { src = "/${name}.js"; type = "module"; defer = true }
 }
