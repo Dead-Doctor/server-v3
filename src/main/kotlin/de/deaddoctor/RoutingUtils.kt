@@ -43,10 +43,10 @@ val ApplicationRequest.url: Url
 val Url.clean: String
     get() = "${protocolWithAuthority}${encodedPath}"
 
-suspend fun ApplicationCall.respondPage(title: String, body: Page.Layout.() -> Unit) {
+suspend fun ApplicationCall.respondPage(title: String, body: PageLayout.() -> Unit) {
     val account = getAccount()
     val uri = request.uri
-    respondHtmlTemplate(Page.Layout(account, uri, title), HttpStatusCode.OK, body)
+    respondHtmlTemplate(PageLayout(account, uri, title), HttpStatusCode.OK, body)
 }
 
 class CSSRules(rules: CSSBuilder.() -> Unit) {
