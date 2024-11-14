@@ -309,7 +309,7 @@ main {
 footer {
     display: flex;
     margin-top: auto;
-    padding: 5rem 18% 2rem 18%;
+    padding: 5rem 18% 1rem 18%;
     gap: 2rem;
     border-top: var(--border);
 
