@@ -95,7 +95,7 @@ fun Application.module() {
         "coolest", "best", "top", "supreme", "ultimate", "unbeatable", "unmatched", "unrivaled", "flawless", "perfect",
         "exquisite", "immaculate", "legendary", "incomparable", "phenomenal", "outstanding", "stellar", "fantastic",
         "world-class", "brilliant", "exceptional", "remarkable", "sensational", "incredible", "superb", "astonishing",
-        "majestic", "spectacular", "impressive"
+        "majestic", "spectacular", "impressive", "dead"
     )
     routing {
         get("/") {
