@@ -72,7 +72,7 @@ class PageLayout(private val account: Account, private val uri: String, private 
                         a(href = "https://discordapp.com/users/621027101645996053") { icon("discord") }
                         a(href = "https://github.com/Dead-Doctor") { icon("github") }
                     }
-                    p {
+                    span("copyright") {
                         entity(Entities.copy)
                         val now = Clock.System.now()
                         +" ${now.toLocalDateTime(TimeZone.currentSystemDefault()).year} deaddoctor, All rights reserved."

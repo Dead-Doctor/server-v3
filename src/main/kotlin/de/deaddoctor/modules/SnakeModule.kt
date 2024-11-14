@@ -46,7 +46,7 @@ object SnakeModule : Module {
                     addScript("snake")
                 }
                 content {
-                    div("container") {
+                    section {
                         div("lobby menu show") {
                             h2 { +"Lobby" }
                             div("players") {}
@@ -198,24 +198,28 @@ object SnakeModule : Module {
 
     private fun updatedSnakes() = Packet("updateSnakes", snakes)
 
+
+    val main = TagSelector("main")
+
     private val snakeStyles by CSSRules {
-        root {
-//            overscrollBehavior = OverscrollBehavior.contain
-            declarations["touch-action"] = "none"
+        body {
+            height = LinearDimension.auto
         }
 
-        mainTag {
-            display = Display.flex
-            justifyContent = JustifyContent.center
-            alignItems = Align.stretch
-            padding(30.px)
-            overflow = Overflow.hidden
+        main {
+            display = Display.block
+            width = 100.vw - 6.rem
+            height = 100.vh - 5.rem - 6.rem
         }
 
-        rule(".container") {
+        section {
             position = Position.relative
+            display = Display.flex
             declarations["aspect-ratio"] = ASPECT_RATIO.toString()
+            maxHeight = 100.pct
+            margin = "0 auto"
             overflow = Overflow.hidden
+            declarations["touch-action"] = "none"
         }
 
         rule(".menu") {

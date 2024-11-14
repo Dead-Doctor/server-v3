@@ -20,7 +20,6 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
 import io.ktor.server.websocket.*
-import kotlinx.css.TagSelector
 import kotlinx.html.*
 import java.io.File
 import java.time.Duration
@@ -195,5 +194,3 @@ fun Application.module() {
         staticResources("/", "static")
     }
 }
-
-val mainTag = TagSelector("main")

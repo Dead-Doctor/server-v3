@@ -6,10 +6,7 @@ import de.deaddoctor.CSSResource.Companion.getStyles
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.css.*
-import kotlinx.html.InputType
-import kotlinx.html.input
-import kotlinx.html.p
-import kotlinx.html.span
+import kotlinx.html.*
 
 object ChatModule : Module {
     override fun path() = "chat"
@@ -22,8 +19,13 @@ object ChatModule : Module {
                     addScript("chat")
                 }
                 content {
-                    p("messages") { span("info") { +"Welcome to the chat!" } }
-                    input(type = InputType.text)
+                    section {
+                        h1 { +"Chat" }
+                        div("chat") {
+                            p("messages") { span("info") { +"Welcome to the chat!" } }
+                            input(type = InputType.text)
+                        }
+                    }
                 }
             }
         }
@@ -49,13 +51,19 @@ object ChatModule : Module {
     }
 
     private val chatStyle by CSSRules {
-        rule(".messages") {
-            height = LinearDimension("200px")
-            width = LinearDimension("80ch")
+        rule(".chat") {
             display = Display.flex
             flexDirection = FlexDirection.column
-            backgroundColor = Color("#444")
+        }
+        rule(".messages") {
+            display = Display.flex
+            flexDirection = FlexDirection.column
+            height = LinearDimension("200px")
+            padding(0.2.rem)
+            backgroundColor = Color("var(--secondary)")
             color = Color.white
+            border = "var(--border)"
+            borderBottom = "none"
             wordWrap = WordWrap.breakWord
             overflowY = Overflow.scroll
         }

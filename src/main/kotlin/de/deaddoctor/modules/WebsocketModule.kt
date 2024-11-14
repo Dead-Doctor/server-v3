@@ -10,6 +10,7 @@ import io.ktor.websocket.*
 import kotlinx.css.*
 import kotlinx.html.div
 import kotlinx.html.p
+import kotlinx.html.section
 import kotlinx.serialization.Serializable
 
 object WebsocketModule : Module {
@@ -30,8 +31,10 @@ object WebsocketModule : Module {
                     addScript("wsTest")
                 }
                 content {
-                    p { +"Currently logged in:" }
-                    div("accounts") {}
+                    section {
+                        p { +"Currently logged in:" }
+                        div("accounts") {}
+                    }
                 }
             }
         }

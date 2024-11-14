@@ -86,7 +86,7 @@ h5 {
 }
 
 p {
-    padding: 1.4rem 0 2.2rem 0;
+    padding: 1.4rem 0.2rem 2.2rem 0.2rem;
     font-size: var(--p);
     line-height: 1.4em;
     text-align: justify;
@@ -147,6 +147,25 @@ button {
 
     &:active {
         background-color: var(--accent);
+    }
+}
+
+input[type='text'] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    padding: 0.2rem;
+    color: var(--text);
+    background-color: var(--secondary);
+    border: var(--border);
+    font-size: var(--p);
+    line-height: 1.4em;
+    font-weight: 300;
+
+    &:hover,
+    &:focus-visible {
+        outline: none;
+        border-color: var(--muted);
     }
 }
 
@@ -211,6 +230,7 @@ header {
     position: sticky;
     top: 0;
     width: 100%;
+    z-index: 999;
 }
 
 nav {
@@ -311,7 +331,7 @@ main {
 footer {
     display: flex;
     margin-top: auto;
-    padding: 5rem 18% 1rem 18%;
+    padding: 5rem 18% 2rem 18%;
     gap: 2rem;
     border-top: var(--border);
 
@@ -341,6 +361,9 @@ footer {
                 }
             }
         }
+        .copyright {
+            padding-top: 2rem;
+        }
     }
     .links {
         flex-direction: column;
@@ -360,6 +383,7 @@ footer {
     transition: 75ms linear color;
 
     img {
+        width: 2.5rem;
         height: 2.5rem;
         border-radius: 50%;
     }

@@ -71,8 +71,7 @@ class WebSocketEventHandlerContext(connections: MutableList<Connection>, val con
 
     fun countConnections(account: Account = connection.account) = connections.count { it.account == account }
 
-    inline fun <reified T> sendBack(content: T) =
-        sendMessageTo(connection, Json.encodeToString(content))
+    inline fun <reified T> sendBack(content: T) = sendToConnection(connection, content)
 }
 
 open class WebSocketSender(val connections: MutableList<Connection>) {
@@ -90,7 +89,7 @@ open class WebSocketSender(val connections: MutableList<Connection>) {
 
     fun sendMessageTo(connection: Connection, text: String) {
         val result = connection.session.outgoing.trySend(Frame.Text(text))
-        assert(result.isSuccess) { "Sending following message to $connection failed: $text" }
+        assert(result.isSuccess) { "Sending following message to $connection failed: $result" }
     }
 
     suspend fun closeConnection(connection: Connection, reason: CloseReason) {

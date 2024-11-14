@@ -92,19 +92,26 @@ object MusicGuesserModule : Module {
             val song = queryTrack(track)
             call.respondPage(NAME) {
                 content {
-                    h3 { +"Welcome to $NAME, ${account.name}!" }
-                    p { +"${song.trackName} - ${song.duration}" }
-                    p { +"${song.artistName} - ${song.collectionName}" }
-                    p {
-                        +"Reveal Year: "
-                        button {
-                            onClick = "innerText = '${song.releaseDate.year}'"
-                            +"Click"
+                    section {
+                        h1 { +NAME }
+                        h3 { +"Welcome to $NAME, ${account.name}!" }
+                    }
+                    section {
+                        p { +"${song.trackName} - ${song.duration}" }
+                        p { +"${song.artistName} - ${song.collectionName}" }
+                        p {
+                            +"Reveal Year: "
+                            button {
+                                onClick = "innerText = '${song.releaseDate.year}'"
+                                +"Click"
+                            }
                         }
                     }
-                    audio {
-                        src = song.previewUrl
-                        controls = true
+                    section {
+                        audio {
+                            src = song.previewUrl
+                            controls = true
+                        }
                     }
                 }
             }

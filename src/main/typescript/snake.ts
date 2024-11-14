@@ -1,6 +1,6 @@
 import {sendAddressed, socket} from './ws.js'
 
-const container = document.querySelector('.container')!
+const container = document.querySelector('section')!
 const lobbyMenu = document.querySelector('.lobby')!
 const playersContainer = document.querySelector('.players')!
 const joinBtn: HTMLButtonElement = document.querySelector('#joinBtn')!
