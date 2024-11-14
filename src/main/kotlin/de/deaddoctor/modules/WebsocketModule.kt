@@ -16,6 +16,7 @@ object WebsocketModule : Module {
 
     @Serializable
     data class Data(val id: Int, val name: String)
+
     @Serializable
     data class AccountInfo(val name: String, val avatar: String)
 
@@ -23,12 +24,15 @@ object WebsocketModule : Module {
 
     override fun Route.route() {
         get {
-            call.respondTemplate("WebSocket", {
-                addStyles(styles, call.request.url)
-                addScript("wsTest")
-            }) {
-                p { +"Currently logged in:" }
-                div("accounts") {}
+            call.respondPage("WebSocket") {
+                head {
+                    addStyles(styles, call.request.url)
+                    addScript("wsTest")
+                }
+                content {
+                    p { +"Currently logged in:" }
+                    div("accounts") {}
+                }
             }
         }
 
@@ -42,7 +46,7 @@ object WebsocketModule : Module {
             connection { sendUpdatedAccountInfos() }
             disconnection { sendUpdatedAccountInfos() }
 
-            destination("message") {msg: String ->
+            destination("message") { msg: String ->
                 sendToConnection(connection, Frame.Text("YOU SAID: $msg"))
                 if (msg.equals("bye", ignoreCase = true))
                     closeConnection(connection, CloseReason(CloseReason.Codes.NORMAL, "Client said BYE"))

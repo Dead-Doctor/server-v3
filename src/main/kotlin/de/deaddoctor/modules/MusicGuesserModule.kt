@@ -3,19 +3,18 @@ package de.deaddoctor.modules
 import de.deaddoctor.Module
 import de.deaddoctor.getAccount
 import de.deaddoctor.httpClient
-import de.deaddoctor.respondTemplate
+import de.deaddoctor.respondPage
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.runBlocking
-import kotlinx.datetime.*
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.html.*
-import kotlinx.serialization.ExperimentalSerializationApi
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
+import kotlinx.serialization.*
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
@@ -61,7 +60,9 @@ object MusicGuesserModule : Module {
                             val url = "https://music.apple.com/$storeFront/playlist/xyz/$century"
                             val response = httpClient.get(url)
                             val html = response.bodyAsText()
-                            val json = html.substringAfter("<script id=schema:music-playlist type=\"application/ld+json\">").substringBefore("</script>").trim()
+                            val json =
+                                html.substringAfter("<script id=schema:music-playlist type=\"application/ld+json\">")
+                                    .substringBefore("</script>").trim()
                             val playlist = jsonParser.decodeFromString<AppleMusicPlaylist>(json)
                             for (track in playlist.tracks) {
                                 val id = track.url.substringAfterLast("/").toLong()
@@ -89,27 +90,30 @@ object MusicGuesserModule : Module {
             val account = call.getAccount()
             val track = tracks[Random.nextInt(0, tracks.size)]
             val song = queryTrack(track)
-            call.respondTemplate(NAME) {
-                h3 { +"Welcome to $NAME, ${account.name}!" }
-                p { +"${song.trackName} - ${song.duration}" }
-                p { +"${song.artistName} - ${song.collectionName}" }
-                p {
-                    +"Reveal Year: "
-                    button {
-                        onClick = "innerText = '${song.releaseDate.year}'"
-                        +"Click"
+            call.respondPage(NAME) {
+                content {
+                    h3 { +"Welcome to $NAME, ${account.name}!" }
+                    p { +"${song.trackName} - ${song.duration}" }
+                    p { +"${song.artistName} - ${song.collectionName}" }
+                    p {
+                        +"Reveal Year: "
+                        button {
+                            onClick = "innerText = '${song.releaseDate.year}'"
+                            +"Click"
+                        }
                     }
-                }
-                audio {
-                    src = song.previewUrl
-                    controls = true
+                    audio {
+                        src = song.previewUrl
+                        controls = true
+                    }
                 }
             }
         }
     }
 
     private suspend fun queryTrack(track: Track): Song {
-        val url = "https://itunes.apple.com/search?term=${track.id}&limit=1&country=${track.storeFront}&media=music&entity=musicTrack&explicit=yes"
+        val url =
+            "https://itunes.apple.com/search?term=${track.id}&limit=1&country=${track.storeFront}&media=music&entity=musicTrack&explicit=yes"
         val response = httpClient.get(url)
         val json = response.bodyAsText()
         val search = jsonParser.decodeFromString<Search>(json)
@@ -154,8 +158,10 @@ object MusicGuesserModule : Module {
         val primaryGenreName: String,
         val isStreamable: Boolean
     ) {
-        @Transient val duration: Duration = trackTimeMillis.milliseconds
-        @Transient val releaseDate: LocalDateTime = releaseDateTime.toLocalDateTime(TimeZone.UTC)
+        @Transient
+        val duration: Duration = trackTimeMillis.milliseconds
+        @Transient
+        val releaseDate: LocalDateTime = releaseDateTime.toLocalDateTime(TimeZone.UTC)
     }
 
     @Serializable(with = TrackSerializer::class)

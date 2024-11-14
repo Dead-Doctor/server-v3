@@ -1,24 +1,30 @@
 package de.deaddoctor.modules
 
 import de.deaddoctor.*
-import de.deaddoctor.CSSResource.Companion.getStyles
 import de.deaddoctor.CSSResource.Companion.addStyles
+import de.deaddoctor.CSSResource.Companion.getStyles
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.css.*
-import kotlinx.html.*
+import kotlinx.html.InputType
+import kotlinx.html.input
+import kotlinx.html.p
+import kotlinx.html.span
 
 object ChatModule : Module {
     override fun path() = "chat"
 
     override fun Route.route() {
         get {
-            call.respondTemplate("Chat App", {
-                addStyles(chatStyle, call.request.url)
-                addScript("chat")
-            }) {
-                p("messages") { span("info") { +"Welcome to the chat!" } }
-                input(type = InputType.text)
+            call.respondPage("Chat App") {
+                head {
+                    addStyles(chatStyle, call.request.url)
+                    addScript("chat")
+                }
+                content {
+                    p("messages") { span("info") { +"Welcome to the chat!" } }
+                    input(type = InputType.text)
+                }
             }
         }
 

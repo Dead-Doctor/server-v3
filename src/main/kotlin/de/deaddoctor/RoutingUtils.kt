@@ -43,14 +43,25 @@ val ApplicationRequest.url: Url
 val Url.clean: String
     get() = "${protocolWithAuthority}${encodedPath}"
 
+suspend fun ApplicationCall.respondPage(title: String, body: Page.Layout.() -> Unit) {
+    val account = getAccount()
+    val uri = request.uri
+    respondHtmlTemplate(Page.Layout(account, uri, title), HttpStatusCode.OK, body)
+}
+
 class CSSRules(rules: CSSBuilder.() -> Unit) {
     private val styles = CSSBuilder().apply(rules).toString()
     operator fun getValue(thisRef: Any?, property: KProperty<*>) = CSSResource(property.name, styles)
 }
 
-class CSSResource(private val name: String, private val styles: String) {
+class CSSFile {
+    operator fun getValue(thisRef: Any?, property: KProperty<*>) = CSSResource(property.name)
+}
+
+class CSSResource(private val name: String, private val styles: String? = null) {
     companion object {
         fun Route.getStyles(cssResource: CSSResource) {
+            if (cssResource.styles == null) throw IllegalStateException("Tried to setup get route for static css resource.")
             get("${cssResource.name}.css") {
                 call.respondCss(cssResource.styles)
             }

@@ -40,36 +40,39 @@ object SnakeModule : Module {
 
     override fun Route.route() {
         get {
-            call.respondTemplate("Snake Game", {
-                addStyles(snakeStyles, call.request.url)
-                addScript("snake")
-            }) {
-                div("container") {
-                    div("lobby menu show") {
-                        h2 { +"Lobby" }
-                        div("players") {}
-                        div {
-                            button {
-                                id = "joinBtn"
-                                disabled = true
-                                +"Join"
-                            }
-                            button {
-                                id = "startBtn"
-                                disabled = true
-                                +"Start Game"
+            call.respondPage("Snake Game") {
+                head {
+                    addStyles(snakeStyles, call.request.url)
+                    addScript("snake")
+                }
+                content {
+                    div("container") {
+                        div("lobby menu show") {
+                            h2 { +"Lobby" }
+                            div("players") {}
+                            div {
+                                button {
+                                    id = "joinBtn"
+                                    disabled = true
+                                    +"Join"
+                                }
+                                button {
+                                    id = "startBtn"
+                                    disabled = true
+                                    +"Start Game"
+                                }
                             }
                         }
-                    }
-                    div("winner menu") {
-                        +"Winner"
-                        button {
-                            id = "closeWinnerBtn"
-                            disabled = true
-                            +"Close"
+                        div("winner menu") {
+                            +"Winner"
+                            button {
+                                id = "closeWinnerBtn"
+                                disabled = true
+                                +"Close"
+                            }
                         }
+                        canvas {}
                     }
-                    canvas {}
                 }
             }
         }

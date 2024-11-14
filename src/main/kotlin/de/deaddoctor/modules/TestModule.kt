@@ -2,7 +2,7 @@ package de.deaddoctor.modules
 
 import de.deaddoctor.Module
 import de.deaddoctor.getAccount
-import de.deaddoctor.respondTemplate
+import de.deaddoctor.respondPage
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.html.p
@@ -13,9 +13,11 @@ object TestModule : Module {
     override fun Route.route() {
         get {
             val account = call.getAccount()
-            call.respondTemplate("Test") {
+            call.respondPage("Test") {
 //                throw Exception("OH NO!")
-                p { +"Hello, ${account.name}!" }
+                content {
+                    p { +"Hello, ${account.name}!" }
+                }
             }
         }
     }

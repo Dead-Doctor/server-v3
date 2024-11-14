@@ -1,7 +1,5 @@
 package de.deaddoctor
 
-import de.deaddoctor.CSSResource.Companion.getStyles
-import de.deaddoctor.CSSResource.Companion.addStyles
 import de.deaddoctor.Module.Companion.enable
 import de.deaddoctor.modules.*
 import io.ktor.client.*
@@ -12,21 +10,17 @@ import io.ktor.server.application.*
 import io.ktor.server.application.ApplicationCallPipeline.ApplicationPhase.Plugins
 import io.ktor.server.auth.*
 import io.ktor.server.engine.*
-import io.ktor.server.html.*
 import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.autohead.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.forwardedheaders.*
 import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
 import io.ktor.server.websocket.*
-import kotlinx.css.*
-import kotlinx.css.properties.TextDecoration
-import kotlinx.css.properties.TextDecorationLine
+import kotlinx.css.TagSelector
 import kotlinx.html.*
 import java.io.File
 import java.time.Duration
@@ -81,26 +75,32 @@ fun Application.module() {
     }
     install(StatusPages) {
         status(HttpStatusCode.NotFound, HttpStatusCode.InternalServerError) { call, status ->
-            call.respondTemplate("Ktor Test") {
-                h1 { +status.value.toString() }
-                h3 { +status.description }
+            call.respondPage("Ktor Test") {
+                content {
+                    h1 { +status.value.toString() }
+                    h3 { +status.description }
+                }
             }
         }
         exception<Throwable> { call, cause ->
-            call.respondTemplate("Ktor Test") {
-                h1 { +"500" }
-                h3 { +"${cause::class.simpleName}: ${cause.message}" }
+            call.respondPage("Ktor Test") {
+                content {
+                    h1 { +"500" }
+                    h3 { +"${cause::class.simpleName}: ${cause.message}" }
+                }
             }
         }
     }
     routing {
         get("/") {
-            call.respondTemplate("Ktor Test") {
-                a(href = "/${TestModule.path()}") { +"Test" }
-                a(href = "/${WebsocketModule.path()}") { +"Websockets" }
-                a(href = "/${ChatModule.path()}") { +"Chat" }
-                a(href = "/${SnakeModule.path()}") { +"Snake" }
-                a(href = "/${MusicGuesserModule.path()}") { +MusicGuesserModule.NAME }
+            call.respondPage("Ktor Test") {
+                content {
+                    a(href = "/${TestModule.path()}") { +"Test" }
+                    a(href = "/${WebsocketModule.path()}") { +"Websockets" }
+                    a(href = "/${ChatModule.path()}") { +"Chat" }
+                    a(href = "/${SnakeModule.path()}") { +"Snake" }
+                    a(href = "/${MusicGuesserModule.path()}") { +MusicGuesserModule.NAME }
+                }
             }
         }
         enable(TestModule)
@@ -131,69 +131,8 @@ fun Application.module() {
             call.sessions.clear<UserSession>()
             call.respondRedirect(call.request.queryParameters["redirectUrl"] ?: "/")
         }
-        getStyles(styles)
         staticResources("/", "static")
     }
 }
 
-suspend fun ApplicationCall.respondTemplate(title: String, head: HEAD.() -> Unit = {}, content: MAIN.() -> Unit) {
-    val account = getAccount()
-    val uri = request.uri
-    respondHtml {
-        head {
-            title { +title }
-            addStyles(styles)
-            link(rel = "icon", type = "image/x-icon", href = "/favicon.ico")
-            head()
-        }
-        body {
-            header {
-                h1 { a(href = "/", classes = "title") { +title } }
-                span {
-                    if (!account.loggedIn) {
-                        a(href = "/login?redirectUrl=${uri.encodeURLParameter()}") { +"Login" }
-                    } else {
-                        span { +"Hello, ${account.name}" }
-                        a(href = "/logout?redirectUrl=${uri.encodeURLParameter()}") { +"Logout" }
-                    }
-                }
-            }
-            main {
-                content()
-            }
-        }
-    }
-}
-
 val mainTag = TagSelector("main")
-
-val styles by CSSRules {
-    html {
-        height = 100.pct
-    }
-    body {
-        display = Display.flex
-        flexDirection = FlexDirection.column
-        height = 100.pct
-        margin(0.px)
-        backgroundColor = Color("#333333")
-        color = Color.white
-    }
-    header {
-        display = Display.flex
-        justifyContent = JustifyContent.spaceBetween
-        alignItems = Align.center
-        margin(0.px)
-        padding(15.px)
-        backgroundColor = Color("#222222")
-    }
-    mainTag {
-        height = 100.pct
-        padding(15.px)
-    }
-    a {
-        margin(5.px)
-        color = Color.white
-        textDecoration = TextDecoration(setOf(TextDecorationLine.underline))
-    }
-}
