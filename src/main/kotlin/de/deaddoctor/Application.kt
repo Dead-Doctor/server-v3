@@ -24,6 +24,7 @@ import kotlinx.css.TagSelector
 import kotlinx.html.*
 import java.io.File
 import java.time.Duration
+import kotlin.random.Random
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ContentNegotiationClient
 
 lateinit var httpClient: HttpClient
@@ -91,15 +92,75 @@ fun Application.module() {
             }
         }
     }
+    val adjectives = listOf(
+        "coolest", "best", "top", "supreme", "ultimate", "unbeatable", "unmatched", "unrivaled", "flawless", "perfect",
+        "exquisite", "immaculate", "legendary", "incomparable", "phenomenal", "outstanding", "stellar", "fantastic",
+        "world-class", "brilliant", "exceptional", "remarkable", "sensational", "incredible", "superb", "astonishing",
+        "majestic", "spectacular", "impressive"
+    )
     routing {
         get("/") {
-            call.respondPage("Ktor Test") {
+            call.respondPage("deaddoctor") {
                 content {
-                    a(href = "/${TestModule.path()}") { +"Test" }
-                    a(href = "/${WebsocketModule.path()}") { +"Websockets" }
-                    a(href = "/${ChatModule.path()}") { +"Chat" }
-                    a(href = "/${SnakeModule.path()}") { +"Snake" }
-                    a(href = "/${MusicGuesserModule.path()}") { +MusicGuesserModule.NAME }
+                    section {
+                        h1 {
+                            +"The "
+                            b { +adjectives[Random.nextInt(adjectives.size)] }
+                            +" website"
+                        }
+                        h2 {
+                            +"Currently mostly "
+                            i { +"games" }
+                            +" and "
+                            i { +"maps" }
+                        }
+                    }
+                    section("grid") {
+                        div {
+                            h3 { +"Play Games" }
+                            p { +"Enjoy all the games i have made." }
+                            a(href = "/games") { +"All Games" }
+                        }
+                        div {
+                            h3 { +"View Maps" }
+                            p { +"Maps showing interesting things." }
+                            a(href = "/maps") { +"All Maps" }
+                        }
+                    }
+                }
+            }
+        }
+        get("/games") {
+            call.respondPage("Games") {
+                content {
+                    h1 { +"Games" }
+                    section(classes = "grid") {
+                        a(href = "/${TestModule.path()}") { +"Test" }
+                        a(href = "/${WebsocketModule.path()}") { +"Websockets" }
+                        a(href = "/${ChatModule.path()}") { +"Chat" }
+                        a(href = "/${SnakeModule.path()}") { +"Snake" }
+                        a(href = "/${MusicGuesserModule.path()}") { +MusicGuesserModule.NAME }
+                    }
+                }
+            }
+        }
+        get("/maps") {
+            call.respondPage("Games") {
+                content {
+                    section {
+                        h1 { +"Oh, No!" }
+                        h2 { +"There are no maps yet" }
+                    }
+                }
+            }
+        }
+        get("/about") {
+            call.respondPage("Games") {
+                content {
+                    section {
+                        h1 { +"About" }
+                        h2 { +"...to be done." }
+                    }
                 }
             }
         }

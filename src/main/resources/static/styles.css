@@ -45,7 +45,15 @@ h1 {
     margin-bottom: 0.4rem;
     font-size: var(--h1);
     font-weight: 800;
+}
 
+h2 {
+    margin-bottom: 0.4rem;
+    font-size: var(--h2);
+    font-weight: 700;
+}
+
+h1, h2 {
     i {
         color: transparent;
         font-weight: 800;
@@ -57,12 +65,6 @@ h1 {
         color: var(--primary);
         font-weight: 800;
     }
-}
-
-h2 {
-    margin-bottom: 0.4rem;
-    font-size: var(--h2);
-    font-weight: 700;
 }
 
 h3 {
