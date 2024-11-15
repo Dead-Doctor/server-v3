@@ -9,32 +9,34 @@ import io.ktor.server.sessions.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-fun AuthenticationConfig.configureOauth() {
-    oauth("discord") {
-        client = httpClient
-        providerLookup = {
-            val redirects = mutableMapOf<String, String>()
-            OAuthServerSettings.OAuth2ServerSettings(
-                name = "discord",
-                authorizeUrl = "https://discordapp.com/api/oauth2/authorize",
-                accessTokenUrl = "https://discordapp.com/api/oauth2/token",
-                requestMethod = HttpMethod.Post,
-                clientId = getConfig("DISCORD_CLIENT_ID"),
-                clientSecret = getConfig("DISCORD_CLIENT_SECRET"),
-                defaultScopes = listOf("identify"),
-                onStateCreated = { call, state ->
-                    call.request.queryParameters["redirectUrl"]?.let {
-                        redirects[state] = it
+fun Application.installOAuth() {
+    authentication {
+        oauth("discord") {
+            client = httpClient
+            providerLookup = {
+                val redirects = mutableMapOf<String, String>()
+                OAuthServerSettings.OAuth2ServerSettings(
+                    name = "discord",
+                    authorizeUrl = "https://discordapp.com/api/oauth2/authorize",
+                    accessTokenUrl = "https://discordapp.com/api/oauth2/token",
+                    requestMethod = HttpMethod.Post,
+                    clientId = getConfig("DISCORD_CLIENT_ID"),
+                    clientSecret = getConfig("DISCORD_CLIENT_SECRET"),
+                    defaultScopes = listOf("identify"),
+                    onStateCreated = { call, state ->
+                        call.request.queryParameters["redirectUrl"]?.let {
+                            redirects[state] = it
+                        }
+                    },
+                    authorizeUrlInterceptor = {
+                        val state = parameters["state"]!!
+                        val redirectUrl = redirects.remove(state) ?: ""
+                        parameters["state"] = OAuthState.encode(state, redirectUrl)
                     }
-                },
-                authorizeUrlInterceptor = {
-                    val state = parameters["state"]!!
-                    val redirectUrl = redirects.remove(state) ?: ""
-                    parameters["state"] = OAuthState.encode(state, redirectUrl)
-                }
-            )
+                )
+            }
+            urlProvider = { "${request.url.protocolWithAuthority}/login/callback" }
         }
-        urlProvider = { "${request.url.protocolWithAuthority}/login/callback" }
     }
 }
 
@@ -44,7 +46,8 @@ data object OAuthState {
     fun url(state: String?) = state?.substring(16)?.decodeURLPart() ?: "/"
 }
 
-data class UserSession(val state: String, val token: String, val userInfo: UserInfo) : Principal {
+@Serializable
+data class UserSession(val state: String, val token: String, val userInfo: UserInfo) {
     companion object {
         suspend fun generate(principal: OAuthAccessTokenResponse.OAuth2) = UserSession(
             OAuthState.decode(principal.state!!),

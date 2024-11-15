@@ -7,7 +7,6 @@ import io.ktor.client.engine.apache.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
-import io.ktor.server.application.ApplicationCallPipeline.ApplicationPhase.Plugins
 import io.ktor.server.auth.*
 import io.ktor.server.engine.*
 import io.ktor.server.http.content.*
@@ -22,8 +21,8 @@ import io.ktor.server.sessions.*
 import io.ktor.server.websocket.*
 import kotlinx.html.*
 import java.io.File
-import java.time.Duration
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ContentNegotiationClient
 
 lateinit var httpClient: HttpClient
@@ -56,7 +55,6 @@ fun Application.module() {
     install(Sessions) {
         cookie<UserSession>("user_session", SessionStorageMemory()) {
             cookie.path = "/"
-            cookie.maxAgeInSeconds = 10 * 60
         }
     }
     httpClient = HttpClient(Apache) {
@@ -65,14 +63,12 @@ fun Application.module() {
         }
     }
     install(WebSockets) {
-        pingPeriod = Duration.ofSeconds(15)
-        timeout = Duration.ofSeconds(15)
+        pingPeriod = 15.seconds
+        timeout = 15.seconds
         maxFrameSize = Long.MAX_VALUE
         masking = false
     }
-    authentication {
-        configureOauth()
-    }
+    installOAuth()
     install(StatusPages) {
         status(HttpStatusCode.NotFound, HttpStatusCode.InternalServerError) { call, status ->
             call.respondPage("Ktor Test") {
@@ -170,21 +166,16 @@ fun Application.module() {
         enable(MusicGuesserModule)
         authenticate("discord") {
             get("login") {}
-            route("login/callback") {
-                intercept(Plugins) {
-                    val error = call.request.queryParameters["error"]
-                    if (error != null) {
-                        // Authorization was denied/canceled
-                        call.respondRedirect(OAuthState.url(call.request.queryParameters["state"]))
-                        finish()
-                    }
+            get("login/callback") {
+                val error = call.request.queryParameters["error"]
+                if (error != null) {
+                    // Authorization was denied/canceled
+                    call.respondRedirect(OAuthState.url(call.request.queryParameters["state"]))
+                    return@get
                 }
-
-                handle {
-                    val principal: OAuthAccessTokenResponse.OAuth2 = call.principal()!!
-                    call.sessions.set(UserSession.generate(principal))
-                    call.respondRedirect(OAuthState.url(principal.state))
-                }
+                val principal: OAuthAccessTokenResponse.OAuth2 = call.principal()!!
+                call.sessions.set(UserSession.generate(principal))
+                call.respondRedirect(OAuthState.url(principal.state))
             }
         }
         get("logout") {
