@@ -102,7 +102,7 @@ object SnakeModule : Module {
                 if (!user.loggedIn || !playersPlaying.containsKey(user) || countConnections(user) >= 1) return@disconnection
                 if (playersPlaying[user]!!) {
                     if (snakes != null) {
-                        snakes!!.removeIf { it.player == user.id!! }
+                        snakes!!.find { it.player == user.id!! }?.dead = true
                     }
                     if (currentState == GameState.RUNNING)
                         checkWinner()
@@ -131,10 +131,11 @@ object SnakeModule : Module {
                 val oldSnake = snakes!!.find { it.player == snake.player }!!
                 oldSnake.segments = snake.segments
                 oldSnake.width = snake.width
+                oldSnake.dead = snake.dead
             }
             destination("fail") {
                 if (currentState != GameState.RUNNING || !user.loggedIn || playersPlaying[user] != true) return@destination
-                snakes!!.removeIf { it.player == user.id!!.toString() }
+                snakes!!.find { it.player == user.id!! }?.dead = true
                 sendToAll(updatedSnakes())
                 checkWinner()
             }
@@ -182,12 +183,12 @@ object SnakeModule : Module {
                 val distanceFromCenter = START_DISTANCE_CENTER + segmentLength * it
                 arrayOf(0.5 + directionX * distanceFromCenter, 0.5 / ASPECT_RATIO + directionY * distanceFromCenter)
             }
-            Snake(segments, START_WIDTH, SNAKE_COLORS[i % SNAKE_COLORS.size], players[i].id!!.toString())
+            Snake(segments, START_WIDTH, SNAKE_COLORS[i % SNAKE_COLORS.size], false, players[i].id!!.toString())
         }
     }
 
     private fun WebSocketEventHandlerContext.checkWinner() {
-        if (snakes!!.size > 1) return
+        if (snakes!!.count { !it.dead } > 1) return
         currentState = GameState.WINNER
         sendToAll(currentState.packet)
     }
@@ -291,7 +292,7 @@ object SnakeModule : Module {
     }
 
     @Serializable
-    data class Snake(var segments: Array<Point>, var width: Double, val color: String, val player: String) {
+    data class Snake(var segments: Array<Point>, var width: Double, val color: String, var dead: Boolean, val player: String) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is Snake) return false

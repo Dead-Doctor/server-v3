@@ -29,14 +29,28 @@ enum GameState {
 }
 
 type PlayerId = string
-type PlayerInfo = { id: PlayerId, name: string, avatar: string, playing: boolean }
+
+interface PlayerInfo {
+    id: PlayerId
+    name: string
+    avatar: string
+    playing: boolean
+}
 
 type Vec = [number, number]
-type Snake = { segments: Vec[], width: number, color: string, player: PlayerId }
+
+interface Snake {
+    segments: Vec[]
+    width: number
+    color: string
+    dead: boolean
+    player: PlayerId
+}
 
 const speed = 0.8
 const maximumTurningRadius = 0.05
 const headSizeIncrease = 1.2
+const deadColor = "#676767"
 
 export let currentState = GameState.LOBBY
 export let you: PlayerId | null = null
@@ -106,6 +120,7 @@ const updateGameState = (nextState: GameState) => {
         startGame()
     }
     if (nextState == GameState.WINNER) {
+        redraw()
         winnerMenu.classList.add('show')
     }
     if (nextState != GameState.WINNER) {
@@ -180,7 +195,7 @@ const update = (time: DOMHighResTimeStamp) => {
     if (currentState == GameState.RUNNING) {
         requestAnimationFrame(update)
 
-        if (ownSnake) {
+        if (ownSnake && !ownSnake.dead) {
             const head = ownSnake.segments[0]
             // Make sure the move distance is never bigger than the turning radius
             const moveDistance = Math.min(speed * delta, maximumTurningRadius)
@@ -198,12 +213,11 @@ const update = (time: DOMHighResTimeStamp) => {
             const nextPosition = addVec(head, scaleVec(nextDirection, moveDistance))
 
             for (const snake of otherSnakes) {
+                if (snake.dead) continue
                 for (const segment of snake.segments) {
                     const distance = getMagnitude(subVec(segment, nextPosition))
-                    if (distance < ownSnake.width * headSizeIncrease + snake.width) {
-                        ownSnake = null
-                        redraw()
-                        sendAddressed("fail")
+                    if (distance < (ownSnake.width / 2) * headSizeIncrease + (snake.width / 2)) {
+                        fail()
                         return
                     }
                 }
@@ -221,12 +235,10 @@ const update = (time: DOMHighResTimeStamp) => {
                     currentLength += getMagnitude(subVec(segmentEnd, segmentStart))
 
                     //TODO: Better way to check self collision
-                    if (currentLength > ownSnake.width * (headSizeIncrease + 2.5)) {
+                    if (currentLength > (ownSnake.width / 2) * (headSizeIncrease + 2.5)) {
                         const distance = getMagnitude(subVec(segmentEnd, nextPosition))
-                        if (distance < ownSnake.width * headSizeIncrease + ownSnake.width) {
-                            ownSnake = null
-                            redraw()
-                            sendAddressed("fail")
+                        if (distance < (ownSnake.width / 2) * headSizeIncrease + (ownSnake.width / 2)) {
+                            fail()
                             return
                         }
                     }
@@ -241,6 +253,12 @@ const update = (time: DOMHighResTimeStamp) => {
         }
         redraw()
     }
+}
+
+const fail = () => {
+    ownSnake!.dead = true
+    redraw()
+    sendAddressed("fail")
 }
 
 const uploadSnake = () => {
@@ -268,7 +286,7 @@ const redraw = () => {
 const drawSnake = (snake: Snake) => {
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    ctx.strokeStyle = snake.color
+    ctx.strokeStyle = snake.dead ? deadColor : snake.color
 
     const points = snake.segments
     ctx.beginPath()
