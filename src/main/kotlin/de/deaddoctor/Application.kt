@@ -51,7 +51,7 @@ fun Application.module() {
         json()
     }
     install(Sessions) {
-        cookie<UserSession>("user_session", SessionStorageMemory()) {
+        cookie<UserSession>("user_session", directorySessionStorage(File(".sessions"), false)) {
             cookie.path = "/"
         }
     }

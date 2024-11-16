@@ -2,10 +2,12 @@ import {sendAddressed, socket} from './ws.js'
 
 const container = document.querySelector('section')!
 const lobbyMenu = document.querySelector('.lobby')!
-const playersContainer = document.querySelector('.players')!
+const lobbyPlayersContainer = document.querySelector('.lobby .players')!
 const joinBtn: HTMLButtonElement = document.querySelector('#joinBtn')!
 const startBtn: HTMLButtonElement = document.querySelector('#startBtn')!
 const winnerMenu = document.querySelector('.winner')!
+const winnerPlayerContainer = document.querySelector('.winner .players')!
+const closeWinnerBtn: HTMLButtonElement = document.querySelector('#closeWinnerBtn')!
 const canvas = document.querySelector('canvas')!
 const ctx = canvas.getContext('2d')!
 
@@ -47,8 +49,8 @@ interface Snake {
     player: PlayerId
 }
 
-const speed = 0.8
-const maximumTurningRadius = 0.05
+const speed = 0.5
+const maximumTurningRadius = 0.03
 const headSizeIncrease = 1.2
 const deadColor = "#676767"
 
@@ -120,8 +122,9 @@ const updateGameState = (nextState: GameState) => {
         startGame()
     }
     if (nextState == GameState.WINNER) {
-        redraw()
         winnerMenu.classList.add('show')
+        winnerPlayerContainer.replaceChildren()
+        if (playing) closeWinnerBtn.disabled = false
     }
     if (nextState != GameState.WINNER) {
         winnerMenu.classList.remove('show')
@@ -152,7 +155,7 @@ const updatePlayers = (playerInfos: PlayerInfo[]) => {
             image.classList.toggle('not-joined', !player.playing)
             return image
         })
-        playersContainer.replaceChildren(...images)
+        lobbyPlayersContainer.replaceChildren(...images)
     }
 }
 
@@ -162,20 +165,37 @@ const updateSnakes = (snakes: Snake[]) => {
         for (const snake of snakes) {
             if (snake.player != you) {
                 otherSnakes.push(snake)
-            } else if (ownSnake == null && currentState == GameState.START) {
+            } else if ((ownSnake == null && currentState == GameState.START) || currentState == GameState.WINNER) {
                 ownSnake = snake
                 const head = snake.segments[0]
                 const tail = snake.segments[snake.segments.length - 1]
                 snakeLength = getMagnitude(subVec(head, tail))
             }
         }
+    } else {
+        ownSnake = null
     }
     if (currentState != GameState.RUNNING) redraw()
+    if (currentState == GameState.WINNER) showWinner()
 }
 
 const startGame = () => {
     lastTime = null
     requestAnimationFrame(update)
+}
+
+const showWinner = () => {
+    let winner = ownSnake?.dead == false ? ownSnake.player : null
+    for (const snake of otherSnakes) {
+        if (!snake.dead) winner = snake.player
+    }
+    if (winner != null) {
+        const player = players.find(player => player.id == winner)!
+        const image = document.createElement('img')
+        image.src = player.avatar
+        image.alt = `Avatar of ${player.name}`
+        winnerPlayerContainer.replaceChildren(image)
+    }
 }
 
 joinBtn.addEventListener('click', () => {
@@ -188,14 +208,19 @@ startBtn.addEventListener('click', () => {
         sendAddressed('start')
 })
 
+closeWinnerBtn.addEventListener('click', () => {
+    if (playing)
+        sendAddressed('reset')
+})
+
 const update = (time: DOMHighResTimeStamp) => {
-    const delta = lastTime ? (time - lastTime) / 1_000 : 0.0
+    const delta = lastTime ? (time - lastTime) / 1_000 : null
     lastTime = time
 
     if (currentState == GameState.RUNNING) {
         requestAnimationFrame(update)
 
-        if (ownSnake && !ownSnake.dead) {
+        if (delta != null && ownSnake && !ownSnake.dead) {
             const head = ownSnake.segments[0]
             // Make sure the move distance is never bigger than the turning radius
             const moveDistance = Math.min(speed * delta, maximumTurningRadius)
@@ -305,15 +330,15 @@ const drawSnake = (snake: Snake) => {
 
 }
 
-const drawDebugLine = (color: string, a: number[], b: number[]) => {
-    ctx.beginPath()
-    ctx.moveTo(a[0] * size, a[1] * size)
-    ctx.lineTo(b[0] * size, b[1] * size)
-    ctx.lineWidth = 1
-    ctx.lineCap = 'butt'
-    ctx.strokeStyle = color
-    ctx.stroke()
-}
+// const drawDebugLine = (color: string, a: number[], b: number[]) => {
+//     ctx.beginPath()
+//     ctx.moveTo(a[0] * size, a[1] * size)
+//     ctx.lineTo(b[0] * size, b[1] * size)
+//     ctx.lineWidth = 1
+//     ctx.lineCap = 'butt'
+//     ctx.strokeStyle = color
+//     ctx.stroke()
+// }
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(min, value), max)
 const trueMod = (value: number, mod: number) => (value % mod + mod) % mod
@@ -322,7 +347,7 @@ const scaleVec = (a: Vec, s: number): Vec => [a[0] * s, a[1] * s]
 const addVec = (a: Vec, b: Vec): Vec => [a[0] + b[0], a[1] + b[1]]
 const subVec = (a: Vec, b: Vec): Vec => [a[0] - b[0], a[1] - b[1]]
 const getMagnitude = (a: Vec) => Math.sqrt(a[0] * a[0] + a[1] * a[1])
-const normalizeVec = (a: Vec): Vec => scaleVec(a, 1.0 / getMagnitude(a))
+// const normalizeVec = (a: Vec): Vec => scaleVec(a, 1.0 / getMagnitude(a))
 const angleOfVec = (a: Vec) => Math.atan2(a[1], a[0])
 const angleToVec = (d: number): Vec => [Math.cos(d), Math.sin(d)]
 

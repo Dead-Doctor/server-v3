@@ -25,7 +25,7 @@ object SnakeModule : Module {
     private const val ASPECT_RATIO = 0.6
     private const val START_DISTANCE_CENTER = 0.3
     private const val START_LENGTH = 0.15
-    private const val START_WIDTH = 0.05
+    private const val START_WIDTH = 0.03
     private const val START_SEGMENT_COUNT = 20
     private val SNAKE_COLORS = listOf("#01baff", "#9372e2", "#ffeb02", "#e372c5")
 
@@ -67,7 +67,8 @@ object SnakeModule : Module {
                             }
                         }
                         div("winner menu") {
-                            +"Winner"
+                            h2 { +"Winner" }
+                            div("players") {}
                             button {
                                 id = "closeWinnerBtn"
                                 disabled = true
@@ -115,10 +116,8 @@ object SnakeModule : Module {
                 sendToAll(updatedPlayers())
             }
             destination("join") { playing: Boolean ->
-                if (currentState != GameState.LOBBY || !user.loggedIn || !playersPlaying.containsKey(
-                        user
-                    )
-                ) return@destination
+                if (currentState != GameState.LOBBY || !user.loggedIn || !playersPlaying.containsKey(user))
+                    return@destination
                 playersPlaying[user] = playing
                 sendToAll(updatedPlayers())
             }
@@ -139,7 +138,7 @@ object SnakeModule : Module {
                 sendToAll(updatedSnakes())
                 checkWinner()
             }
-            destination("closeWinner") {
+            destination("reset") {
                 if (currentState != GameState.WINNER || !user.loggedIn || playersPlaying[user] != true) return@destination
                 resetGame()
             }
@@ -191,6 +190,7 @@ object SnakeModule : Module {
         if (snakes!!.count { !it.dead } > 1) return
         currentState = GameState.WINNER
         sendToAll(currentState.packet)
+        sendToAll(updatedSnakes())
     }
 
     private fun WebSocketEventHandlerContext.resetGame() {
