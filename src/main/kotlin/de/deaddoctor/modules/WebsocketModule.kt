@@ -3,7 +3,6 @@ package de.deaddoctor.modules
 import de.deaddoctor.*
 import de.deaddoctor.CSSResource.Companion.addStyles
 import de.deaddoctor.CSSResource.Companion.getStyles
-import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
@@ -58,8 +57,8 @@ object WebsocketModule : Module {
     }
 
     private fun WebSocketEventHandlerContext.sendUpdatedAccountInfos() {
-        val connectedAccounts = connections.filter { it.account.loggedIn }.distinct()
-        sendToAll(connectedAccounts.map { AccountInfo(it.account.name, it.account.avatar!!) })
+        val connectedAccounts = connections.filter { it.user.loggedIn }.distinct()
+        sendToAll(connectedAccounts.map { AccountInfo(it.user.name, it.user.avatar!!) })
     }
 
     private val styles by CSSRules {

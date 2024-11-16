@@ -3,7 +3,6 @@ package de.deaddoctor.modules
 import de.deaddoctor.*
 import de.deaddoctor.CSSResource.Companion.addStyles
 import de.deaddoctor.CSSResource.Companion.getStyles
-import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.css.*
 import kotlinx.html.*
@@ -35,16 +34,16 @@ object ChatModule : Module {
         webSocketAddressable("ws") {
             destination("sendMessage") { msg: String ->
                 if (msg == "/list") {
-                    val onlineAccounts = connections.map { it.account }.distinct()
+                    val onlineAccounts = connections.map { it.user }.distinct()
                     sendToConnection(
                         connection,
                         "Currently online (${onlineAccounts.count()}): ${onlineAccounts.joinToString(", ") { it.name }}"
                     )
                 } else if (msg.startsWith("/me ")) {
-                    if (account.loggedIn) sendToAccount(account, "[Secret]: ${msg.substringAfter("/me ")}")
+                    if (user.loggedIn) sendToUser(user, "[Secret]: ${msg.substringAfter("/me ")}")
                     else sendToConnection(connection, "You're not logged in!")
                 } else {
-                    sendToAll("<${account.name}> $msg")
+                    sendToAll("<${user.name}> $msg")
                 }
             }
         }

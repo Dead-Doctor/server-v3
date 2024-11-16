@@ -7,7 +7,7 @@ import kotlinx.datetime.*
 import kotlinx.html.*
 
 @Suppress("MemberVisibilityCanBePrivate")
-class PageLayout(private val account: Account, private val uri: String, private val title: String): Template<HTML> {
+class PageLayout(private val user: User, private val uri: String, private val title: String): Template<HTML> {
     companion object {
         val styles by CSSFile()
 
@@ -49,9 +49,9 @@ class PageLayout(private val account: Account, private val uri: String, private 
                 nav {
                     a(classes = "action", href = "/", block = branding)
                     links()
-                    val profileAction = if (!account.loggedIn) "login" else "logout"
+                    val profileAction = if (!user.loggedIn) "login" else "logout"
                     a(classes = "profile action", href = "/$profileAction?redirectUrl=${uri.encodeURLParameter()}") {
-                        img(src = account.avatar ?: "https://cdn.discordapp.com/embed/avatars/4.png")
+                        img(src = user.avatar ?: "https://cdn.discordapp.com/embed/avatars/4.png")
                         span { +profileAction }
                     }
                     button(classes = "hamburger", type = ButtonType.button) {

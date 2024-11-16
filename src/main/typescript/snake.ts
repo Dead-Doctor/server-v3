@@ -16,7 +16,10 @@ interface PacketTypeMap {
     'updateSnakes': Snake[]
 }
 
-type Packet<K extends keyof PacketTypeMap> = { type: K, data: PacketTypeMap[K] }
+interface Packet<K extends keyof PacketTypeMap> {
+    type: K
+    data: PacketTypeMap[K]
+}
 
 enum GameState {
     LOBBY,
@@ -71,32 +74,23 @@ window.addEventListener('touchmove', (e) => {
     aimPos = [x, y]
 })
 
+const isPacket = <T extends keyof PacketTypeMap>(packet: Packet<any>, type: T): packet is Packet<T> => packet.type === type
 socket.addEventListener('message', (e: MessageEvent<string>) => {
     let packet: Packet<keyof PacketTypeMap> = JSON.parse(e.data)
     console.log(`Received packet of type: ${packet.type}`)
-    let p
-    switch (packet.type) {
-        case 'gameState':
-            p = packet as Packet<'gameState'>
-            updateGameState(p.data)
-            break
-        case 'updateYou':
-            p = packet as Packet<'updateYou'>
-            if (p.data == 'alreadyLoggedIn') {
-                alert('You are already logged in!')
-                window.location.pathname = '/'
-            }
-            you = p.data
-            joinBtn.disabled = false
-            break
-        case 'updatePlayers':
-            p = packet as Packet<'updatePlayers'>
-            updatePlayers(p.data)
-            break
-        case 'updateSnakes':
-            p = packet as Packet<'updateSnakes'>
-            updateSnakes(p.data)
-            break
+    if (isPacket(packet, 'gameState')) {
+        updateGameState(packet.data)
+    } else if (isPacket(packet, 'updateYou')) {
+        if (packet.data == 'alreadyLoggedIn') {
+            alert('You are already logged in!')
+            window.location.pathname = '/'
+        }
+        you = packet.data
+        joinBtn.disabled = false
+    } else if (isPacket(packet, 'updatePlayers')) {
+        updatePlayers(packet.data)
+    } else if (isPacket(packet, 'updateSnakes')) {
+        updateSnakes(packet.data)
     }
 })
 
@@ -315,7 +309,6 @@ const angleOfVec = (a: Vec) => Math.atan2(a[1], a[0])
 const angleToVec = (d: number): Vec => [Math.cos(d), Math.sin(d)]
 
 window.addEventListener('resize', resizeCanvas)
-//TODO: why is this necessary???
 joinBtn.disabled = true
 startBtn.disabled = true
 resizeCanvas()

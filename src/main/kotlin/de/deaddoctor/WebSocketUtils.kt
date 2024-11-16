@@ -14,9 +14,8 @@ fun Route.webSocketAddressable(
     val connections = mutableListOf<Connection>()
 
     webSocket(s) {
-
-        val account = call.getAccount()
-        val connection = Connection(this, account)
+        val user = call.user
+        val connection = Connection(this, user)
         val webSocketEventHandlerContext = WebSocketEventHandlerContext(connections, connection)
 
         connections.add(connection)
@@ -66,10 +65,10 @@ class WebSocketEventRegistrant {
 
 class WebSocketEventHandlerContext(connections: MutableList<Connection>, val connection: Connection) :
     WebSocketSender(connections) {
-    val account
-        get() = connection.account
+    val user
+        get() = connection.user
 
-    fun countConnections(account: Account = connection.account) = connections.count { it.account == account }
+    fun countConnections(user: User = connection.user) = connections.count { it.user == user }
 
     inline fun <reified T> sendBack(content: T) = sendToConnection(connection, content)
 }
@@ -78,8 +77,8 @@ open class WebSocketSender(val connections: MutableList<Connection>) {
     inline fun <reified T> sendToAll(content: T) =
         sendToAll(connections, content)
 
-    inline fun <reified T> sendToAccount(account: Account, content: T) =
-        sendToAll(connections.filter { it.account == account }, content)
+    inline fun <reified T> sendToUser(user: User, content: T) =
+        sendToAll(connections.filter { it.user == user }, content)
 
     inline fun <reified T> sendToAll(connections: List<Connection>, content: T) =
         with(Json.encodeToString(content)) { connections.forEach { sendMessageTo(it, this) } }
@@ -97,4 +96,4 @@ open class WebSocketSender(val connections: MutableList<Connection>) {
     }
 }
 
-data class Connection(val session: DefaultWebSocketServerSession, val account: Account)
+data class Connection(val session: DefaultWebSocketServerSession, val user: User)

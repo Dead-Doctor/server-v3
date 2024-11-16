@@ -1,7 +1,7 @@
 package de.deaddoctor.modules
 
 import de.deaddoctor.Module
-import de.deaddoctor.getAccount
+import de.deaddoctor.user
 import de.deaddoctor.httpClient
 import de.deaddoctor.respondPage
 import io.ktor.client.request.*
@@ -86,14 +86,14 @@ object MusicGuesserModule : Module {
     override fun Route.route() {
         get {
             if (!ready) throw Exception("Not ready yet")
-            val account = call.getAccount()
+            val user = call.user
             val track = tracks[Random.nextInt(0, tracks.size)]
             val song = queryTrack(track)
             call.respondPage(NAME) {
                 content {
                     section {
                         h1 { +NAME }
-                        h3 { +"Welcome to $NAME, ${account.name}!" }
+                        h3 { +"Welcome to $NAME, ${user.name}!" }
                     }
                     section {
                         p { +"${song.trackName} - ${song.duration}" }

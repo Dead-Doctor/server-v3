@@ -10,12 +10,14 @@ import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 fun Application.installOAuth() {
     authentication {
         oauth("discord") {
             skipWhen { call ->
-                call.sessions.get<UserSession>() != null || call.parameters["error"] != null
+                call.user.loggedIn || call.parameters["error"] != null
             }
             client = httpClient
             providerLookup = {
@@ -76,22 +78,7 @@ data object OAuthState {
 }
 
 @Serializable
-data class UserSession(val state: String, val token: String, val userInfo: UserInfo) {
-    companion object {
-        suspend fun generate(principal: OAuthAccessTokenResponse.OAuth2) = UserSession(
-            OAuthState.decode(principal.state!!),
-            principal.accessToken,
-            httpClient.get("https://discord.com/api/users/@me") {
-                headers {
-                    append(HttpHeaders.Authorization, "Bearer ${principal.accessToken}")
-                }
-            }.body<UserInfo>()
-        )
-    }
-}
-
-@Serializable
-data class UserInfo(
+data class DiscordUser(
     val id: Long,
     val username: String,
     val discriminator: String,
@@ -121,30 +108,59 @@ data class UserInfo(
     val avatarDecoration: String?,
 )
 
-class Account(private val user: UserInfo?) {
+@Serializable
+data class UserSession(
+    val id: String,
+    val info: DiscordUser?
+) {
+    companion object {
+        @OptIn(ExperimentalUuidApi::class)
+        fun generate() = UserSession(Uuid.random().toString(), null)
+        @OptIn(ExperimentalStdlibApi::class)
+        suspend fun generate(principal: OAuthAccessTokenResponse.OAuth2): UserSession {
+            val info = httpClient.get("https://discord.com/api/users/@me") {
+                headers {
+                    append(HttpHeaders.Authorization, "Bearer ${principal.accessToken}")
+                }
+            }.body<DiscordUser>()
+            return UserSession(
+                info.id.toHexString(),
+                info
+            )
+        }
+    }
+}
+
+class User(private val session: UserSession?) {
     companion object {
         const val DISCORD_CDN = "https://cdn.discordapp.com/"
     }
 
+    val id = session?.id
+
     val loggedIn
-        get() = user != null
-    val id
-        get() = user?.id
+        get() = session?.info != null
     val name
-        get() = user?.globalName ?: "Anonymous"
+        get() = session?.info?.globalName ?: "Anonymous"
 
     val avatar
-        get() = user?.let {
-            if (user.avatar != null) "${DISCORD_CDN}avatars/${user.id}/${user.avatar}.png"
-            else "${DISCORD_CDN}embed/avatars/${(user.id shr 22) % 6}.png"
+        get() = session?.info?.let {
+            if (it.avatar != null) "${DISCORD_CDN}avatars/${it.id}/${it.avatar}.png"
+            else "${DISCORD_CDN}embed/avatars/${(it.id shr 22) % 6}.png"
         }
 
     override fun toString(): String {
-        return "Account($name)"
+        return "User($name, $id)"
     }
 
-    override fun equals(other: Any?) = other is Account && (other.loggedIn && loggedIn && other.id == id)
-    override fun hashCode() = id.hashCode()
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is User) return false
+        return id != null && id == other.id
+    }
+
+    override fun hashCode() = id?.hashCode() ?: 0
 }
 
-fun ApplicationCall.getAccount() = Account(sessions.get<UserSession>()?.userInfo)
+val ApplicationCall.user: User
+    get() = User(sessions.get<UserSession>())

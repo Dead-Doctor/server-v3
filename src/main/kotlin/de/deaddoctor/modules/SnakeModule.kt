@@ -3,7 +3,6 @@ package de.deaddoctor.modules
 import de.deaddoctor.*
 import de.deaddoctor.CSSResource.Companion.addStyles
 import de.deaddoctor.CSSResource.Companion.getStyles
-import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -32,8 +31,12 @@ object SnakeModule : Module {
 
     private var currentState = GameState.LOBBY
 
-    private val playersPlaying: MutableMap<Account, Boolean> = mutableMapOf()
+    private val playersPlaying: MutableMap<User, Boolean> = mutableMapOf()
 
+    /**
+     * List of snakes
+     *  - `null` when game is not running
+     **/
     private var snakes: MutableList<Snake>? = null
 
     private var lastTick: Duration = Duration.ZERO
@@ -83,26 +86,28 @@ object SnakeModule : Module {
                 sendBack(currentState.packet)
                 if (snakes != null)
                     sendBack(Packet("updateSnakes", snakes))
-                if (!account.loggedIn) {
+                if (!user.loggedIn) {
                     sendBack(updatedPlayers())
                     return@connection
                 }
-                if (playersPlaying.containsKey(account)) {
+                if (playersPlaying.containsKey(user)) {
                     sendBack(Packet("updateYou", "alreadyLoggedIn"))
                     return@connection
                 }
-                sendBack(Packet("updateYou", account.id!!.toString()))
-                playersPlaying[account] = false
+                sendBack(Packet("updateYou", user.id!!))
+                playersPlaying[user] = false
                 sendToAll(updatedPlayers())
             }
             disconnection {
-                if (!account.loggedIn || !playersPlaying.containsKey(account)) return@disconnection
-                if (playersPlaying[account]!!) {
-                    if (snakes != null)
-                        snakes!!.removeIf { it.player == account.id!!.toString() }
-                    checkWinner()
+                if (!user.loggedIn || !playersPlaying.containsKey(user) || countConnections(user) >= 1) return@disconnection
+                if (playersPlaying[user]!!) {
+                    if (snakes != null) {
+                        snakes!!.removeIf { it.player == user.id!! }
+                    }
+                    if (currentState == GameState.RUNNING)
+                        checkWinner()
                 }
-                playersPlaying.remove(account)
+                playersPlaying.remove(user)
                 if (playersPlaying.count { it.value } == 0) {
                     resetGame()
                     return@disconnection
@@ -110,28 +115,31 @@ object SnakeModule : Module {
                 sendToAll(updatedPlayers())
             }
             destination("join") { playing: Boolean ->
-                if (currentState != GameState.LOBBY || !account.loggedIn || !playersPlaying.containsKey(account)) return@destination
-                playersPlaying[account] = playing
+                if (currentState != GameState.LOBBY || !user.loggedIn || !playersPlaying.containsKey(
+                        user
+                    )
+                ) return@destination
+                playersPlaying[user] = playing
                 sendToAll(updatedPlayers())
             }
             destination("start") {
-                if (currentState != GameState.LOBBY || playersPlaying[account] != true) return@destination
+                if (currentState != GameState.LOBBY || playersPlaying[user] != true) return@destination
                 startGame()
             }
             destination("snake") { snake: Snake ->
-                if (currentState != GameState.RUNNING || !account.loggedIn || playersPlaying[account] != true || snake.player != account.id!!.toString()) return@destination
+                if (currentState != GameState.RUNNING || !user.loggedIn || playersPlaying[user] != true || snake.player != user.id!!.toString()) return@destination
                 val oldSnake = snakes!!.find { it.player == snake.player }!!
                 oldSnake.segments = snake.segments
                 oldSnake.width = snake.width
             }
             destination("fail") {
-                if (currentState != GameState.RUNNING || !account.loggedIn || playersPlaying[account] != true) return@destination
-                snakes!!.removeIf { it.player == account.id!!.toString() }
+                if (currentState != GameState.RUNNING || !user.loggedIn || playersPlaying[user] != true) return@destination
+                snakes!!.removeIf { it.player == user.id!!.toString() }
                 sendToAll(updatedSnakes())
                 checkWinner()
             }
             destination("closeWinner") {
-                if (currentState != GameState.WINNER || !account.loggedIn || playersPlaying[account] != true) return@destination
+                if (currentState != GameState.WINNER || !user.loggedIn || playersPlaying[user] != true) return@destination
                 resetGame()
             }
         }
@@ -145,6 +153,7 @@ object SnakeModule : Module {
 
         CoroutineScope(Job()).launch {
             delay(3.seconds)
+            if (currentState != GameState.START) return@launch
             currentState = GameState.RUNNING
             sendToAll(currentState.packet)
 
@@ -273,7 +282,7 @@ object SnakeModule : Module {
 
     @Serializable
     data class PlayerInfo(val id: String, val name: String, val avatar: String, val playing: Boolean) {
-        constructor(account: Account, playing: Boolean) : this(
+        constructor(account: User, playing: Boolean) : this(
             account.id!!.toString(),
             account.name,
             account.avatar!!,
