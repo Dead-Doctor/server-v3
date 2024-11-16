@@ -138,15 +138,22 @@ button {
     cursor: pointer;
     transition: 75ms linear all;
 
-
-    &:hover,
-    &:focus-visible {
-        background-color: var(--primary);
-        outline: none;
+    &:disabled {
+        color: var(--muted);
+        background-color: var(--background);
+        cursor: not-allowed;
     }
 
-    &:active {
-        background-color: var(--accent);
+    &:not(:disabled) {
+        &:hover,
+        &:focus-visible {
+            background-color: var(--primary);
+            outline: none;
+        }
+
+        &:active {
+            background-color: var(--accent);
+        }
     }
 }
 
