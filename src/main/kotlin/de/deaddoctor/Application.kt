@@ -7,7 +7,6 @@ import io.ktor.client.engine.apache.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
-import io.ktor.server.auth.*
 import io.ktor.server.engine.*
 import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
@@ -15,7 +14,6 @@ import io.ktor.server.plugins.autohead.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.forwardedheaders.*
 import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
 import io.ktor.server.websocket.*
@@ -70,19 +68,21 @@ fun Application.module() {
     }
     installOAuth()
     install(StatusPages) {
-        status(HttpStatusCode.NotFound, HttpStatusCode.InternalServerError) { call, status ->
-            call.respondPage("Ktor Test") {
-                content {
-                    h1 { +status.value.toString() }
-                    h3 { +status.description }
+        if (this@module.developmentMode) {
+            exception<Throwable> { call, cause ->
+                call.respondPage("Internal Server Error") {
+                    content {
+                        h1 { +"500" }
+                        h3 { +"${cause::class.simpleName}: ${cause.message}" }
+                    }
                 }
             }
         }
-        exception<Throwable> { call, cause ->
-            call.respondPage("Ktor Test") {
+        status(HttpStatusCode.NotFound, HttpStatusCode.InternalServerError) { call, status ->
+            call.respondPage("Error ${status.value}") {
                 content {
-                    h1 { +"500" }
-                    h3 { +"${cause::class.simpleName}: ${cause.message}" }
+                    h1 { +status.value.toString() }
+                    h3 { +status.description }
                 }
             }
         }
@@ -164,24 +164,7 @@ fun Application.module() {
         enable(ChatModule)
         enable(SnakeModule)
         enable(MusicGuesserModule)
-        authenticate("discord") {
-            get("login") {}
-            get("login/callback") {
-                val error = call.request.queryParameters["error"]
-                if (error != null) {
-                    // Authorization was denied/canceled
-                    call.respondRedirect(OAuthState.url(call.request.queryParameters["state"]))
-                    return@get
-                }
-                val principal: OAuthAccessTokenResponse.OAuth2 = call.principal()!!
-                call.sessions.set(UserSession.generate(principal))
-                call.respondRedirect(OAuthState.url(principal.state))
-            }
-        }
-        get("logout") {
-            call.sessions.clear<UserSession>()
-            call.respondRedirect(call.request.queryParameters["redirectUrl"] ?: "/")
-        }
+        routeOAuth()
         staticResources("/", "static")
     }
 }

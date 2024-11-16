@@ -5,6 +5,8 @@ import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -12,6 +14,9 @@ import kotlinx.serialization.Serializable
 fun Application.installOAuth() {
     authentication {
         oauth("discord") {
+            skipWhen { call ->
+                call.sessions.get<UserSession>() != null || call.parameters["error"] != null
+            }
             client = httpClient
             providerLookup = {
                 val redirects = mutableMapOf<String, String>()
@@ -24,13 +29,13 @@ fun Application.installOAuth() {
                     clientSecret = getConfig("DISCORD_CLIENT_SECRET"),
                     defaultScopes = listOf("identify"),
                     onStateCreated = { call, state ->
-                        call.request.queryParameters["redirectUrl"]?.let {
+                        call.parameters["redirectUrl"]?.let {
                             redirects[state] = it
                         }
                     },
                     authorizeUrlInterceptor = {
                         val state = parameters["state"]!!
-                        val redirectUrl = redirects.remove(state) ?: ""
+                        val redirectUrl = redirects.remove(state) ?: "/"
                         parameters["state"] = OAuthState.encode(state, redirectUrl)
                     }
                 )
@@ -40,10 +45,34 @@ fun Application.installOAuth() {
     }
 }
 
+
+fun Routing.routeOAuth() {
+    authenticate("discord") {
+        get("login") {
+            call.respondRedirect("/")
+        }
+        get("login/callback") {
+            val principal = call.principal<OAuthAccessTokenResponse.OAuth2>()
+            if (principal != null) {
+                call.sessions.set(UserSession.generate(principal))
+
+            } else if (application.developmentMode) when (call.parameters["error"]) {
+                "access_denied" -> {}
+                else -> throw IllegalArgumentException("${call.parameters["error"]}: ${call.parameters["error_description"]}")
+            }
+            call.respondRedirect(OAuthState.url(call.parameters["state"]))
+        }
+    }
+    get("logout") {
+        call.sessions.clear<UserSession>()
+        call.respondRedirect(call.parameters["redirectUrl"] ?: "/")
+    }
+}
+
 data object OAuthState {
     fun encode(state: String, redirectUrl: String) = state + redirectUrl.encodeURLParameter()
-    fun decode(state: String) = state.substring(0, 16)
-    fun url(state: String?) = state?.substring(16)?.decodeURLPart() ?: "/"
+    fun decode(state: String) = state.take(16)
+    fun url(state: String?) = state.orEmpty().drop(16).decodeURLPart().ifBlank { "/" }
 }
 
 @Serializable
@@ -113,6 +142,7 @@ class Account(private val user: UserInfo?) {
     override fun toString(): String {
         return "Account($name)"
     }
+
     override fun equals(other: Any?) = other is Account && (other.loggedIn && loggedIn && other.id == id)
     override fun hashCode() = id.hashCode()
 }

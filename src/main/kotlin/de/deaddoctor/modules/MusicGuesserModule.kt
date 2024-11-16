@@ -6,7 +6,6 @@ import de.deaddoctor.httpClient
 import de.deaddoctor.respondPage
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
-import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Instant
@@ -140,13 +139,11 @@ object MusicGuesserModule : Module {
         val collectionName: String,
         val collectionCensoredName: String,
         val collectionViewUrl: String,
-        val collectionPrice: Float,
 
         val trackId: Long,
         val trackName: String,
         val trackCensoredName: String,
         val trackViewUrl: String,
-        val trackPrice: Float,
 
         val previewUrl: String,
         val artworkUrl30: String,
