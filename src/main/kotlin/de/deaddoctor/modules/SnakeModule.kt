@@ -18,6 +18,8 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
+//TODO: power ups / sprinting / fruits slow down or decrease size of snake
+
 object SnakeModule : Module {
     override fun path() = "snake"
 
@@ -25,7 +27,7 @@ object SnakeModule : Module {
     private const val ASPECT_RATIO = 0.6
     private const val START_DISTANCE_CENTER = 0.3
     private const val START_LENGTH = 0.15
-    private const val START_WIDTH = 0.03
+    private const val START_WIDTH = 0.04
     private const val START_SEGMENT_COUNT = 20
     private val SNAKE_COLORS = listOf("#01baff", "#9372e2", "#ffeb02", "#e372c5")
 

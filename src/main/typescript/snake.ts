@@ -51,13 +51,17 @@ interface Snake {
 
 const speed = 0.5
 const maximumTurningRadius = 0.03
-const headSizeIncrease = 1.2
+const headSizeIncrease = 1.6
 const deadColor = "#676767"
 
 export let currentState = GameState.LOBBY
 export let you: PlayerId | null = null
 export let playing: boolean | null = null
 export let players: PlayerInfo[]
+
+export let profileImages: {
+    [id: string]: HTMLImageElement
+}
 
 let size: number
 let canvasRect: DOMRect
@@ -148,7 +152,13 @@ const updatePlayers = (playerInfos: PlayerInfo[]) => {
     }
 
     if (currentState == GameState.LOBBY) {
+        profileImages = {}
         const images = players.map((player, _, __) => {
+            if (player.playing) {
+                const imageData = new Image()
+                imageData.src = player.avatar
+                profileImages[player.id] = imageData
+            }
             const image = document.createElement('img')
             image.src = player.avatar
             image.alt = `Avatar of ${player.name}`
@@ -156,6 +166,7 @@ const updatePlayers = (playerInfos: PlayerInfo[]) => {
             return image
         })
         lobbyPlayersContainer.replaceChildren(...images)
+        console.log(profileImages)
     }
 }
 
@@ -331,12 +342,21 @@ const drawSnake = (snake: Snake) => {
     ctx.lineWidth = snake.width * size
     ctx.stroke()
 
+    ctx.save()
+    const headSize = snake.width * size * headSizeIncrease
+    const headX = points[0][0] * size
+    const headY = points[0][1] * size
+    const rotation = angleOfVec(subVec(points[0], points[1])) + Math.PI / 2
+    ctx.translate(headX, headY)
+    ctx.rotate(rotation)
     ctx.beginPath()
-    ctx.moveTo(points[0][0] * size, points[0][1] * size)
-    ctx.lineTo(points[0][0] * size, points[0][1] * size)
-    ctx.lineWidth = snake.width * headSizeIncrease * size
-    ctx.stroke()
-
+    ctx.arc(0, 0, (headSize / 2), 0, Math.PI * 2)
+    ctx.clip()
+    if (snake.dead) {
+        ctx.filter = 'grayscale(100%)'
+    }
+    ctx.drawImage(profileImages[snake.player], -headSize / 2, -headSize / 2, headSize, headSize)
+    ctx.restore()
 }
 
 // const drawDebugLine = (color: string, a: number[], b: number[]) => {
