@@ -5,6 +5,8 @@ const lobbyMenu = document.querySelector('.lobby')!
 const lobbyPlayersContainer = document.querySelector('.lobby .players')!
 const joinBtn: HTMLButtonElement = document.querySelector('#joinBtn')!
 const startBtn: HTMLButtonElement = document.querySelector('#startBtn')!
+const startMenu = document.querySelector('.start')!
+const countDown = document.querySelector('#countDown')!
 const winnerMenu = document.querySelector('.winner')!
 const winnerPlayerContainer = document.querySelector('.winner .players')!
 const closeWinnerBtn: HTMLButtonElement = document.querySelector('#closeWinnerBtn')!
@@ -53,6 +55,7 @@ const speed = 0.5
 const maximumTurningRadius = 0.03
 const headSizeIncrease = 1.6
 const deadColor = "#676767"
+const countDownTimeout = 1000
 
 export let currentState = GameState.LOBBY
 export let you: PlayerId | null = null
@@ -120,7 +123,11 @@ const updateGameState = (nextState: GameState) => {
         lobbyMenu.classList.remove('show')
     }
     if (nextState == GameState.START) {
-        //TODO: show countdown
+        countDownStep(0, '3')
+        countDownStep(1, '2')
+        countDownStep(2, '1')
+        countDownStep(3, 'GO')
+        countDownStep(4, '')
     }
     if (nextState == GameState.RUNNING) {
         startGame()
@@ -188,6 +195,24 @@ const updateSnakes = (snakes: Snake[]) => {
     }
     if (currentState != GameState.RUNNING) redraw()
     if (currentState == GameState.WINNER) showWinner()
+}
+
+const countDownStep = (i: number, text: string) => {
+    setTimeout(() => {
+        if (text !== '') {
+            startMenu.classList.add('show')
+            countDown.textContent = text
+            countDown.animate([
+                { transform: 'scale(100%)', opacity: '100%' },
+                { transform: 'scale(85%)', opacity: '0%' }
+            ], {
+                duration: countDownTimeout * 1.1,
+                easing: 'ease-in'
+            })
+        } else {
+            startMenu.classList.remove('show')
+        }
+    }, countDownTimeout * i)
 }
 
 const startGame = () => {

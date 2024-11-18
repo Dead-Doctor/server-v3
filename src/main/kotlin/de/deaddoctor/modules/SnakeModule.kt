@@ -30,6 +30,7 @@ object SnakeModule : Module {
     private const val START_WIDTH = 0.04
     private const val START_SEGMENT_COUNT = 20
     private val SNAKE_COLORS = listOf("#01baff", "#9372e2", "#ffeb02", "#e372c5")
+    private val COUNT_DOWN_TIMEOUT = 1000.milliseconds
 
     private var currentState = GameState.LOBBY
 
@@ -66,6 +67,11 @@ object SnakeModule : Module {
                                     disabled = true
                                     +"Start Game"
                                 }
+                            }
+                        }
+                        div("start menu") {
+                            h2 {
+                                id = "countDown"
                             }
                         }
                         div("winner menu") {
@@ -154,7 +160,7 @@ object SnakeModule : Module {
         sendToAll(updatedSnakes())
 
         CoroutineScope(Job()).launch {
-            delay(3.seconds)
+            delay(COUNT_DOWN_TIMEOUT * 3)
             if (currentState != GameState.START) return@launch
             currentState = GameState.RUNNING
             sendToAll(currentState.packet)
