@@ -117,11 +117,11 @@ object SnakeModule : Module {
                         checkWinner()
                 }
                 playersPlaying.remove(user)
+                sendToAll(updatedPlayers())
                 if (playersPlaying.count { it.value } == 0) {
                     resetGame()
                     return@disconnection
                 }
-                sendToAll(updatedPlayers())
             }
             destination("join") { playing: Boolean ->
                 if (currentState != GameState.LOBBY || !user.loggedIn || !playersPlaying.containsKey(user))
@@ -206,8 +206,6 @@ object SnakeModule : Module {
         sendToAll(updatedSnakes())
         currentState = GameState.LOBBY
         sendToAll(currentState.packet)
-        playersPlaying.replaceAll { _, _ -> false }
-        sendToAll(updatedPlayers())
     }
 
     private fun updatedPlayers() = Packet("updatePlayers", playersPlaying.map {

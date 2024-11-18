@@ -52,7 +52,7 @@ interface Snake {
 }
 
 const speed = 0.5
-const maximumTurningRadius = 0.03
+const maximumTurningRadius = 0.02
 const headSizeIncrease = 1.6
 const deadColor = "#676767"
 const countDownTimeout = 1000
@@ -261,7 +261,7 @@ const update = (time: DOMHighResTimeStamp) => {
             // Make sure the move distance is never bigger than the turning radius
             const moveDistance = Math.min(speed * delta, maximumTurningRadius)
 
-            snakeLength *= 1.0 + 0.1 * delta
+            snakeLength += 0.1 * delta
 
             const lastDirection = angleOfVec(subVec(head, ownSnake.segments[1]))
             const direction = angleOfVec(subVec(aimPos, head))
@@ -304,8 +304,7 @@ const update = (time: DOMHighResTimeStamp) => {
                     const segmentEnd = ownSnake.segments[i]
                     currentLength += getMagnitude(subVec(segmentEnd, segmentStart))
 
-                    //TODO: Better way to check self collision
-                    if (currentLength > (ownSnake.width / 2) * (headSizeIncrease + 2.5)) {
+                    if (currentLength > headRadius + (ownSnake.width / 2) * 1.2) {
                         const distance = getMagnitude(subVec(segmentEnd, nextPosition))
                         if (distance < headRadius + (ownSnake.width / 2)) {
                             fail()
