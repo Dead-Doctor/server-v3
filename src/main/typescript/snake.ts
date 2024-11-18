@@ -237,11 +237,20 @@ const update = (time: DOMHighResTimeStamp) => {
             const nextDirection = angleToVec(lastDirection + limitedDirectionChange)
             const nextPosition = addVec(head, scaleVec(nextDirection, moveDistance))
 
+            let headRadius = ownSnake.width * headSizeIncrease / 2;
+            if (nextPosition[0] - headRadius < 0.0
+                || nextPosition[0] + headRadius > 1.0
+                || nextPosition[1] - headRadius < 0.0
+                || nextPosition[1] + headRadius > canvas.height / canvas.width) {
+                fail()
+                return
+            }
+
             for (const snake of otherSnakes) {
                 if (snake.dead) continue
                 for (const segment of snake.segments) {
                     const distance = getMagnitude(subVec(segment, nextPosition))
-                    if (distance < (ownSnake.width / 2) * headSizeIncrease + (snake.width / 2)) {
+                    if (distance < headRadius + (snake.width / 2)) {
                         fail()
                         return
                     }
@@ -262,7 +271,7 @@ const update = (time: DOMHighResTimeStamp) => {
                     //TODO: Better way to check self collision
                     if (currentLength > (ownSnake.width / 2) * (headSizeIncrease + 2.5)) {
                         const distance = getMagnitude(subVec(segmentEnd, nextPosition))
-                        if (distance < (ownSnake.width / 2) * headSizeIncrease + (ownSnake.width / 2)) {
+                        if (distance < headRadius + (ownSnake.width / 2)) {
                             fail()
                             return
                         }
