@@ -1,5 +1,6 @@
-import {sendAddressed, socket} from './ws.js'
+import { openSocket } from './ws.js'
 
+const socket = openSocket<Packet<keyof PacketTypeMap>>()
 const container = document.querySelector('section')!
 const lobbyMenu = document.querySelector('.lobby')!
 const lobbyPlayersContainer = document.querySelector('.lobby .players')!
@@ -98,8 +99,7 @@ window.addEventListener('touchmove', (e) => {
 })
 
 const isPacket = <T extends keyof PacketTypeMap>(packet: Packet<any>, type: T): packet is Packet<T> => packet.type === type
-socket.addEventListener('message', (e: MessageEvent<string>) => {
-    let packet: Packet<keyof PacketTypeMap> = JSON.parse(e.data)
+socket.receive(packet => {
     console.log(`Received packet of type: ${packet.type}`)
     if (isPacket(packet, 'gameState')) {
         updateGameState(packet.data)
@@ -236,17 +236,17 @@ const showWinner = () => {
 
 joinBtn.addEventListener('click', () => {
     if (you)
-        sendAddressed('join', !playing)
+        socket.send('join', !playing)
 })
 
 startBtn.addEventListener('click', () => {
     if (playing)
-        sendAddressed('start')
+        socket.send('start')
 })
 
 closeWinnerBtn.addEventListener('click', () => {
     if (playing)
-        sendAddressed('reset')
+        socket.send('reset')
 })
 
 const update = (time: DOMHighResTimeStamp) => {
@@ -327,11 +327,11 @@ const update = (time: DOMHighResTimeStamp) => {
 const fail = () => {
     ownSnake!.dead = true
     redraw()
-    sendAddressed("fail")
+    socket.send("fail")
 }
 
 const uploadSnake = () => {
-    sendAddressed('snake', ownSnake)
+    socket.send('snake', ownSnake)
 }
 
 const resizeCanvas = () => {

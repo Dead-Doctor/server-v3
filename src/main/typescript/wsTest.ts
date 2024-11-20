@@ -1,12 +1,12 @@
-import { socket } from "./ws.js";
+import { openSocket } from "./ws.js";
 
+const socket = openSocket<AccountInfo[]>()
 const accountsElement = document.querySelector('.accounts')!
 const data = fetch(location.pathname + '/data')
 
 type AccountInfo = { name: string, avatar: string };
-socket.addEventListener('message', (e) => {
-    const accounts: AccountInfo[] = JSON.parse(e.data)
-    const images = accounts.map((value, i, arr) => {
+socket.receive((accounts) => {
+    const images = accounts.map(value => {
         const image = document.createElement('img')
         image.src = value.avatar
         image.alt = `Avatar of ${value.name}`
