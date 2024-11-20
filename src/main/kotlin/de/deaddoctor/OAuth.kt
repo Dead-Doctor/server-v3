@@ -134,6 +134,7 @@ data class UserSession(
 class User(private val session: UserSession?) {
     companion object {
         const val DISCORD_CDN = "https://cdn.discordapp.com/"
+        const val ADMIN_USER = "621027101645996053"
     }
 
     val id = session?.id
@@ -148,6 +149,8 @@ class User(private val session: UserSession?) {
             if (it.avatar != null) "${DISCORD_CDN}avatars/${it.id}/${it.avatar}.png"
             else "${DISCORD_CDN}embed/avatars/${(it.id shr 22) % 6}.png"
         }
+
+    val admin = id == ADMIN_USER
 
     override fun toString(): String {
         return "User($name, $id)"

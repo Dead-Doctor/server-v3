@@ -9,6 +9,8 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.css.CSSBuilder
 import kotlinx.html.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import kotlin.reflect.KProperty
 
 interface Module {
@@ -77,5 +79,14 @@ suspend fun ApplicationCall.respondCss(css: String) {
 }
 
 fun FlowOrMetaDataOrPhrasingContent.addScript(name: String) {
-    script { src = "/${name}.js"; type = "module"; defer = true }
+    script { src = "/js/${name}.js"; type = "module"; defer = true }
+}
+
+val dataEncoder = Json
+inline fun <reified T> FlowOrMetaDataOrPhrasingContent.addData(data: T) {
+    script { type = "application/json"
+        unsafe {
+            +dataEncoder.encodeToString(data)
+        }
+    }
 }
