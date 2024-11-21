@@ -34,7 +34,7 @@ object SnakeModule : Module {
 
     private var currentState = GameState.LOBBY
 
-    private val playersPlaying: MutableMap<User, Boolean> = mutableMapOf()
+    private val playersPlaying: MutableMap<AccountUser, Boolean> = mutableMapOf()
 
     /**
      * List of snakes
@@ -95,7 +95,7 @@ object SnakeModule : Module {
                 sendBack(currentState.packet)
                 if (snakes != null)
                     sendBack(Packet("updateSnakes", snakes))
-                if (!user.loggedIn) {
+                if (user !is AccountUser) {
                     sendBack(updatedPlayers())
                     return@connection
                 }
@@ -103,15 +103,15 @@ object SnakeModule : Module {
                     sendBack(Packet("updateYou", "alreadyLoggedIn"))
                     return@connection
                 }
-                sendBack(Packet("updateYou", user.id!!))
+                sendBack(Packet("updateYou", user.id))
                 playersPlaying[user] = false
                 sendToAll(updatedPlayers())
             }
             disconnection {
-                if (!user.loggedIn || !playersPlaying.containsKey(user) || countConnections(user) >= 1) return@disconnection
+                if (user !is AccountUser || !playersPlaying.containsKey(user) || countConnections(user) >= 1) return@disconnection
                 if (playersPlaying[user]!!) {
                     if (snakes != null) {
-                        snakes!!.find { it.player == user.id!! }?.dead = true
+                        snakes!!.find { it.player == user.id }?.dead = true
                     }
                     if (currentState == GameState.RUNNING)
                         checkWinner()
@@ -124,7 +124,7 @@ object SnakeModule : Module {
                 }
             }
             destination("join") { playing: Boolean ->
-                if (currentState != GameState.LOBBY || !user.loggedIn || !playersPlaying.containsKey(user))
+                if (currentState != GameState.LOBBY || user !is AccountUser || !playersPlaying.containsKey(user))
                     return@destination
                 playersPlaying[user] = playing
                 sendToAll(updatedPlayers())
@@ -134,20 +134,20 @@ object SnakeModule : Module {
                 startGame()
             }
             destination("snake") { snake: Snake ->
-                if (currentState != GameState.RUNNING || !user.loggedIn || playersPlaying[user] != true || snake.player != user.id!!.toString()) return@destination
+                if (currentState != GameState.RUNNING || user !is AccountUser || playersPlaying[user] != true || snake.player != user.id) return@destination
                 val oldSnake = snakes!!.find { it.player == snake.player }!!
                 oldSnake.segments = snake.segments
                 oldSnake.width = snake.width
                 oldSnake.dead = snake.dead
             }
             destination("fail") {
-                if (currentState != GameState.RUNNING || !user.loggedIn || playersPlaying[user] != true) return@destination
-                snakes!!.find { it.player == user.id!! }?.dead = true
+                if (currentState != GameState.RUNNING || user !is AccountUser || playersPlaying[user] != true) return@destination
+                snakes!!.find { it.player == user.id }?.dead = true
                 sendToAll(updatedSnakes())
                 checkWinner()
             }
             destination("reset") {
-                if (currentState != GameState.WINNER || !user.loggedIn || playersPlaying[user] != true) return@destination
+                if (currentState != GameState.WINNER || user !is AccountUser || playersPlaying[user] != true) return@destination
                 resetGame()
             }
         }
@@ -190,7 +190,7 @@ object SnakeModule : Module {
                 val distanceFromCenter = START_DISTANCE_CENTER + segmentLength * it
                 arrayOf(0.5 + directionX * distanceFromCenter, 0.5 / ASPECT_RATIO + directionY * distanceFromCenter)
             }
-            Snake(segments, START_WIDTH, SNAKE_COLORS[i % SNAKE_COLORS.size], false, players[i].id!!.toString())
+            Snake(segments, START_WIDTH, SNAKE_COLORS[i % SNAKE_COLORS.size], false, players[i].id)
         }
     }
 
@@ -289,10 +289,10 @@ object SnakeModule : Module {
 
     @Serializable
     data class PlayerInfo(val id: String, val name: String, val avatar: String, val playing: Boolean) {
-        constructor(account: User, playing: Boolean) : this(
-            account.id!!.toString(),
+        constructor(account: AccountUser, playing: Boolean) : this(
+            account.id,
             account.name,
-            account.avatar!!,
+            account.avatar,
             playing
         )
     }

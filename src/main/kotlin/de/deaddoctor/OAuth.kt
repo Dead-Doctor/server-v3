@@ -17,7 +17,7 @@ fun Application.installOAuth() {
     authentication {
         oauth("discord") {
             skipWhen { call ->
-                call.user.loggedIn || call.parameters["error"] != null
+                call.user is AccountUser || call.parameters["error"] != null
             }
             client = httpClient
             providerLookup = {
@@ -73,12 +73,11 @@ fun Routing.routeOAuth() {
 
 data object OAuthState {
     fun encode(state: String, redirectUrl: String) = state + redirectUrl.encodeURLParameter()
-    fun decode(state: String) = state.take(16)
     fun url(state: String?) = state.orEmpty().drop(16).decodeURLPart().ifBlank { "/" }
 }
 
 @Serializable
-data class DiscordUser(
+data class DiscordInfo(
     val id: Long,
     val username: String,
     val discriminator: String,
@@ -110,60 +109,70 @@ data class DiscordUser(
 
 @Serializable
 data class UserSession(
-    val id: String,
-    val info: DiscordUser?
+    val id: String? = null,
+    val info: DiscordInfo? = null
 ) {
     companion object {
         @OptIn(ExperimentalUuidApi::class)
         fun generate() = UserSession(Uuid.random().toString(), null)
-        @OptIn(ExperimentalStdlibApi::class)
+
         suspend fun generate(principal: OAuthAccessTokenResponse.OAuth2): UserSession {
             val info = httpClient.get("https://discord.com/api/users/@me") {
                 headers {
                     append(HttpHeaders.Authorization, "Bearer ${principal.accessToken}")
                 }
-            }.body<DiscordUser>()
-            return UserSession(
-                info.id.toHexString(),
-                info
-            )
+            }.body<DiscordInfo>()
+            return UserSession(null, info)
         }
     }
 }
 
-class User(private val session: UserSession?) {
-    companion object {
-        const val DISCORD_CDN = "https://cdn.discordapp.com/"
-        const val ADMIN_USER = "621027101645996053"
-    }
+open class User
 
-    val id = session?.id
-
-    val loggedIn
-        get() = session?.info != null
-    val name
-        get() = session?.info?.globalName ?: "Anonymous"
-
-    val avatar
-        get() = session?.info?.let {
-            if (it.avatar != null) "${DISCORD_CDN}avatars/${it.id}/${it.avatar}.png"
-            else "${DISCORD_CDN}embed/avatars/${(it.id shr 22) % 6}.png"
-        }
-
-    val admin = id == ADMIN_USER
-
+open class TrackedUser(val id: String) : User() {
     override fun toString(): String {
-        return "User($name, $id)"
+        return "TrackedUser($id)"
     }
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
-        if (other !is User) return false
-        return id != null && id == other.id
+        if (other !is TrackedUser) return false
+        return id == other.id
     }
 
-    override fun hashCode() = id?.hashCode() ?: 0
+    override fun hashCode() = id.hashCode()
 }
 
+@OptIn(ExperimentalStdlibApi::class)
+class AccountUser(private val info: DiscordInfo) : TrackedUser(info.id.toHexString()) {
+
+    companion object {
+        const val DISCORD_CDN = "https://cdn.discordapp.com/"
+        const val ADMIN_USER = 621027101645996053L
+    }
+
+    val name
+        get() = info.globalName ?: info.username
+
+    val avatar: String
+        get() = if (info.avatar != null)
+            "${DISCORD_CDN}avatars/${info.id}/${info.avatar}.png"
+        else
+            "${DISCORD_CDN}embed/avatars/${(info.id shr 22) % 6}.png"
+
+    val admin = info.id == ADMIN_USER
+}
+
+val ApplicationCall.trackedUser: TrackedUser
+    get() {
+        val session = sessions.getOrSet { UserSession.generate() }
+        val info = session.info ?: return TrackedUser(session.id!!)
+        return AccountUser(info)
+    }
+
 val ApplicationCall.user: User
-    get() = User(sessions.get<UserSession>())
+    get() {
+        val session = sessions.get<UserSession>() ?: return User()
+        val info = session.info ?: return TrackedUser(session.id!!)
+        return AccountUser(info)
+    }

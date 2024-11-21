@@ -1,5 +1,6 @@
 package de.deaddoctor.modules
 
+import de.deaddoctor.AccountUser
 import de.deaddoctor.Module
 import de.deaddoctor.user
 import de.deaddoctor.respondPage
@@ -11,11 +12,10 @@ object TestModule : Module {
 
     override fun Route.route() {
         get {
-            val account = call.user
             call.respondPage("Test") {
 //                throw Exception("OH NO!")
                 content {
-                    p { +"Hello, ${account.name}!" }
+                    p { +"Hello, ${(call.user as? AccountUser)?.name ?: "Anonymous"}!" }
                 }
             }
         }

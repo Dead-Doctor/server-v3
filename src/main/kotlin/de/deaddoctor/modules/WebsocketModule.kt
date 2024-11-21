@@ -57,8 +57,8 @@ object WebsocketModule : Module {
     }
 
     private fun WebSocketEventHandlerContext.sendUpdatedAccountInfos() {
-        val connectedAccounts = connections.filter { it.user.loggedIn }.distinct()
-        sendToAll(connectedAccounts.map { AccountInfo(it.user.name, it.user.avatar!!) })
+        val connectedAccounts = connections.filter { it.user is AccountUser }.map { it.user as AccountUser }.distinct()
+        sendToAll(connectedAccounts.map { AccountInfo(it.name, it.avatar) })
     }
 
     private val styles by CSSRules {

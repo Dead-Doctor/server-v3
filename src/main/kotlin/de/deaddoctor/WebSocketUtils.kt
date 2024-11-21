@@ -65,8 +65,7 @@ class WebSocketEventRegistrant {
 
 class WebSocketEventHandlerContext(connections: MutableList<Connection>, val connection: Connection) :
     WebSocketSender(connections) {
-    val user
-        get() = connection.user
+    val user = connection.user
 
     fun countConnections(user: User = connection.user) = connections.count { it.user == user }
 

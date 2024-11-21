@@ -49,9 +49,9 @@ class PageLayout(private val user: User, private val uri: String, private val ti
                 nav {
                     a(classes = "action", href = "/", block = branding)
                     links()
-                    val profileAction = if (!user.loggedIn) "login" else "logout"
+                    val profileAction = if (user !is AccountUser) "login" else "logout"
                     a(classes = "profile action", href = "/$profileAction?redirectUrl=${uri.encodeURLParameter()}") {
-                        img(src = user.avatar ?: "https://cdn.discordapp.com/embed/avatars/4.png")
+                        img(src = (user as? AccountUser)?.avatar ?: "https://cdn.discordapp.com/embed/avatars/4.png")
                         span { +profileAction }
                     }
                     button(classes = "hamburger", type = ButtonType.button) {

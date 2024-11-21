@@ -37,13 +37,13 @@ object ChatModule : Module {
                     val onlineAccounts = connections.map { it.user }.distinct()
                     sendToConnection(
                         connection,
-                        "Currently online (${onlineAccounts.count()}): ${onlineAccounts.joinToString(", ") { it.name }}"
+                        "Currently online (${onlineAccounts.count()}): ${onlineAccounts.joinToString(", ") { (it as? AccountUser)?.name ?: "Anonymous" }}"
                     )
                 } else if (msg.startsWith("/me ")) {
-                    if (user.loggedIn) sendToUser(user, "[Secret]: ${msg.substringAfter("/me ")}")
+                    if (user is AccountUser) sendToUser(user, "[Secret]: ${msg.substringAfter("/me ")}")
                     else sendToConnection(connection, "You're not logged in!")
                 } else {
-                    sendToAll("<${user.name}> $msg")
+                    sendToAll("<${(user as? AccountUser)?.name ?: "Anonymous"}> $msg")
                 }
             }
         }
