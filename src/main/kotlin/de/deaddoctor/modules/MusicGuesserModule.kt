@@ -1,12 +1,11 @@
 package de.deaddoctor.modules
 
-import de.deaddoctor.Module
-import de.deaddoctor.user
-import de.deaddoctor.httpClient
-import de.deaddoctor.respondPage
+import de.deaddoctor.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.websocket.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDateTime
@@ -31,6 +30,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(ExperimentalSerializationApi::class)
 object MusicGuesserModule : Module {
     const val NAME = "Music Guesser"
+    private val NAME_ID = NAME.lowercase().replace(' ', '-')
 
     private val cacheMillis = 30L.days
     private val storeFronts = listOf("us", "gb", "de")
@@ -81,19 +81,104 @@ object MusicGuesserModule : Module {
         }
     }
 
-    override fun path() = NAME.lowercase().replace(' ', '-')
+    override fun path() = NAME_ID
+
+    private fun relative(subUrl: String) = "/$NAME_ID$subUrl"
+
+    private lateinit var socket: WebSocketSender
+    private var currentGame: Game? = null
 
     override fun Route.route() {
         get {
+            call.respondPage(NAME) {
+                content {
+                    section {
+                        h1 { +NAME }
+                    }
+                    section(classes = "grid") {
+                        if (currentGame == null) {
+                            a(href = relative("/start")) { +"Start" }
+                        } else {
+                            a(href = relative("/lobby")) { +"Join" }
+                        }
+                    }
+                }
+            }
+        }
+
+        get("start") {
+            if (currentGame == null) {
+                currentGame = Game()
+            }
+            call.respondRedirect(relative("/lobby"))
+        }
+
+        get("lobby") {
+            val game = currentGame
+            if (game == null) {
+                call.respondRedirect(relative(""))
+                return@get
+            }
+            val user = call.trackedUser
+            if (!game.joined(user))
+                game.join(user)
+            call.respondPage(NAME) {
+                head {
+                    addData(game.playerInfo)
+                    addScript(NAME_ID)
+                }
+                content {
+                    section {
+                        h1 { +NAME }
+                        h3 { +"Lobby" }
+                    }
+                    section("leaderboard") {
+
+                    }
+                }
+            }
+        }
+
+        socket = webSocketAddressable("ws") {
+            connection {
+                val game = currentGame
+                if (game == null || user !is TrackedUser || !game.joined(user)) {
+                    closeConnection(
+                        connection,
+                        CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
+                    )
+                    return@connection
+                }
+                game.connectionChange(user, true)
+            }
+            disconnection {
+                val game = currentGame ?: return@disconnection
+                if (user !is TrackedUser) return@disconnection
+                game.connectionChange(user, false)
+            }
+            destination("kick") { user: String ->
+
+            }
+            destination("ban") { user: String ->
+
+            }
+            destination("guess") { year: Int? ->
+
+            }
+            destination("finish") {
+
+            }
+        }
+
+        get("test") {
             if (!ready) throw Exception("Not ready yet")
-            val user = call.user
             val track = tracks[Random.nextInt(0, tracks.size)]
             val song = queryTrack(track)
             call.respondPage(NAME) {
                 content {
                     section {
                         h1 { +NAME }
-                        h3 { +"Welcome to $NAME, ${user.name}!" }
+                        h3 { +"Try to guess the release year!" }
                     }
                     section {
                         p { +"${song.trackName} - ${song.duration}" }
@@ -164,6 +249,7 @@ object MusicGuesserModule : Module {
     ) {
         @Transient
         val duration: Duration = trackTimeMillis.milliseconds
+
         @Transient
         val releaseDate: LocalDateTime = releaseDateTime.toLocalDateTime(TimeZone.UTC)
     }
@@ -205,4 +291,58 @@ object MusicGuesserModule : Module {
 
     @Serializable
     data class AppleMusicRecording(val url: String)
+
+    class Game {
+        private val players = mutableMapOf<TrackedUser, Boolean>()
+
+        fun join(user: TrackedUser) {
+            players[user] = false
+            sendToAll(Packet("playerJoined", PlayerInfo(user, getName(user), false)))
+        }
+
+        fun joined(user: TrackedUser) = players.containsKey(user)
+
+        fun connectionChange(user: TrackedUser, connected: Boolean) {
+            players[user] = connected
+            sendToAll(Packet("playerConnectionChange", PlayerConnection(user.id, connected)))
+        }
+
+        val playerInfo: List<PlayerInfo>
+            get() {
+                return players.map { PlayerInfo(it.key, getName(it.key), it.value) }
+            }
+
+        private fun getName(user: TrackedUser): String {
+            //TODO: let player select name
+            return (user as? AccountUser)?.name ?: "Anonymous User"
+        }
+
+        @Serializable
+        data class PlayerInfo(
+            val id: String,
+            val name: String,
+            val verified: Boolean,
+            val avatar: String?,
+            val connected: Boolean
+        ) {
+            constructor(user: TrackedUser, name: String, connected: Boolean) : this(
+            user.id,
+            name,
+            user is AccountUser,
+                (user as? AccountUser)?.avatar,
+                connected
+            )
+        }
+
+        @Serializable
+        data class PlayerConnection(val player: String, val connected: Boolean)
+    }
+
+    @Serializable
+    data class Packet<T>(val type: String, val data: T) {
+
+    }
+    private inline fun <reified T> sendToAll(packet: Packet<T>) {
+        socket.sendToAll(packet)
+    }
 }
