@@ -33,10 +33,13 @@ out/
 /.nb-gradle/
 
 ### VS Code ###
-.vscode/
+/.vscode/
+
+### Node ###
+/node_modules/
 
 ### TypeScript Output ###
-/src/main/resources/static/*.js
+/src/main/resources/dist
 
 ### Run data ###
-/run/*
+/run/

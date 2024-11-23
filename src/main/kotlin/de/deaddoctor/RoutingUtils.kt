@@ -8,9 +8,15 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.css.CSSBuilder
-import kotlinx.html.*
+import kotlinx.html.FlowOrMetaDataOrPhrasingContent
+import kotlinx.html.link
+import kotlinx.html.script
+import kotlinx.html.unsafe
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromStream
 import kotlin.reflect.KProperty
 
 interface Module {
@@ -78,13 +84,43 @@ suspend fun ApplicationCall.respondCss(css: String) {
     this.respondText(css, ContentType.Text.CSS)
 }
 
-fun FlowOrMetaDataOrPhrasingContent.addScript(name: String) {
-    script { src = "/js/${name}.js"; type = "module"; defer = true }
+object ViteBuild {
+    @OptIn(ExperimentalSerializationApi::class)
+    val manifest =
+        Json.decodeFromStream<MutableMap<String, ManifestChunk>>(javaClass.getResourceAsStream("/dist/.vite/manifest.json"))
+
+    @Serializable
+    data class ManifestChunk(
+        val file: String,
+        val name: String? = null,
+        val src: String? = null,
+        val isEntry: Boolean = false,
+        val imports: List<String> = emptyList(),
+        val css: List<String> = emptyList()
+    )
+
+    fun FlowOrMetaDataOrPhrasingContent.addScript(name: String) {
+        val entry = manifest["scripts/$name.ts"] ?: throw IllegalArgumentException("Unknown script with name: $name (scripts/$name.ts)")
+        linkCss(entry.css)
+        script { type = "module"; src = "/${entry.file}"; }
+        for (imported in entry.imports) {
+            val chunk = manifest[imported]!!
+            linkCss(chunk.css)
+            link { rel = "modulepreload"; href = "/${entry.file}" }
+        }
+    }
+    
+    private fun FlowOrMetaDataOrPhrasingContent.linkCss(css: List<String>) {
+        for (file in css) {
+            link { rel = "stylesheet"; href = "/$file" }
+        }
+    }
 }
 
 val dataEncoder = Json
 inline fun <reified T> FlowOrMetaDataOrPhrasingContent.addData(data: T) {
-    script { type = "application/json"
+    script {
+        type = "application/json"
         unsafe {
             +dataEncoder.encodeToString(data)
         }

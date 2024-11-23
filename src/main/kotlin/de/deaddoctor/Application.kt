@@ -76,6 +76,7 @@ fun Application.module() {
                         h3 { +"${cause::class.simpleName}: ${cause.message}" }
                     }
                 }
+                cause.printStackTrace()
             }
         }
         status(HttpStatusCode.NotFound, HttpStatusCode.InternalServerError) { call, status ->
@@ -165,6 +166,6 @@ fun Application.module() {
         enable(SnakeModule)
         enable(MusicGuesserModule)
         routeOAuth()
-        staticResources("/", "static")
+        staticResources("/", "dist")
     }
 }

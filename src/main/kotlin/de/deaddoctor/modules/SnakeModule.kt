@@ -3,6 +3,7 @@ package de.deaddoctor.modules
 import de.deaddoctor.*
 import de.deaddoctor.CSSResource.Companion.addStyles
 import de.deaddoctor.CSSResource.Companion.getStyles
+import de.deaddoctor.ViteBuild.addScript
 import io.ktor.server.routing.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job

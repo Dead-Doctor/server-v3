@@ -1,6 +1,7 @@
 package de.deaddoctor.modules
 
 import de.deaddoctor.*
+import de.deaddoctor.ViteBuild.addScript
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.server.response.*
