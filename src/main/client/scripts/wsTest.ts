@@ -1,4 +1,4 @@
-import { openSocket } from "./ws.js";
+import { openSocket } from "./ws";
 
 const socket = openSocket<AccountInfo[]>()
 const accountsElement = document.querySelector('.accounts')!

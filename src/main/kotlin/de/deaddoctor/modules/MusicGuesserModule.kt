@@ -126,15 +126,14 @@ object MusicGuesserModule : Module {
             call.respondPage(NAME) {
                 head {
                     addData(game.playerInfo)
-                    addScript(NAME_ID)
+                    addScript("$NAME_ID/lobby")
                 }
                 content {
                     section {
                         h1 { +NAME }
                         h3 { +"Lobby" }
                     }
-                    section("leaderboard") {
-
+                    section("content") {
                     }
                 }
             }

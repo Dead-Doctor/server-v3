@@ -1,4 +1,4 @@
-import { openSocket } from './ws.js'
+import { openSocket } from './ws'
 
 const socket = openSocket<Packet<keyof PacketTypeMap>>()
 const container = document.querySelector('section')!
