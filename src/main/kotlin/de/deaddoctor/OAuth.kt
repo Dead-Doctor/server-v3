@@ -95,6 +95,8 @@ data class DiscordInfo(
     val accentColor: Int?,
     val locale: String,
     val clan: String?,
+    @SerialName("primary_guild")
+    val primaryGuild: String? = null,
 //    val verified: Boolean,
 //    val email: String,
     val flags: Int,

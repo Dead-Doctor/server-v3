@@ -7,7 +7,7 @@ import kotlinx.datetime.*
 import kotlinx.html.*
 
 @Suppress("MemberVisibilityCanBePrivate")
-class PageLayout(private val user: User, private val uri: String, private val title: String): Template<HTML> {
+class PageLayout(private val user: User?, private val uri: String, private val title: String): Template<HTML> {
     companion object {
         val styles by CSSFile()
 

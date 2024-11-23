@@ -8,12 +8,14 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
+import io.ktor.server.html.*
 import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.autohead.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.forwardedheaders.*
 import io.ktor.server.plugins.statuspages.*
+import io.ktor.server.request.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
 import io.ktor.server.websocket.*
@@ -70,7 +72,7 @@ fun Application.module() {
     install(StatusPages) {
         if (this@module.developmentMode) {
             exception<Throwable> { call, cause ->
-                call.respondPage("Internal Server Error") {
+                call.respondHtmlTemplate(PageLayout(null, call.request.uri, "Internal Server Error"), HttpStatusCode.OK) {
                     content {
                         h1 { +"500" }
                         h3 { +"${cause::class.simpleName}: ${cause.message}" }
