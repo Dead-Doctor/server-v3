@@ -2,10 +2,12 @@
     import {openSocket} from '../ws'
 
     interface PacketTypeMap {
-        'playerJoined': Player
-        'playerStateChanged': { player: PlayerId, playing: boolean }
-        'hostChanged': PlayerId
-        'kicked': true
+        joinFailed: string[]
+        join: PlayerId
+        playerJoined: Player
+        playerStateChanged: { player: PlayerId, playing: boolean }
+        hostChanged: PlayerId
+        kicked: true
     }
 
     interface Packet<K extends keyof PacketTypeMap> {
@@ -24,8 +26,8 @@
     }
 
     interface Game {
-        you: PlayerId
-        host: PlayerId
+        you: PlayerId | null
+        host: PlayerId | null
         admin: boolean
     }
 
@@ -46,9 +48,25 @@
     const socket = openSocket<Packet<keyof PacketTypeMap>>('/music-guesser')
     const isPacket = <T extends keyof PacketTypeMap>(packet: Packet<any>, type: T): packet is Packet<T> => packet.type === type
 
+    let usernameInputValue: string = $state('')
+    let usernameInputErrors: string[] = $state([])
+    if (game.you === null) {
+        popup = {
+            message: 'Select a username:',
+            buttonText: 'Join',
+            buttonAction() {
+                socket.send('join', usernameInputValue)
+            }
+        }
+    }
 
     socket.receive(packet => {
-        if (isPacket(packet, 'playerJoined')) {
+        if (isPacket(packet, 'joinFailed')) {
+            usernameInputErrors = packet.data
+        } else if (isPacket(packet, 'join')) {
+            popup = null
+            game.you = packet.data
+        } else if (isPacket(packet, 'playerJoined')) {
             players.push(packet.data)
         } else if (isPacket(packet, 'playerStateChanged')) {
             const player = players.find(p => p.id === packet.data.player)!
@@ -98,7 +116,7 @@
                         {#if player.id === game.host}
                             <span class="placard">Host</span>
                         {/if}
-                        {#if game.you === game.host || game.admin}
+                        {#if game.you !== null && (game.you === game.host || game.admin)}
                             <button onclick={() => socket.send("promote", player.id)}>Promote</button>
                             <button onclick={() => socket.send("kick", player.id)}>Kick</button>
                         {/if}
@@ -111,6 +129,18 @@
     <div class="overlay" class:visible={popup != null}>
         <div class="popup">
             <h3>{popup?.message}</h3>
+            {#if game.you === null}
+                <input class="username" class:error={usernameInputErrors.length !== 0} type="text" name="username" id="usernameInput" placeholder="Username" size="20"
+                       bind:value={usernameInputValue}>
+                <div>
+                    {#each usernameInputErrors as error}
+                        <span class="error">{@html error}</span>
+                    {/each}
+                    <!-- suppress css warning from samp styling -->
+                    <span class="error" style="display: none"><samp></samp></span>
+                </div>
+                <span class="login">Or <a href={`/login?redirectUrl=${encodeURIComponent(location.pathname)}`}>Login</a></span>
+            {/if}
             <button onclick={() => popup?.buttonAction()}>{popup?.buttonText}</button>
         </div>
     </div>
@@ -214,6 +244,32 @@
             background-color: var(--background);
             border: var(--border);
             border-radius: 1rem;
+
+            input.username {
+                outline: var(--decoration-thickness) solid transparent;
+                transition: 150ms outline-color ease-in-out;
+
+                &.error {
+                    outline-color: var(--primary);
+                }
+            }
+
+            .error {
+                padding: 0.4em;
+                background-color: var(--secondary);
+
+                samp {
+                    color: var(--primary);
+                    font-size: 1.2em;
+                    font-weight: bold;
+                }
+            }
+
+            .login {
+                align-self: center;
+                margin-bottom: -3rem;
+                color: var(--muted);
+            }
 
             button {
                 align-self: end;

@@ -30,6 +30,7 @@ object SnakeModule : Module {
     private const val START_LENGTH = 0.15
     private const val START_WIDTH = 0.04
     private const val START_SEGMENT_COUNT = 20
+    @Suppress("SpellCheckingInspection")
     private val SNAKE_COLORS = listOf("#01baff", "#9372e2", "#ffeb02", "#e372c5")
     private val COUNT_DOWN_TIMEOUT = 1000.milliseconds
 
