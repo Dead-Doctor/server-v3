@@ -14,6 +14,7 @@ ktor-server-auto-head-response = { module = "io.ktor:ktor-server-auto-head-respo
 ktor-server-host-common = { module = "io.ktor:ktor-server-host-common-jvm", version.ref = "ktor-version" }
 ktor-server-forwarded-header = { module = "io.ktor:ktor-server-forwarded-header-jvm", version.ref = "ktor-version" }
 ktor-server-content-negotiation = { module = "io.ktor:ktor-server-content-negotiation-jvm", version.ref = "ktor-version" }
+ktor-server-caching-headers = { module = "io.ktor:ktor-server-caching-headers-jvm", version.ref = "ktor-version" }
 ktor-server-status-pages = { module = "io.ktor:ktor-server-status-pages-jvm", version.ref = "ktor-version" }
 ktor-server-html-builder = { module = "io.ktor:ktor-server-html-builder-jvm", version.ref = "ktor-version" }
 ktor-server-websockets = { module = "io.ktor:ktor-server-websockets-jvm", version.ref = "ktor-version" }

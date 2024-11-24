@@ -163,6 +163,10 @@ class AccountUser(private val info: DiscordInfo) : TrackedUser(info.id.toHexStri
             "${DISCORD_CDN}embed/avatars/${(info.id shr 22) % 6}.png"
 
     val admin = info.id == ADMIN_USER
+
+    override fun toString(): String {
+        return "AccountUser($id, $name)"
+    }
 }
 
 val ApplicationCall.trackedUser: TrackedUser

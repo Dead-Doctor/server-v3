@@ -27,6 +27,7 @@ dependencies {
     implementation(libs.ktor.server.host.common)
     implementation(libs.ktor.server.forwarded.header)
     implementation(libs.ktor.server.content.negotiation)
+    implementation(libs.ktor.server.caching.headers)
     implementation(libs.ktor.server.status.pages)
     implementation(libs.ktor.server.html.builder)
     implementation(libs.ktor.server.websockets)

@@ -118,9 +118,10 @@ object ViteBuild {
 }
 
 val dataEncoder = Json
-inline fun <reified T> FlowOrMetaDataOrPhrasingContent.addData(data: T) {
+inline fun <reified T> FlowOrMetaDataOrPhrasingContent.addData(id: String, data: T) {
     script {
         type = "application/json"
+        attributes["id"] = "data-$id"
         unsafe {
             +dataEncoder.encodeToString(data)
         }

@@ -4,10 +4,13 @@ import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.http.content.*
+import io.ktor.server.plugins.cachingheaders.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -27,6 +30,7 @@ import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalSerializationApi::class)
 object MusicGuesserModule : Module {
@@ -90,6 +94,9 @@ object MusicGuesserModule : Module {
     private var currentGame: Game? = null
 
     override fun Route.route() {
+        install(CachingHeaders) {
+            options { _, _ -> CachingOptions(CacheControl.NoStore(null)) }
+        }
         get {
             call.respondPage(NAME) {
                 content {
@@ -100,7 +107,7 @@ object MusicGuesserModule : Module {
                         if (currentGame == null) {
                             a(href = relative("/start")) { +"Start" }
                         } else {
-                            a(href = relative("/lobby")) { +"Join" }
+                            a(href = relative("/game")) { +"Join" }
                         }
                     }
                 }
@@ -111,13 +118,13 @@ object MusicGuesserModule : Module {
             if (currentGame == null) {
                 currentGame = Game()
             }
-            call.respondRedirect(relative("/lobby"))
+            call.respondRedirect(relative("/game"))
         }
 
-        get("lobby") {
+        get("game") {
             val game = currentGame
             if (game == null) {
-                call.respondRedirect(relative(""))
+                call.respondRedirect(relative("/start"))
                 return@get
             }
             val user = call.trackedUser
@@ -125,15 +132,13 @@ object MusicGuesserModule : Module {
                 game.join(user)
             call.respondPage(NAME) {
                 head {
-                    addData(game.playerInfo)
-                    addScript("$NAME_ID/lobby")
+                    addData("playerInfo", game.playerInfo)
+                    addData("gameInfo", game.gameInfo(user))
+                    addScript("$NAME_ID/main")
                 }
                 content {
                     section {
                         h1 { +NAME }
-                        h3 { +"Lobby" }
-                    }
-                    section("content") {
                     }
                 }
             }
@@ -149,18 +154,24 @@ object MusicGuesserModule : Module {
                     )
                     return@connection
                 }
-                game.connectionChange(user, true)
+                game.socketConnect(user)
             }
             disconnection {
                 val game = currentGame ?: return@disconnection
-                if (user !is TrackedUser) return@disconnection
-                game.connectionChange(user, false)
+                if (user !is TrackedUser || countConnections(user) != 0) return@disconnection
+                game.socketDisconnect(user)
             }
-            destination("kick") { user: String ->
-
+            destination("promote") { playerId: String ->
+                val game = currentGame ?: return@destination
+                val player = game.playerById(playerId)
+                if (user !is TrackedUser || !game.isOperator(user) || player == null || !game.joined(player)) return@destination
+                game.promote(player)
             }
-            destination("ban") { user: String ->
-
+            destination("kick") { playerId: String ->
+                val game = currentGame ?: return@destination
+                val player = game.playerById(playerId)
+                if (user !is TrackedUser || !game.isOperator(user) || player == null || !game.joined(player)) return@destination
+                game.kick(player)
             }
             destination("guess") { year: Int? ->
 
@@ -293,28 +304,75 @@ object MusicGuesserModule : Module {
     data class AppleMusicRecording(val url: String)
 
     class Game {
-        private val players = mutableMapOf<TrackedUser, Boolean>()
+        private val players = mutableMapOf<TrackedUser, PlayerState>()
+        private lateinit var host: TrackedUser
+        private val disconnectJobs = mutableMapOf<TrackedUser, Job>()
+
+        fun playerById(userId: String) = players.keys.find { it.id == userId }
+
+        fun joined(user: TrackedUser) = players.containsKey(user) && players[user]!!.playing
 
         fun join(user: TrackedUser) {
-            players[user] = false
-            sendToAll(Packet("playerJoined", PlayerInfo(user, getName(user), false)))
+            val initialJoin = !players.containsKey(user)
+
+            if (players.isEmpty()) host = user
+            players[user] = PlayerState.JOINED
+
+            if (initialJoin) {
+                sendToAll(Packet("playerJoined", PlayerInfo(user, getName(user), players[user]!!.playing)))
+            } else {
+                sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
+            }
         }
 
-        fun joined(user: TrackedUser) = players.containsKey(user)
-
-        fun connectionChange(user: TrackedUser, connected: Boolean) {
-            players[user] = connected
-            sendToAll(Packet("playerConnectionChange", PlayerConnection(user.id, connected)))
+        private fun leave(user: TrackedUser) {
+            players[user] = PlayerState.LEFT
+            disconnectJobs.remove(user)?.cancel()
+            sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
         }
 
+        fun socketConnect(user: TrackedUser) {
+            players[user] = PlayerState.CONNECTED
+            disconnectJobs.remove(user)?.cancel()
+        }
+
+        fun socketDisconnect(user: TrackedUser) {
+            if (players[user] != PlayerState.CONNECTED) return
+            players[user] = PlayerState.JOINED
+            disconnectJobs[user] = CoroutineScope(Job()).launch {
+                delay(5.seconds)
+                leave(user)
+            }
+        }
+
+        fun isOperator(user: TrackedUser) = user == host || (user is AccountUser && user.admin)
+
+        fun promote(user: TrackedUser) {
+            host = user
+            sendToAll(Packet("hostChanged", host.id))
+        }
+
+        fun kick(user: TrackedUser) {
+            leave(user)
+            sendToUser(user, Packet("kicked", true))
+        }
+        
         val playerInfo: List<PlayerInfo>
             get() {
-                return players.map { PlayerInfo(it.key, getName(it.key), it.value) }
+                return players.map { PlayerInfo(it.key, getName(it.key), it.value.playing) }
             }
 
         private fun getName(user: TrackedUser): String {
             //TODO: let player select name
             return (user as? AccountUser)?.name ?: "Anonymous User"
+        }
+
+        fun gameInfo(user: TrackedUser) = GameInfo(user.id, host.id, user is AccountUser && user.admin)
+
+        enum class PlayerState(val playing: Boolean) {
+            LEFT(false),
+            JOINED(true),
+            CONNECTED(true)
         }
 
         @Serializable
@@ -323,26 +381,36 @@ object MusicGuesserModule : Module {
             val name: String,
             val verified: Boolean,
             val avatar: String?,
-            val connected: Boolean
+            val playing: Boolean
         ) {
-            constructor(user: TrackedUser, name: String, connected: Boolean) : this(
+            constructor(user: TrackedUser, name: String, playing: Boolean) : this(
             user.id,
             name,
             user is AccountUser,
                 (user as? AccountUser)?.avatar,
-                connected
+                playing
             )
         }
 
         @Serializable
-        data class PlayerConnection(val player: String, val connected: Boolean)
+        data class GameInfo(
+            val you: String,
+            val host: String,
+            val admin: Boolean,
+        )
+
+        @Serializable
+        data class PlayerStateChanged(val player: String, val playing: Boolean)
     }
 
     @Serializable
-    data class Packet<T>(val type: String, val data: T) {
+    data class Packet<T>(val type: String, val data: T)
 
-    }
     private inline fun <reified T> sendToAll(packet: Packet<T>) {
         socket.sendToAll(packet)
+    }
+
+    private inline fun <reified T> sendToUser(user: TrackedUser, packet: Packet<T>) {
+        socket.sendToUser(user, packet)
     }
 }
