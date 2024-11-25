@@ -2,6 +2,7 @@ package de.deaddoctor.modules
 
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
+import de.deaddoctor.modules.MusicGuesserModule.Game.Round.RoundInfo
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -37,7 +38,7 @@ object MusicGuesserModule : Module {
     const val NAME = "Music Guesser"
     private val NAME_ID = NAME.lowercase().replace(' ', '-')
 
-    private val cacheMillis = 30L.days
+    private val cacheDuration = 30L.days
     private val storeFronts = listOf("us", "gb", "de")
     @Suppress("SpellCheckingInspection")
     private val centuries = listOf(
@@ -58,7 +59,7 @@ object MusicGuesserModule : Module {
     init {
         thread(isDaemon = true, name = "fetch-playlists") {
             runBlocking {
-                if (!tracksCache.isFile || (System.currentTimeMillis() - tracksCache.lastModified()).milliseconds > cacheMillis) {
+                if (!tracksCache.isFile || (System.currentTimeMillis() - tracksCache.lastModified()).milliseconds > cacheDuration) {
                     tracks = mutableListOf()
                     for (storeFront in storeFronts) {
                         for (century in centuries) {
@@ -129,12 +130,14 @@ object MusicGuesserModule : Module {
                 return@get
             }
             val user = call.trackedUser
-            if (!game.joined(user) && user is AccountUser)
+            if (!game.joined(user) && (user is AccountUser || game.playerById(user.id) != null)) {
                 game.join(user)
+            }
             call.respondPage(NAME) {
                 head {
                     addData("playerInfo", game.playerInfo)
                     addData("gameInfo", game.gameInfo(user))
+                    addData("round", game.roundInfo)
                     addScript("$NAME_ID/main")
                 }
             }
@@ -153,9 +156,8 @@ object MusicGuesserModule : Module {
                 if (!game.joined(user)) return@connection
                 game.socketConnect(user)
             }
-            destination("join") { name: String ->
-                val game = currentGame ?: return@destination
-                if (user !is TrackedUser || user is AccountUser || game.joined(user)) return@destination
+
+            fun checkName(name: String): MutableList<String> {
                 val nameErrors = mutableListOf<String>()
                 if (name.length < 3) {
                     nameErrors.add("Has to be at least <samp>3</samp> characters long.")
@@ -167,12 +169,16 @@ object MusicGuesserModule : Module {
                 if (!name.all { it.isLetterOrDigit() || it in allowedSpecialCharacters }) {
                     nameErrors.add("Can only contain <samp>letters</samp>, <samp>digits</samp> or any of the following: ${
                         allowedSpecialCharacters.toCharArray().joinToString(", ") { "<samp>$it</samp>" }}.")
-
                 }
-                if (nameErrors.isNotEmpty()) {
-                    sendToUser(user, Packet("joinFailed", nameErrors))
-                    return@destination
-                }
+                return nameErrors
+            }
+            destination("checkName") { name: String ->
+                val nameErrors = checkName(name)
+                sendToUser(user, Packet("checkedName", nameErrors))
+            }
+            destination("join") { name: String ->
+                val game = currentGame ?: return@destination
+                if (user !is TrackedUser || user is AccountUser || game.joined(user) || checkName(name).isNotEmpty()) return@destination
                 game.join(user, name)
                 game.socketConnect(user)
                 sendToUser(user, Packet("join", user.id))
@@ -194,8 +200,13 @@ object MusicGuesserModule : Module {
                 if (user !is TrackedUser || !game.isOperator(user) || player == null || !game.joined(player)) return@destination
                 game.kick(player)
             }
+            destination("beginRound") {
+                val game = currentGame ?: return@destination
+                if (user !is TrackedUser || !game.isOperator(user) || game.round != null) return@destination
+                game.beginRound()
+            }
             destination("guess") { year: Int? ->
-
+                println("$user guessed $year")
             }
             destination("finish") {
 
@@ -330,6 +341,8 @@ object MusicGuesserModule : Module {
         private val names = mutableMapOf<TrackedUser, String>()
         private var host: TrackedUser? = null
         private val disconnectJobs = mutableMapOf<TrackedUser, Job>()
+        var round: Round? = null
+            private set
 
         fun playerById(userId: String) = players.keys.find { it.id == userId }
 
@@ -339,22 +352,35 @@ object MusicGuesserModule : Module {
             val initialJoin = !players.containsKey(user)
 
             players[user] = PlayerState.JOINED
-            if (user !is AccountUser) names[user] = name!!
 
             if (initialJoin) {
+                if (user !is AccountUser) names[user] = name!!
                 sendToAll(Packet("playerJoined", PlayerInfo(user, getName(user), players[user]!!.playing)))
             } else {
                 sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
             }
 
             if (host == null) promote(user)
-
         }
 
         private fun leave(user: TrackedUser) {
             players[user] = PlayerState.LEFT
+
+            if (round != null && round!!.guesses.containsKey(user)) {
+                round!!.guesses.remove(user)
+                if (round!!.guesses.isEmpty())
+                    round = null
+                sendToAll(Packet("round", roundInfo))
+            }
+
             disconnectJobs.remove(user)?.cancel()
             sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
+            val firstRemainingPlayer = players.toList().firstOrNull { it.second.playing }?.first
+            if (firstRemainingPlayer == null) {
+                currentGame = null
+                return
+            }
+            if (user == host) promote(firstRemainingPlayer)
         }
 
         fun socketConnect(user: TrackedUser) {
@@ -365,7 +391,6 @@ object MusicGuesserModule : Module {
         fun socketDisconnect(user: TrackedUser) {
             if (players[user] != PlayerState.CONNECTED) return
             players[user] = PlayerState.JOINED
-            //TODO: doesn't work for non-account users (as well as reopening game)
             disconnectJobs[user] = CoroutineScope(Job()).launch {
                 delay(5.seconds)
                 leave(user)
@@ -381,7 +406,15 @@ object MusicGuesserModule : Module {
 
         fun kick(user: TrackedUser) {
             leave(user)
-            sendToUser(user, Packet("kicked", true))
+            sendToUser(user, Packet("kicked", "You got kicked"))
+        }
+
+        suspend fun beginRound() {
+            round = Round(
+                queryTrack(tracks[Random.nextInt(0, tracks.size)]),
+                players.filter { it.value.playing }.map { it.key to null }.toMap().toMutableMap()
+            )
+            sendToAll(Packet("round", roundInfo))
         }
 
         val playerInfo: List<PlayerInfo>
@@ -392,6 +425,9 @@ object MusicGuesserModule : Module {
         private fun getName(user: TrackedUser) = if (user is AccountUser) user.name else names[user]!!
 
         fun gameInfo(user: TrackedUser) = GameInfo(playerById(user.id)?.id, host?.id, user is AccountUser && user.admin)
+
+        val roundInfo
+            get() = round?.let { RoundInfo(it.song.previewUrl, it.guesses.map { it.key.id to it.value }.toMap()) }
 
         enum class PlayerState(val playing: Boolean) {
             LEFT(false),
@@ -417,14 +453,23 @@ object MusicGuesserModule : Module {
         }
 
         @Serializable
+        data class PlayerStateChanged(val player: String, val playing: Boolean)
+
+        @Serializable
         data class GameInfo(
             val you: String?,
             val host: String?,
             val admin: Boolean,
         )
 
-        @Serializable
-        data class PlayerStateChanged(val player: String, val playing: Boolean)
+        data class Round(val song: Song, val guesses: MutableMap<TrackedUser, Int?>) {
+
+            @Serializable
+            data class RoundInfo(
+                val song: String,
+                val guesses: Map<String, Int?>
+            )
+        }
     }
 
     @Serializable

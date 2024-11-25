@@ -3,12 +3,13 @@
     import {fade, fly, slide} from 'svelte/transition'
 
     interface PacketTypeMap {
-        joinFailed: string[]
+        checkedName: string[]
         join: PlayerId
         playerJoined: Player
         playerStateChanged: { player: PlayerId, playing: boolean }
         hostChanged: PlayerId
-        kicked: true
+        kicked: string
+        round: Round
     }
 
     interface Packet<K extends keyof PacketTypeMap> {
@@ -32,6 +33,11 @@
         admin: boolean
     }
 
+    interface Round {
+        song: string
+        guesses: { [player: PlayerId]: number }
+    }
+
     interface Popup {
         message: string
         buttonText: string
@@ -44,8 +50,8 @@
     }
     let players: Player[] = $state(getData('playerInfo'))
     let game: Game = $state(getData('gameInfo'))
+    let round: Round | null = $state(getData('round'))
     let popup: Popup | null = $state(null)
-    let round: { test: string } | null = $state(null)
 
     const socket = openSocket<Packet<keyof PacketTypeMap>>('/music-guesser')
     const isPacket = <T extends keyof PacketTypeMap>(packet: Packet<any>, type: T): packet is Packet<T> => packet.type === type
@@ -62,8 +68,11 @@
         }
     }
 
+    let minHeight = $state(0)
+    let yearInputValue = $state(1985)
+
     socket.receive(packet => {
-        if (isPacket(packet, 'joinFailed')) {
+        if (isPacket(packet, 'checkedName')) {
             usernameInputErrors = packet.data
         } else if (isPacket(packet, 'join')) {
             popup = null
@@ -77,12 +86,14 @@
             game.host = packet.data
         } else if (isPacket(packet, 'kicked')) {
             popup = {
-                message: 'You got kicked',
+                message: packet.data,
                 buttonText: 'Close',
                 buttonAction() {
                     location.pathname = '/'
                 }
             }
+        } else if (isPacket(packet, 'round')) {
+            round = packet.data
         }
     })
 
@@ -97,7 +108,16 @@
         }
     })
 
-    let minHeight = $state(0)
+    const loadVolume = (element: HTMLAudioElement) => {
+        const savedVolume = localStorage.getItem('volume')
+        if (savedVolume == null) return
+        element.volume = parseFloat(savedVolume)
+    }
+
+    const saveVolume = (e: HTMLMediaElementEventMap['volumechange']) => {
+        const volume = (e.target as HTMLAudioElement).volume
+        localStorage.setItem('volume', volume.toString())
+    }
 </script>
 
 <section bind:clientHeight={minHeight} style={`min-height: ${minHeight}px`}>
@@ -106,7 +126,7 @@
             <h2>Music Guesser</h2>
             <div class="leaderboard">
                 {#each players as player, i}
-                    <div class="row">
+                    <div class="row" transition:slide>
                         <div class="rank">#{i + 1}</div>
                         <div class="player" class:connected={player.playing}>
                             {#if player.verified}
@@ -123,7 +143,7 @@
                                 {#if player.id === game.host}
                                     <span class="placard">Host</span>
                                 {/if}
-                                {#if game.you !== null && (game.you === game.host || game.admin)}
+                                {#if game.you !== null && ((game.you === game.host && player.id !== game.you) || game.admin)}
                                     <button onclick={() => socket.send("promote", player.id)}>Promote</button>
                                     <button onclick={() => socket.send("kick", player.id)}>Kick</button>
                                 {/if}
@@ -133,12 +153,21 @@
                     </div>
                 {/each}
             </div>
-            <button onclick={() => round = {test: 'Hello, World!'}}>Start Test</button>
+            {#if game.you !== null && (game.you === game.host || game.admin)}
+                <button onclick={() => socket.send("beginRound")}>Begin Round</button>
+            {/if}
         </div>
     {:else}
         <div class="round" transition:fly={{duration: 500, x: 300}}>
-            <h1>{round.test}</h1>
-            <button onclick={() => round = null}>End Test</button>
+            <div class="title">
+                <h2>Round</h2>
+                <h3>Guess</h3>
+            </div>
+            <audio src={round.song} controls use:loadVolume onvolumechange={saveVolume}></audio>
+            {#if game.you !== null && game.you in round.guesses}
+                <input type="range" name="year" id="yearInput" min="1950" max="2020" bind:value={yearInputValue}>
+                <button onclick={() => socket.send('guess', yearInputValue)}>Guess</button>
+            {/if}
         </div>
     {/if}
     {#if popup !== null}
@@ -148,7 +177,8 @@
                 {#if popup.message === 'Select a username:'}
                     <input class="username" class:error={usernameInputErrors.length !== 0} type="text" name="username"
                            id="usernameInput" placeholder="Username" size="20" maxlength="20"
-                           bind:value={usernameInputValue}>
+                           bind:value={usernameInputValue}
+                           oninput={() => socket.send('checkName', usernameInputValue)}>
                     <div>
                         {#each usernameInputErrors as error (error)}
                             <p class="error" transition:slide>{@html error}</p>
@@ -251,7 +281,45 @@
         .round {
             grid-column: 1;
             grid-row: 1;
-            z-index: 9;
+            display: flex;
+            flex-direction: column;
+            gap: 4rem;
+
+            .title {
+                display: flex;
+                width: 100%;
+                align-items: baseline;
+                gap: 1rem;
+                border-bottom: var(--border);
+
+                h3 {
+                    color: var(--primary);
+                    font-weight: 800;
+                    text-transform: uppercase;
+                }
+            }
+
+            audio {
+                align-self: center;
+                width: 25rem;
+                height: 2rem;
+                background-color: hsl(0, 0%, 25%);
+                border: var(--border);
+                border-radius: 1rem;
+                filter: grayscale(1);
+
+                /*noinspection CssInvalidPseudoSelector*/
+                &::-webkit-media-controls-panel {
+                    background-color: hsl(0, 0%, 87%);
+                    filter: invert(1);
+                }
+            }
+
+            button {
+                align-self: end;
+                font-size: 1.4em;
+                font-weight: bold;
+            }
         }
 
         .overlay {
@@ -283,7 +351,7 @@
                     }
                 }
 
-                .error {
+                div .error {
                     width: 35rem;
                     padding: 0.4em;
                     background-color: var(--secondary);

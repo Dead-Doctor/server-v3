@@ -86,8 +86,13 @@ open class WebSocketSender(val connections: MutableList<Connection>) {
         sendMessageTo(connection, Json.encodeToString(content))
 
     fun sendMessageTo(connection: Connection, text: String) {
-        val result = connection.session.outgoing.trySend(Frame.Text(text))
-        assert(result.isSuccess) { "Sending following message to $connection failed: $result" }
+        try {
+            val result = connection.session.outgoing.trySend(Frame.Text(text))
+            assert(result.isSuccess) { "Sending following message to $connection failed: $result" }
+        } catch (e: Exception) {
+            println("Exception while trying to send:")
+            throw e
+        }
     }
 
     suspend fun closeConnection(connection: Connection, reason: CloseReason) {
