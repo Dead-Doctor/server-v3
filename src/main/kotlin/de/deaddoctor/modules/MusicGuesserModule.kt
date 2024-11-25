@@ -137,11 +137,6 @@ object MusicGuesserModule : Module {
                     addData("gameInfo", game.gameInfo(user))
                     addScript("$NAME_ID/main")
                 }
-                content {
-                    section {
-                        h1 { +NAME }
-                    }
-                }
             }
         }
 
@@ -179,6 +174,7 @@ object MusicGuesserModule : Module {
                     return@destination
                 }
                 game.join(user, name)
+                game.socketConnect(user)
                 sendToUser(user, Packet("join", user.id))
             }
             disconnection {
@@ -369,6 +365,7 @@ object MusicGuesserModule : Module {
         fun socketDisconnect(user: TrackedUser) {
             if (players[user] != PlayerState.CONNECTED) return
             players[user] = PlayerState.JOINED
+            //TODO: doesn't work for non-account users (as well as reopening game)
             disconnectJobs[user] = CoroutineScope(Job()).launch {
                 delay(5.seconds)
                 leave(user)

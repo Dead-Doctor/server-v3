@@ -247,10 +247,7 @@ object SnakeModule : Module {
             alignItems = Align.center
 
             position = Position.absolute
-            left = 0.px
-            top = 0.px
-            right = 0.px
-            bottom = 0.px
+            declarations["inset"] = "0px"
         }
 
         rule(".players") {
