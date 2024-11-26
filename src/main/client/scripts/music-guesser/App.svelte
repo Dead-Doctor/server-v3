@@ -35,9 +35,15 @@
     }
 
     interface Round {
-        song: string
+        song: {
+            previewUrl: string
+            trackName: string | null
+            artistName: string | null
+            artworkUrl: string | null
+            releaseYear: number | null
+        }
         players: PlayerId[]
-        answer: number | null
+        showResults: boolean
         guesses: { [player: PlayerId]: number } | null
     }
 
@@ -84,7 +90,7 @@
 
     let yearInputValue = $state(1985)
 
-    let canMakeGuess = $derived(game.you !== null && round !== null && round.players.includes(game.you) && round.answer === null)
+    let canMakeGuess = $derived(game.you !== null && round !== null && round.players.includes(game.you) && !round.showResults)
     let guessLocked = $state(false)
 
     const guess = () => {
@@ -219,15 +225,25 @@
         <div class="round" transition:fly={{duration: 500, x: 300}}>
             <div class="title">
                 <h2>Round</h2>
-                {#key round.answer === null}
+                {#key !round.showResults}
                     <h3 in:fly={{duration: 300, y: -30}}
-                        out:fly={{duration: 300, y: 30}}>{round.answer === null ? 'Guess' : 'Result'}</h3>
+                        out:fly={{duration: 300, y: 30}}>{ round.showResults ? 'Result' : 'Guess' }</h3>
                 {/key}
             </div>
-            {#if round.answer === null}
-                <div style="display: none" use:volumeFading></div>
-            {/if}
-            <audio src={round.song} autoplay bind:volume onvolumechange={saveVolume} controls></audio>
+            <div class="song" class:expanded={round.showResults}>
+                {#if !round.showResults}
+                    <div style="display: none" use:volumeFading></div>
+                {:else}
+                    <div class="info">
+                        <img src={round.song.artworkUrl} alt="Album Cover" in:fade={{delay: 1000, duration: 200}}>
+                        <div class="details">
+                            <h4 in:fade={{delay: 1500, duration: 200}}>{round.song.trackName}</h4>
+                            <h5 in:fade={{delay: 2000, duration: 200}}>{round.song.artistName}</h5>
+                        </div>
+                    </div>
+                {/if}
+                <audio src={round.song.previewUrl} autoplay bind:volume onvolumechange={saveVolume} controls></audio>
+            </div>
             <!--suppress JSUnusedGlobalSymbols -->
             <div class="timeline" bind:clientWidth={timelineWidth}>
                 {#each {length: timelineBars} as _, i}
@@ -241,11 +257,12 @@
                          style="left: {(yearInputValue - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{yearInputValue}</div>
                 {/if}
 
-                {#if round !== null && round.answer !== null && round.guesses !== null}
-                    {#each Object.keys(round.guesses) as id, i (id)}
-                        {@const guess = round.guesses[id]}
+                {#if round !== null && round.showResults}
+                    {@const guesses = round.guesses ?? {}}
+                    {#each Object.keys(guesses) as id, i (id)}
+                        {@const guess = guesses[id]}
                         {@const player = players.find(p => p.id === id)}
-                        <div class="pin" in:fly|global={{delay: (i + 1) * 1000, duration: 300, y: 30}}
+                        <div class="pin" in:fly|global={{delay: 3000 + i * 1000, duration: 300, y: 30}}
                              style="left: {(guess - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
                             {#if player?.verified}
                                 <img src={player.avatar} alt={player.name}>
@@ -255,8 +272,8 @@
                         </div>
                     {/each}
                     <div class="pin above"
-                         in:fly={{delay: (Object.keys(round.guesses).length + 1) * 1000, duration: 300, y: -30}}
-                         style="left: {(round.answer - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{round.answer}</div>
+                         in:fly={{delay: 3000 + Object.keys(guesses).length * 1000, duration: 300, y: -30}}
+                         style="left: {((round.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{round.song.releaseYear}</div>
                 {/if}
             </div>
             {#if canMakeGuess}
@@ -264,7 +281,7 @@
             {/if}
             {#if !canMakeGuess && isOperator}
                 <button onclick={() => socket.send("finish")}
-                        in:fade={{delay: (Object.keys(round.guesses ?? {}).length + 1) * 1000}}>Finish
+                        in:fade={{delay: 3500 + Object.keys(round.guesses ?? {}).length * 1000}}>Finish
                 </button>
             {/if}
         </div>
@@ -303,7 +320,7 @@
             grid-row: 1;
             display: flex;
             flex-direction: column;
-            gap: 2rem;
+            gap: 3rem;
 
             .leaderboard {
                 display: grid;
@@ -389,7 +406,7 @@
             grid-row: 1;
             display: flex;
             flex-direction: column;
-            gap: 2rem;
+            gap: 3rem;
 
             .title {
                 display: grid;
@@ -408,20 +425,70 @@
                 }
             }
 
-            audio {
+            .song {
                 align-self: center;
-                width: 25rem;
+                display: flex;
+                flex-direction: column;
+                width: 50rem;
                 height: 2rem;
-                background-color: hsl(0, 0%, 25%);
+                background-color: var(--secondary);
                 border: var(--border);
                 border-radius: 1rem;
-                filter: grayscale(1);
+                overflow: hidden;
+                transition: width 500ms ease-in-out, height 500ms ease-in-out;
 
-                /*noinspection CssInvalidPseudoSelector*/
+                .info {
+                    display: flex;
+                    height: calc(100% - 2rem);
+                    align-items: center;
 
-                &::-webkit-media-controls-panel {
-                    background-color: hsl(0, 0%, 87%);
-                    filter: invert(1);
+                    img {
+                        width: 8rem;
+                        height: 8rem;
+                        margin: 0 1rem;
+                        border: var(--border);
+                        border-radius: 0.4rem;
+                    }
+
+                    .details {
+                        display: flex;
+                        flex-direction: column;
+                        width: 100%;
+                        padding: 0 1.5rem;
+                        justify-content: center;
+
+                        h4 {
+                            font-size: 2em;
+                            font-weight: bold;
+                        }
+
+                        h5 {
+                            color: var(--muted);
+                            font-size: 1.5em;
+                            font-weight: 600;
+                        }
+                    }
+                }
+
+                audio {
+                    width: 100%;
+                    height: 2rem;
+                    background-color: hsl(0, 0%, 25%);
+                    filter: grayscale(1);
+
+                    /*noinspection CssInvalidPseudoSelector*/
+                    &::-webkit-media-controls-panel {
+                        background-color: hsl(0, 0%, 87%);
+                        filter: invert(1);
+                    }
+                }
+
+                &.expanded {
+                    height: 12rem;
+
+                    audio {
+                        border-top: var(--border);
+                    }
                 }
             }
 

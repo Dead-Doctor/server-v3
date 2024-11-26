@@ -41,6 +41,7 @@ object MusicGuesserModule : Module {
 
     private val cacheDuration = 30L.days
     private val storeFronts = listOf("us", "gb", "de")
+
     @Suppress("SpellCheckingInspection")
     private val centuries = listOf(
         "pl.4c4185db922342f1bc36e0817eec213a",
@@ -170,7 +171,9 @@ object MusicGuesserModule : Module {
                 val allowedSpecialCharacters = "-_.!?"
                 if (!name.all { it.isLetterOrDigit() || it in allowedSpecialCharacters }) {
                     nameErrors.add("Can only contain <samp>letters</samp>, <samp>digits</samp> or any of the following: ${
-                        allowedSpecialCharacters.toCharArray().joinToString(", ") { "<samp>$it</samp>" }}.")
+                        allowedSpecialCharacters.toCharArray().joinToString(", ") { "<samp>$it</samp>" }
+                    }."
+                    )
                 }
                 return nameErrors
             }
@@ -437,7 +440,7 @@ object MusicGuesserModule : Module {
 
         private fun maybeShowResults() {
             if (round!!.guesses.size >= round!!.players.size) {
-                round!!.answer = round!!.song.releaseDate.year
+                round!!.showResult = true
                 sendToAll(Packet("round", roundInfo))
             }
         }
@@ -457,12 +460,20 @@ object MusicGuesserModule : Module {
         fun gameInfo(user: TrackedUser) = GameInfo(playerById(user.id)?.id, host?.id, user is AccountUser && user.admin)
 
         val roundInfo
-            get() = round?.let { RoundInfo(
-                it.song.previewUrl,
-                it.players.map { p -> p.id },
-                it.answer,
-                if (it.answer != null) it.guesses.map { (key, value) -> key.id to value }.toMap() else null
-            ) }
+            get() = round?.let { round ->
+                RoundInfo(
+                    Round.SongInfo(
+                        round.song.previewUrl,
+                        round.reveal(round.song.trackName),
+                        round.reveal(round.song.artistName),
+                        round.reveal(round.song.artworkUrl100),
+                        round.reveal(round.song.releaseDate.year),
+                    ),
+                    round.players.map { p -> p.id },
+                    round.showResult,
+                    round.reveal(round.guesses.map { (key, value) -> key.id to value }.toMap())
+                )
+            }
 
         enum class PlayerState(val playing: Boolean) {
             LEFT(false),
@@ -500,16 +511,28 @@ object MusicGuesserModule : Module {
         data class Round(
             val song: Song,
             val players: MutableList<TrackedUser>,
-            var answer: Int? = null,
+            var showResult: Boolean = false,
             var guesses: MutableMap<TrackedUser, Int> = mutableMapOf(),
         ) {
+            fun <T> reveal(value: T): T? {
+                return if (showResult) value else null
+            }
 
             @Serializable
             data class RoundInfo(
-                val song: String,
+                val song: SongInfo,
                 val players: List<String>,
-                var answer: Int?,
+                val showResults: Boolean,
                 val guesses: Map<String, Int>?
+            )
+
+            @Serializable
+            data class SongInfo(
+                val previewUrl: String,
+                val trackName: String?,
+                val artistName: String?,
+                val artworkUrl: String?,
+                val releaseYear: Int?
             )
         }
     }
