@@ -1,6 +1,7 @@
 <script lang="ts">
     import {openSocket} from '../ws'
     import {fade, fly, slide} from 'svelte/transition'
+    import {sineInOut} from 'svelte/easing'
 
     interface PacketTypeMap {
         checkedName: string[]
@@ -72,6 +73,8 @@
         }
     }
 
+    let isOperator = $derived(game.you !== null && (game.you === game.host || game.admin))
+
     let minHeight = $state(0)
     const yearInputMin = 1950
     const yearInputMax = 2020
@@ -130,20 +133,53 @@
         }
     })
 
-    const loadVolume = (element: HTMLAudioElement) => {
-        const savedVolume = localStorage.getItem('volume')
-        if (savedVolume == null) return
-        element.volume = parseFloat(savedVolume)
+    const volumeFadeDuration = 1000
+    const volumeFadeInterval = 13
+    const volumeFadeTicks = Math.floor(volumeFadeDuration / volumeFadeInterval);
+    let fadedVolume = 0
+    let volume = $state(0)
+
+    const volumeFading = (_: Element) => {
+        $effect(() => {
+            fadeInVolume()
+            return () => {
+                fadeOutVolume()
+            }
+        })
     }
 
-    const saveVolume = (e: HTMLMediaElementEventMap['volumechange']) => {
-        const volume = (e.target as HTMLAudioElement).volume
+    const fadeInVolume = () => {
+        const savedVolume = localStorage.getItem('volume')
+        const targetVolume = savedVolume != null ? parseFloat(savedVolume) : 0.5
+
+        let tick = 0
+        const timer = setInterval(() => {
+            tick++
+            volume = fadedVolume = targetVolume * sineInOut(tick / volumeFadeTicks)
+            if (tick === volumeFadeTicks)
+                clearInterval(timer)
+        }, volumeFadeInterval)
+    }
+
+    const fadeOutVolume = () => {
+        const startVolume = volume;
+        let tick = 0
+        const timer = setInterval(() => {
+            tick++
+            volume = fadedVolume = startVolume * sineInOut(1 - tick / volumeFadeTicks)
+            if (tick === volumeFadeTicks)
+                clearInterval(timer)
+        }, volumeFadeInterval)
+    }
+
+    const saveVolume = () => {
+        if (volume === fadedVolume) return
         localStorage.setItem('volume', volume.toString())
     }
 </script>
 
 <section bind:clientHeight={minHeight} style={`min-height: ${minHeight}px`}>
-    {#if round === null}
+    {#if game.you === null || round === null}
         <div class="lobby" transition:fly={{duration: 500, x: -300}}>
             <h2>Music Guesser</h2>
             <div class="leaderboard">
@@ -175,7 +211,7 @@
                     </div>
                 {/each}
             </div>
-            {#if game.you !== null && (game.you === game.host || game.admin)}
+            {#if isOperator}
                 <button onclick={() => socket.send("beginRound")}>Begin Round</button>
             {/if}
         </div>
@@ -183,9 +219,15 @@
         <div class="round" transition:fly={{duration: 500, x: 300}}>
             <div class="title">
                 <h2>Round</h2>
-                <h3>Guess</h3>
+                {#key round.answer === null}
+                    <h3 in:fly={{duration: 300, y: -30}}
+                        out:fly={{duration: 300, y: 30}}>{round.answer === null ? 'Guess' : 'Result'}</h3>
+                {/key}
             </div>
-            <audio src={round.song} controls use:loadVolume onvolumechange={saveVolume} autoplay></audio>
+            {#if round.answer === null}
+                <div style="display: none" use:volumeFading></div>
+            {/if}
+            <audio src={round.song} autoplay bind:volume onvolumechange={saveVolume} controls></audio>
             <!--suppress JSUnusedGlobalSymbols -->
             <div class="timeline" bind:clientWidth={timelineWidth}>
                 {#each {length: timelineBars} as _, i}
@@ -194,16 +236,16 @@
 
                 {#if canMakeGuess}
                     <input type="range" name="year" id="yearInput" min={yearInputMin} max={yearInputMax}
-                           bind:value={yearInputValue} disabled={guessLocked}>
-                    <div class="pin interactive-pin"
+                           bind:value={yearInputValue} disabled={guessLocked} out:fly={{duration: 300, y: 200}}>
+                    <div class="pin interactive-pin" out:fly={{duration: 300, y: 30}}
                          style="left: {(yearInputValue - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{yearInputValue}</div>
                 {/if}
 
                 {#if round !== null && round.answer !== null && round.guesses !== null}
-                    {#each Object.keys(round.guesses) as id}
+                    {#each Object.keys(round.guesses) as id, i (id)}
                         {@const guess = round.guesses[id]}
                         {@const player = players.find(p => p.id === id)}
-                        <div class="pin"
+                        <div class="pin" in:fly|global={{delay: (i + 1) * 1000, duration: 300, y: 30}}
                              style="left: {(guess - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
                             {#if player?.verified}
                                 <img src={player.avatar} alt={player.name}>
@@ -213,11 +255,17 @@
                         </div>
                     {/each}
                     <div class="pin above"
+                         in:fly={{delay: (Object.keys(round.guesses).length + 1) * 1000, duration: 300, y: -30}}
                          style="left: {(round.answer - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{round.answer}</div>
                 {/if}
             </div>
             {#if canMakeGuess}
-                <button onclick={guess}>{guessLocked ? 'Edit' : 'Guess'}</button>
+                <button onclick={guess} out:fade={{duration: 300}}>{guessLocked ? 'Edit' : 'Guess'}</button>
+            {/if}
+            {#if !canMakeGuess && isOperator}
+                <button onclick={() => socket.send("finish")}
+                        in:fade={{delay: (Object.keys(round.guesses ?? {}).length + 1) * 1000}}>Finish
+                </button>
             {/if}
         </div>
     {/if}
@@ -240,7 +288,8 @@
                     <span class="login">Or <a
                             href={`/login?redirectUrl=${encodeURIComponent(location.pathname)}`}>Login</a></span>
                 {/if}
-                <button onclick={() => popup?.buttonAction()} disabled={popup?.buttonDisabled}>{popup.buttonText}</button>
+                <button onclick={() => popup?.buttonAction()}
+                        disabled={popup?.buttonDisabled}>{popup.buttonText}</button>
             </div>
         </div>
     {/if}
@@ -343,13 +392,16 @@
             gap: 2rem;
 
             .title {
-                display: flex;
+                display: grid;
+                grid-template-columns: auto 1fr;
                 width: 100%;
                 align-items: baseline;
                 gap: 1rem;
                 border-bottom: var(--border);
 
                 h3 {
+                    grid-column: 2;
+                    grid-row: 1;
                     color: var(--primary);
                     font-weight: 800;
                     text-transform: uppercase;
@@ -444,6 +496,7 @@
                     position: absolute;
                     display: flex;
                     top: 1rem;
+                    min-width: 3.5rem;
                     padding: 0.5rem;
                     justify-content: center;
                     align-items: center;

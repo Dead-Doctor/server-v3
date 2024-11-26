@@ -213,7 +213,9 @@ object MusicGuesserModule : Module {
                 game.guess(user, year)
             }
             destination("finish") {
-
+                val game = currentGame ?: return@destination
+                if (user !is TrackedUser || !game.isOperator(user) || game.round == null) return@destination
+                game.endRound()
             }
         }
 
@@ -370,11 +372,13 @@ object MusicGuesserModule : Module {
         private fun leave(user: TrackedUser) {
             players[user] = PlayerState.LEFT
 
-            if (round != null && round!!.guesses.containsKey(user)) {
-                round!!.guesses.remove(user)
-                if (round!!.guesses.isEmpty())
+            if (round?.players?.remove(user) == true) {
+                if (round!!.players.isEmpty()) {
                     round = null
-                sendToAll(Packet("round", roundInfo))
+                    sendToAll(Packet("round", roundInfo))
+                } else {
+                    maybeShowResults()
+                }
             }
 
             disconnectJobs.remove(user)?.cancel()
@@ -416,7 +420,7 @@ object MusicGuesserModule : Module {
         suspend fun beginRound() {
             round = Round(
                 queryTrack(tracks[Random.nextInt(0, tracks.size)]),
-                players.filter { it.value.playing }.map { it.key }
+                players.filter { it.value.playing }.map { it.key }.toMutableList()
             )
             sendToAll(Packet("round", roundInfo))
             //TODO: guess timeout
@@ -428,11 +432,19 @@ object MusicGuesserModule : Module {
             } else {
                 round!!.guesses.remove(user)
             }
-            //TODO: handle disconnecting users
+            maybeShowResults()
+        }
+
+        private fun maybeShowResults() {
             if (round!!.guesses.size >= round!!.players.size) {
                 round!!.answer = round!!.song.releaseDate.year
                 sendToAll(Packet("round", roundInfo))
             }
+        }
+
+        fun endRound() {
+            round = null
+            sendToAll(Packet("round", roundInfo))
         }
 
         val playerInfo: List<PlayerInfo>
@@ -487,7 +499,7 @@ object MusicGuesserModule : Module {
 
         data class Round(
             val song: Song,
-            val players: List<TrackedUser>,
+            val players: MutableList<TrackedUser>,
             var answer: Int? = null,
             var guesses: MutableMap<TrackedUser, Int> = mutableMapOf(),
         ) {
