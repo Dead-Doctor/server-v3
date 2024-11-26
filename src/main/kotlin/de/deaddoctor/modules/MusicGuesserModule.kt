@@ -25,6 +25,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
+import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.concurrent.thread
 import kotlin.random.Random
@@ -51,6 +52,7 @@ object MusicGuesserModule : Module {
         "pl.6b1b5dfda067443481265436811002f1"
     )
     private val jsonParser = Json { ignoreUnknownKeys = true }
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     private var ready = false
     private val tracksCache = File("tracks.json")
@@ -77,12 +79,12 @@ object MusicGuesserModule : Module {
                         }
                     }
                     ready = true
-                    println("Successfully loaded ${tracks.size} tracks!")
+                    logger.info("Successfully loaded ${tracks.size} tracks!")
                     jsonParser.encodeToStream(tracks, tracksCache.outputStream())
                 } else {
                     tracks = jsonParser.decodeFromStream(tracksCache.inputStream())
                     ready = true
-                    println("Successfully read ${tracks.size} cached tracks!")
+                    logger.info("Successfully read ${tracks.size} cached tracks!")
                 }
             }
         }
@@ -206,7 +208,7 @@ object MusicGuesserModule : Module {
                 game.beginRound()
             }
             destination("guess") { year: Int? ->
-                println("$user guessed $year")
+                logger.info("$user guessed $year")
             }
             destination("finish") {
 

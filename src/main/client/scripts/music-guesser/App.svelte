@@ -69,7 +69,11 @@
     }
 
     let minHeight = $state(0)
+    let yearInputMin = 1950
+    let yearInputMax = 2020
+    let timelineBars = 7 * 2 + 1
     let yearInputValue = $state(1985)
+    let timelineWidth = $state(0)
 
     socket.receive(packet => {
         if (isPacket(packet, 'checkedName')) {
@@ -165,7 +169,17 @@
             </div>
             <audio src={round.song} controls use:loadVolume onvolumechange={saveVolume}></audio>
             {#if game.you !== null && game.you in round.guesses}
-                <input type="range" name="year" id="yearInput" min="1950" max="2020" bind:value={yearInputValue}>
+                <div class="timeline" bind:clientWidth={timelineWidth}>
+                    {#each {length: timelineBars} as _, i}
+                        {@const step = (yearInputMax - yearInputMin) / (timelineBars - 1)}
+                        <div class="bar" data-year={yearInputMin + i * step}></div>
+                    {/each}
+
+                    <input type="range" name="year" id="yearInput" min={yearInputMin} max={yearInputMax}
+                           bind:value={yearInputValue}>
+                    <div class="pin"
+                         style="left: {(yearInputValue - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{yearInputValue}</div>
+                </div>
                 <button onclick={() => socket.send('guess', yearInputValue)}>Guess</button>
             {/if}
         </div>
@@ -309,9 +323,133 @@
                 filter: grayscale(1);
 
                 /*noinspection CssInvalidPseudoSelector*/
+
                 &::-webkit-media-controls-panel {
                     background-color: hsl(0, 0%, 87%);
                     filter: invert(1);
+                }
+            }
+
+            .timeline {
+                position: relative;
+                display: flex;
+                margin: 3.5rem 0 4.5rem 0;
+                justify-content: space-between;
+
+                .bar {
+                    position: relative;
+                    width: 0;
+
+                    &:nth-child(odd)::before {
+                        content: attr(data-year);
+                        position: absolute;
+                        display: block;
+                        bottom: 1.4rem;
+                        padding: 0.4rem;
+                        transform: translateX(-50%);
+                    }
+
+                    &::after {
+                        content: '';
+                        position: absolute;
+                        display: block;
+                        bottom: 0;
+                        left: 0;
+                        width: var(--decoration-thickness);
+                        height: 1rem;
+                        background-color: var(--decoration);
+                    }
+
+                    &:nth-child(odd)::after {
+                        height: 1.4rem;
+                    }
+                }
+
+                input {
+                    position: absolute;
+                    top: 1rem;
+                    left: -2.5rem;
+                    right: -2.5rem;
+                    margin: 0;
+                    width: auto;
+                    height: 3.5rem;
+                    border: none;
+                    opacity: 0;
+                    z-index: 9;
+
+                    &::-webkit-slider-thumb {
+                        width: 5rem;
+                        height: 100%;
+                        border: none;
+                        border-radius: 1rem;
+                    }
+
+                    &::-moz-range-thumb {
+                        width: 5rem;
+                        height: 100%;
+                        border: none;
+                        border-radius: 1rem;
+                    }
+                }
+
+                .pin {
+                    position: absolute;
+                    display: flex;
+                    top: 1rem;
+                    width: 5rem;
+                    height: 3.5rem;
+                    justify-content: center;
+                    align-items: center;
+                    font-size: 1.4rem;
+                    font-weight: bold;
+                    background-color: var(--secondary);
+                    border: var(--border);
+                    border-radius: 1rem;
+                    transform: translateX(-50%);
+                    transition: 50ms linear all;
+
+                    &::before {
+                        content: '';
+                        position: absolute;
+                        bottom: 100%;
+                        left: calc(50% - 1rem);
+                        right: calc(50% - 1rem);
+                        height: 2rem;
+                        border-bottom: 1rem solid var(--decoration);
+                        border-left: 1rem solid transparent;
+                        border-right: 1rem solid transparent;
+                    }
+
+                    &::after {
+                        content: '';
+                        position: absolute;
+                        bottom: 100%;
+                        --thickness: calc(var(--decoration-thickness) * sqrt(2));
+                        left: calc(50% - 1rem + var(--thickness));
+                        right: calc(50% - 1rem + var(--thickness));
+                        height: calc(2rem - 2 * var(--thickness));
+                        border-bottom: calc(1rem - var(--thickness)) solid var(--secondary);
+                        border-left: calc(1rem - var(--thickness)) solid transparent;
+                        border-right: calc(1rem - var(--thickness)) solid transparent;
+                        transition: 50ms linear all;
+                    }
+
+                    input:hover + &,
+                    input:focus-visible + & {
+                        background-color: var(--primary);
+
+                        &::after {
+                            border-bottom-color: var(--primary);
+                        }
+                    }
+
+                    input:active + & {
+                        background-color: var(--accent);
+
+                        &::after {
+                            border-bottom-color: var(--accent);
+                        }
+                    }
                 }
             }
 
@@ -329,6 +467,7 @@
             justify-content: center;
             align-items: center;
             backdrop-filter: brightness(80%) blur(4px);
+            z-index: 9999;
 
             .popup {
                 display: flex;
