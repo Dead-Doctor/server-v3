@@ -208,7 +208,9 @@ object MusicGuesserModule : Module {
                 game.beginRound()
             }
             destination("guess") { year: Int? ->
-                logger.info("$user guessed $year")
+                val game = currentGame ?: return@destination
+                if (user !is TrackedUser || game.round?.players?.contains(user) != true) return@destination
+                game.guess(user, year)
             }
             destination("finish") {
 
@@ -414,9 +416,23 @@ object MusicGuesserModule : Module {
         suspend fun beginRound() {
             round = Round(
                 queryTrack(tracks[Random.nextInt(0, tracks.size)]),
-                players.filter { it.value.playing }.map { it.key to null }.toMap().toMutableMap()
+                players.filter { it.value.playing }.map { it.key }
             )
             sendToAll(Packet("round", roundInfo))
+            //TODO: guess timeout
+        }
+
+        fun guess(user: TrackedUser, year: Int?) {
+            if (year != null) {
+                round!!.guesses[user] = year
+            } else {
+                round!!.guesses.remove(user)
+            }
+            //TODO: handle disconnecting users
+            if (round!!.guesses.size >= round!!.players.size) {
+                round!!.answer = round!!.song.releaseDate.year
+                sendToAll(Packet("round", roundInfo))
+            }
         }
 
         val playerInfo: List<PlayerInfo>
@@ -429,7 +445,12 @@ object MusicGuesserModule : Module {
         fun gameInfo(user: TrackedUser) = GameInfo(playerById(user.id)?.id, host?.id, user is AccountUser && user.admin)
 
         val roundInfo
-            get() = round?.let { RoundInfo(it.song.previewUrl, it.guesses.map { it.key.id to it.value }.toMap()) }
+            get() = round?.let { RoundInfo(
+                it.song.previewUrl,
+                it.players.map { p -> p.id },
+                it.answer,
+                if (it.answer != null) it.guesses.map { (key, value) -> key.id to value }.toMap() else null
+            ) }
 
         enum class PlayerState(val playing: Boolean) {
             LEFT(false),
@@ -464,12 +485,19 @@ object MusicGuesserModule : Module {
             val admin: Boolean,
         )
 
-        data class Round(val song: Song, val guesses: MutableMap<TrackedUser, Int?>) {
+        data class Round(
+            val song: Song,
+            val players: List<TrackedUser>,
+            var answer: Int? = null,
+            var guesses: MutableMap<TrackedUser, Int> = mutableMapOf(),
+        ) {
 
             @Serializable
             data class RoundInfo(
                 val song: String,
-                val guesses: Map<String, Int?>
+                val players: List<String>,
+                var answer: Int?,
+                val guesses: Map<String, Int>?
             )
         }
     }

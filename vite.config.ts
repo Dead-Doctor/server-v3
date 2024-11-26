@@ -9,6 +9,7 @@ export default defineConfig({
     root: 'src/main/client',
     publicDir: 'public',
     build: {
+        target: ['es2020', 'edge88', 'firefox78', 'chrome88', 'safari14'],
         manifest: true,
         outDir: './../resources/dist',
         emptyOutDir: true,

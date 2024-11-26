@@ -9,7 +9,7 @@
         playerStateChanged: { player: PlayerId, playing: boolean }
         hostChanged: PlayerId
         kicked: string
-        round: Round
+        round: Round | null
     }
 
     interface Packet<K extends keyof PacketTypeMap> {
@@ -35,12 +35,15 @@
 
     interface Round {
         song: string
-        guesses: { [player: PlayerId]: number }
+        players: PlayerId[]
+        answer: number | null
+        guesses: { [player: PlayerId]: number } | null
     }
 
     interface Popup {
         message: string
         buttonText: string
+        buttonDisabled: boolean
         buttonAction: () => void
     }
 
@@ -62,6 +65,7 @@
         popup = {
             message: 'Select a username:',
             buttonText: 'Join',
+            buttonDisabled: true,
             buttonAction() {
                 socket.send('join', usernameInputValue)
             }
@@ -69,15 +73,26 @@
     }
 
     let minHeight = $state(0)
-    let yearInputMin = 1950
-    let yearInputMax = 2020
-    let timelineBars = 7 * 2 + 1
-    let yearInputValue = $state(1985)
+    const yearInputMin = 1950
+    const yearInputMax = 2020
+    const timelineBars = 7 * 2 + 1
+    const timelineBarStep = (yearInputMax - yearInputMin) / (timelineBars - 1);
     let timelineWidth = $state(0)
+
+    let yearInputValue = $state(1985)
+
+    let canMakeGuess = $derived(game.you !== null && round !== null && round.players.includes(game.you) && round.answer === null)
+    let guessLocked = $state(false)
+
+    const guess = () => {
+        guessLocked = !guessLocked;
+        socket.send('guess', guessLocked ? yearInputValue : null)
+    }
 
     socket.receive(packet => {
         if (isPacket(packet, 'checkedName')) {
             usernameInputErrors = packet.data
+            popup!.buttonDisabled = usernameInputErrors.length != 0
         } else if (isPacket(packet, 'join')) {
             popup = null
             game.you = packet.data
@@ -92,12 +107,14 @@
             popup = {
                 message: packet.data,
                 buttonText: 'Close',
+                buttonDisabled: false,
                 buttonAction() {
                     location.pathname = '/'
                 }
             }
         } else if (isPacket(packet, 'round')) {
             round = packet.data
+            if (!round) guessLocked = false
         }
     })
 
@@ -106,6 +123,7 @@
         popup = {
             message: 'Lost connection',
             buttonText: 'Reload',
+            buttonDisabled: false,
             buttonAction() {
                 location.reload()
             }
@@ -167,20 +185,39 @@
                 <h2>Round</h2>
                 <h3>Guess</h3>
             </div>
-            <audio src={round.song} controls use:loadVolume onvolumechange={saveVolume}></audio>
-            {#if game.you !== null && game.you in round.guesses}
-                <div class="timeline" bind:clientWidth={timelineWidth}>
-                    {#each {length: timelineBars} as _, i}
-                        {@const step = (yearInputMax - yearInputMin) / (timelineBars - 1)}
-                        <div class="bar" data-year={yearInputMin + i * step}></div>
-                    {/each}
+            <audio src={round.song} controls use:loadVolume onvolumechange={saveVolume} autoplay></audio>
+            <!--suppress JSUnusedGlobalSymbols -->
+            <div class="timeline" bind:clientWidth={timelineWidth}>
+                {#each {length: timelineBars} as _, i}
+                    <div class="bar" data-year={yearInputMin + i * timelineBarStep}></div>
+                {/each}
 
+                {#if canMakeGuess}
                     <input type="range" name="year" id="yearInput" min={yearInputMin} max={yearInputMax}
-                           bind:value={yearInputValue}>
-                    <div class="pin"
+                           bind:value={yearInputValue} disabled={guessLocked}>
+                    <div class="pin interactive-pin"
                          style="left: {(yearInputValue - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{yearInputValue}</div>
-                </div>
-                <button onclick={() => socket.send('guess', yearInputValue)}>Guess</button>
+                {/if}
+
+                {#if round !== null && round.answer !== null && round.guesses !== null}
+                    {#each Object.keys(round.guesses) as id}
+                        {@const guess = round.guesses[id]}
+                        {@const player = players.find(p => p.id === id)}
+                        <div class="pin"
+                             style="left: {(guess - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
+                            {#if player?.verified}
+                                <img src={player.avatar} alt={player.name}>
+                            {:else}
+                                {player?.name}
+                            {/if}
+                        </div>
+                    {/each}
+                    <div class="pin above"
+                         style="left: {(round.answer - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{round.answer}</div>
+                {/if}
+            </div>
+            {#if canMakeGuess}
+                <button onclick={guess}>{guessLocked ? 'Edit' : 'Guess'}</button>
             {/if}
         </div>
     {/if}
@@ -203,12 +240,11 @@
                     <span class="login">Or <a
                             href={`/login?redirectUrl=${encodeURIComponent(location.pathname)}`}>Login</a></span>
                 {/if}
-                <button onclick={() => popup?.buttonAction()}>{popup.buttonText}</button>
+                <button onclick={() => popup?.buttonAction()} disabled={popup?.buttonDisabled}>{popup.buttonText}</button>
             </div>
         </div>
     {/if}
 </section>
-
 <style>
     section {
         display: grid;
@@ -216,6 +252,9 @@
         .lobby {
             grid-column: 1;
             grid-row: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
 
             .leaderboard {
                 display: grid;
@@ -290,6 +329,10 @@
                     }
                 }
             }
+
+            button {
+                align-self: end;
+            }
         }
 
         .round {
@@ -297,7 +340,7 @@
             grid-row: 1;
             display: flex;
             flex-direction: column;
-            gap: 4rem;
+            gap: 2rem;
 
             .title {
                 display: flex;
@@ -335,6 +378,7 @@
                 display: flex;
                 margin: 3.5rem 0 4.5rem 0;
                 justify-content: space-between;
+                border-bottom: var(--border);
 
                 .bar {
                     position: relative;
@@ -390,14 +434,17 @@
                         border: none;
                         border-radius: 1rem;
                     }
+
+                    &:disabled {
+                        cursor: not-allowed;
+                    }
                 }
 
                 .pin {
                     position: absolute;
                     display: flex;
                     top: 1rem;
-                    width: 5rem;
-                    height: 3.5rem;
+                    padding: 0.5rem;
                     justify-content: center;
                     align-items: center;
                     font-size: 1.4rem;
@@ -406,7 +453,11 @@
                     border: var(--border);
                     border-radius: 1rem;
                     transform: translateX(-50%);
-                    transition: 50ms linear all;
+
+                    img {
+                        height: 3rem;
+                        border-radius: 50%;
+                    }
 
                     &::before {
                         content: '';
@@ -431,6 +482,34 @@
                         border-bottom: calc(1rem - var(--thickness)) solid var(--secondary);
                         border-left: calc(1rem - var(--thickness)) solid transparent;
                         border-right: calc(1rem - var(--thickness)) solid transparent;
+                    }
+
+                    &.above {
+                        top: auto;
+                        bottom: 1rem;
+
+                        &::before {
+                            bottom: auto;
+                            top: 100%;
+                            border-bottom: none;
+                            border-top: 1rem solid var(--decoration);
+                        }
+
+                        &::after {
+                            bottom: auto;
+                            top: 100%;
+                            border-bottom: none;
+                            border-top: calc(1rem - var(--thickness)) solid var(--secondary);
+                        }
+                    }
+                }
+
+                .interactive-pin {
+                    width: 5rem;
+                    height: 3.5rem;
+                    transition: 50ms linear all;
+
+                    &::after {
                         transition: 50ms linear all;
                     }
 
@@ -448,6 +527,16 @@
 
                         &::after {
                             border-bottom-color: var(--accent);
+                        }
+                    }
+
+                    input:disabled + & {
+                        color: var(--muted);
+                        background-color: var(--background);
+                        cursor: not-allowed;
+
+                        &::after {
+                            border-bottom-color: var(--background);
                         }
                     }
                 }

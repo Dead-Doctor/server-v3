@@ -5,10 +5,6 @@ export const openSocket = <T>(pathname: string = location.pathname) => {
         console.log(`[Websocket] Connected: ${socket.url}`);
     });
 
-    socket.addEventListener('message', (e) => {
-        console.log(`[Websocket] Message:`, JSON.parse(e.data));
-    });
-
     socket.addEventListener('close', (e) => {
         console.log(`[Websocket] Closed (${e.code}): ${e.reason}`);
     });
@@ -19,12 +15,14 @@ export const openSocket = <T>(pathname: string = location.pathname) => {
 
     return {
         send(destination: string, content: any = "") {
+            console.log(`[Websocket] Send:`, content);
             socket.send(`${destination}\n${JSON.stringify(content)}`)
         },
         receive(callback: (data: T) => any) {
             socket.addEventListener('message', (e) => {
                 try {
                     const data: T = JSON.parse(e.data)
+                    console.log(`[Websocket] Received:`, data);
                     callback(data)
                 } catch (e) {
                     if (e instanceof SyntaxError) {
