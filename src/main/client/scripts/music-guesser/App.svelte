@@ -68,6 +68,9 @@
     let round: Round | null = $state(getData('round'))
     let popup: Popup | null = $state(null)
 
+    let guesses = $derived(Object.entries(round?.guesses ?? {}))
+    let sortedGuesses = $derived(guesses.toSorted((a, b) => b[1].points - a[1].points))
+
     const socket = openSocket<Packet<keyof PacketTypeMap>>('/music-guesser')
     const isPacket = <T extends keyof PacketTypeMap>(packet: Packet<any>, type: T): packet is Packet<T> => packet.type === type
 
@@ -263,9 +266,7 @@
                 {/if}
 
                 {#if round !== null && round.showResults}
-                    {@const guesses = round.guesses ?? {}}
-                    {#each Object.keys(guesses) as id, i (id)}
-                        {@const guess = guesses[id]}
+                    {#each guesses as [id, guess], i (id)}
                         {@const player = players.find(p => p.id === id)}
                         <div class="pin" in:fly|global={{delay: 3000 + i * 1000, duration: 300, y: 30}}
                              style="left: {(guess.year - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
@@ -277,15 +278,13 @@
                         </div>
                     {/each}
                     <div class="pin above"
-                         in:fly={{delay: 3000 + Object.keys(guesses).length * 1000, duration: 300, y: -30}}
+                         in:fly={{delay: 3000 + guesses.length * 1000, duration: 300, y: -30}}
                          style="left: {((round.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{round.song.releaseYear}</div>
                 {/if}
             </div>
             {#if round !== null && round.showResults}
-                {@const guesses = round.guesses ?? {}}
-                <div class="leaderboard" in:fade={{delay: 3500 + Object.keys(round.guesses ?? {}).length * 1000}}>
-                    {#each Object.keys(guesses) as id, i (id)}
-                        {@const guess = guesses[id]}
+                <div class="leaderboard" in:fade={{delay: 3500 + guesses.length * 1000}}>
+                    {#each sortedGuesses as [id, guess], i (id)}
                         {@const player = players.find(p => p.id === id)}
                         <div class="row">
                             <div class="rank">#{i + 1}</div>
