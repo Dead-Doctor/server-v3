@@ -44,7 +44,12 @@
         }
         players: PlayerId[]
         showResults: boolean
-        guesses: { [player: PlayerId]: number } | null
+        guesses: { [player: PlayerId]: Guess } | null
+    }
+
+    interface Guess {
+        year: number
+        points: number
     }
 
     interface Popup {
@@ -263,7 +268,7 @@
                         {@const guess = guesses[id]}
                         {@const player = players.find(p => p.id === id)}
                         <div class="pin" in:fly|global={{delay: 3000 + i * 1000, duration: 300, y: 30}}
-                             style="left: {(guess - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
+                             style="left: {(guess.year - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
                             {#if player?.verified}
                                 <img src={player.avatar} alt={player.name}>
                             {:else}
@@ -276,14 +281,36 @@
                          style="left: {((round.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{round.song.releaseYear}</div>
                 {/if}
             </div>
-            {#if canMakeGuess}
-                <button onclick={guess} out:fade={{duration: 300}}>{guessLocked ? 'Edit' : 'Guess'}</button>
+            {#if round !== null && round.showResults}
+                {@const guesses = round.guesses ?? {}}
+                <div class="leaderboard" in:fade={{delay: 3500 + Object.keys(round.guesses ?? {}).length * 1000}}>
+                    {#each Object.keys(guesses) as id, i (id)}
+                        {@const guess = guesses[id]}
+                        {@const player = players.find(p => p.id === id)}
+                        <div class="row">
+                            <div class="rank">#{i + 1}</div>
+                            <div class="player">
+                                {#if player?.verified}
+                                    <img src={player?.avatar} alt="Profile">
+                                {/if}
+                                <span>{player?.name}</span>
+                                {#if player?.verified}
+                                    &#x2714;
+                                {/if}
+                            </div>
+                            <div class="score">{guess.points}</div>
+                        </div>
+                    {/each}
+                </div>
             {/if}
-            {#if !canMakeGuess && isOperator}
-                <button onclick={() => socket.send("finish")}
-                        in:fade={{delay: 3500 + Object.keys(round.guesses ?? {}).length * 1000}}>Finish
-                </button>
-            {/if}
+            <div class="actions">
+                {#if canMakeGuess}
+                    <button onclick={guess} out:fade={{duration: 300}}>{guessLocked ? 'Edit' : 'Guess'}</button>
+                {/if}
+                {#if isOperator}
+                    <button onclick={() => socket.send("finish")}>End</button>
+                {/if}
+            </div>
         </div>
     {/if}
     {#if popup !== null}
@@ -344,27 +371,11 @@
                         border-bottom: none;
                     }
 
-                    > * {
-                        display: flex;
-                        align-items: center;
-                    }
-
-                    .rank {
-                        color: var(--muted);
-                        justify-content: center;
-                    }
-
                     .player {
-                        gap: 0.5em;
                         filter: brightness(50%);
 
                         &.connected {
                             filter: none;
-                        }
-
-                        img {
-                            height: 2em;
-                            border-radius: 50%;
                         }
 
                         .placard {
@@ -662,10 +673,63 @@
                 }
             }
 
-            button {
+            .actions {
                 align-self: end;
-                font-size: 1.4em;
-                font-weight: bold;
+                display: flex;
+
+                button {
+                    font-size: 1.4em;
+                    font-weight: bold;
+                }
+            }
+        }
+
+        .leaderboard {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            background-color: var(--secondary);
+            border: var(--border);
+            border-radius: 1.5rem;
+            font-size: 1.5em;
+
+            .row {
+                display: grid;
+                grid-column: span 3;
+                grid-template-columns: subgrid;
+                padding: 0.8em 1.4em;
+                column-gap: 1.4em;
+                border-bottom: var(--border);
+                justify-content: center;
+                align-items: center;
+
+                &:last-child {
+                    border-bottom: none;
+                }
+
+                > * {
+                    display: flex;
+                    align-items: center;
+                }
+
+                .rank {
+                    color: var(--muted);
+                    justify-content: center;
+                }
+
+                .player {
+                    gap: 0.5em;
+
+                    img {
+                        height: 2em;
+                        border-radius: 50%;
+                    }
+                }
+
+                .score {
+                    justify-content: center;
+                    font-size: 1.5em;
+                    font-weight: bold;
+                }
             }
         }
 

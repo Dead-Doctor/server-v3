@@ -28,6 +28,8 @@ import kotlinx.serialization.json.encodeToStream
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.concurrent.thread
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
@@ -431,11 +433,20 @@ object MusicGuesserModule : Module {
 
         fun guess(user: TrackedUser, year: Int?) {
             if (year != null) {
-                round!!.guesses[user] = year
+                round!!.guesses[user] = evaluateGuess(round!!.song, year)
             } else {
                 round!!.guesses.remove(user)
             }
             maybeShowResults()
+        }
+
+        private val minimumYear = 1950
+        private val maximumYear = 2020
+        private val fallOfFactor = 0.025f
+        private fun evaluateGuess(song: Song, year: Int): Guess {
+            val difference = abs(year - song.releaseDate.year).toFloat()
+            val points = (100f * (1f - difference / (maximumYear - minimumYear)) / (1f + difference * fallOfFactor)).roundToInt()
+            return Guess(year, points)
         }
 
         private fun maybeShowResults() {
@@ -512,7 +523,7 @@ object MusicGuesserModule : Module {
             val song: Song,
             val players: MutableList<TrackedUser>,
             var showResult: Boolean = false,
-            var guesses: MutableMap<TrackedUser, Int> = mutableMapOf(),
+            var guesses: MutableMap<TrackedUser, Guess> = mutableMapOf(),
         ) {
             fun <T> reveal(value: T): T? {
                 return if (showResult) value else null
@@ -523,7 +534,7 @@ object MusicGuesserModule : Module {
                 val song: SongInfo,
                 val players: List<String>,
                 val showResults: Boolean,
-                val guesses: Map<String, Int>?
+                val guesses: Map<String, Guess>?
             )
 
             @Serializable
@@ -536,6 +547,9 @@ object MusicGuesserModule : Module {
             )
         }
     }
+
+    @Serializable
+    data class Guess(val year: Int, val points: Int)
 
     @Serializable
     data class Packet<T>(val type: String, val data: T)
