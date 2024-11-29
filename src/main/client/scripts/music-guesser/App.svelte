@@ -8,6 +8,7 @@
         join: PlayerId
         playerJoined: Player
         playerStateChanged: { player: PlayerId, playing: boolean }
+        playerScoreChanged: { player: PlayerId, score: number }
         hostChanged: PlayerId
         kicked: string
         round: Round | null
@@ -25,7 +26,8 @@
         name: string
         verified: boolean
         avatar: string | null
-        playing: boolean
+        playing: boolean,
+        score: number
     }
 
     interface Game {
@@ -68,6 +70,7 @@
     let round: Round | null = $state(getData('round'))
     let popup: Popup | null = $state(null)
 
+    let sortedPlayers = $derived(players.toSorted((a, b) => b.score - a.score))
     let guesses = $derived(Object.entries(round?.guesses ?? {}))
     let sortedGuesses = $derived(guesses.toSorted((a, b) => b[1].points - a[1].points))
 
@@ -118,6 +121,9 @@
         } else if (isPacket(packet, 'playerStateChanged')) {
             const player = players.find(p => p.id === packet.data.player)!
             player.playing = packet.data.playing
+        } else if (isPacket(packet, 'playerScoreChanged')) {
+            const player = players.find(p => p.id === packet.data.player)!
+            player.score = packet.data.score
         } else if (isPacket(packet, 'hostChanged')) {
             game.host = packet.data
         } else if (isPacket(packet, 'kicked')) {
@@ -197,7 +203,7 @@
         <div class="lobby" transition:fly={{duration: 500, x: -300}}>
             <h2>Music Guesser</h2>
             <div class="leaderboard">
-                {#each players as player, i}
+                {#each sortedPlayers as player, i}
                     <div class="row" transition:slide>
                         <div class="rank">#{i + 1}</div>
                         <div class="player" class:connected={player.playing}>
@@ -221,7 +227,7 @@
                                 {/if}
                             {/if}
                         </div>
-                        <div class="score">0</div>
+                        <div class="score">{player.score}</div>
                     </div>
                 {/each}
             </div>

@@ -352,6 +352,7 @@ object MusicGuesserModule : Module {
         private val names = mutableMapOf<TrackedUser, String>()
         private var host: TrackedUser? = null
         private val disconnectJobs = mutableMapOf<TrackedUser, Job>()
+        private val scores = mutableMapOf<TrackedUser, Int>()
         var round: Round? = null
             private set
 
@@ -366,7 +367,7 @@ object MusicGuesserModule : Module {
 
             if (initialJoin) {
                 if (user !is AccountUser) names[user] = name!!
-                sendToAll(Packet("playerJoined", PlayerInfo(user, getName(user), players[user]!!.playing)))
+                sendToAll(Packet("playerJoined", PlayerInfo(user, getName(user), players[user]!!.playing, 0)))
             } else {
                 sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
             }
@@ -422,6 +423,7 @@ object MusicGuesserModule : Module {
             sendToUser(user, Packet("kicked", "You got kicked"))
         }
 
+        //TODO: multiple round per round?
         suspend fun beginRound() {
             round = Round(
                 queryTrack(tracks[Random.nextInt(0, tracks.size)]),
@@ -450,9 +452,13 @@ object MusicGuesserModule : Module {
         }
 
         private fun maybeShowResults() {
-            if (round!!.guesses.size >= round!!.players.size) {
+            if (!round!!.showResult && round!!.guesses.size >= round!!.players.size) {
                 round!!.showResult = true
+                val winner = round!!.guesses.maxBy { it.value.points }.key
+                val newScore = scores.getOrDefault(winner, 0) + 1
+                scores[winner] = newScore
                 sendToAll(Packet("round", roundInfo))
+                sendToAll(Packet("playerScoreChanged", PlayerScoreChanged(winner.id, newScore)))
             }
         }
 
@@ -463,7 +469,7 @@ object MusicGuesserModule : Module {
 
         val playerInfo: List<PlayerInfo>
             get() {
-                return players.map { PlayerInfo(it.key, getName(it.key), it.value.playing) }
+                return players.map { PlayerInfo(it.key, getName(it.key), it.value.playing, scores[it.key] ?: 0) }
             }
 
         private fun getName(user: TrackedUser) = if (user is AccountUser) user.name else names[user]!!
@@ -498,19 +504,24 @@ object MusicGuesserModule : Module {
             val name: String,
             val verified: Boolean,
             val avatar: String?,
-            val playing: Boolean
+            val playing: Boolean,
+            val score: Int
         ) {
-            constructor(user: TrackedUser, name: String, playing: Boolean) : this(
+            constructor(user: TrackedUser, name: String, playing: Boolean, score: Int) : this(
                 user.id,
                 name,
                 user is AccountUser,
                 (user as? AccountUser)?.avatar,
-                playing
+                playing,
+                score
             )
         }
 
         @Serializable
         data class PlayerStateChanged(val player: String, val playing: Boolean)
+
+        @Serializable
+        data class PlayerScoreChanged(val player: String, val score: Int)
 
         @Serializable
         data class GameInfo(
