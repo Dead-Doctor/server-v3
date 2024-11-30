@@ -2,7 +2,6 @@ package de.deaddoctor.modules
 
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
-import de.deaddoctor.modules.MusicGuesserModule.Game.Round.RoundInfo
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -307,6 +306,15 @@ object MusicGuesserModule : Module {
 
         @Transient
         val releaseDate: LocalDateTime = releaseDateTime.toLocalDateTime(TimeZone.UTC)
+
+        @Serializable
+        data class Info(
+            val previewUrl: String,
+            val trackName: String?,
+            val artistName: String?,
+            val artworkUrl: String?,
+            val releaseYear: Int?
+        )
     }
 
     @Serializable(with = TrackSerializer::class)
@@ -426,8 +434,8 @@ object MusicGuesserModule : Module {
         //TODO: multiple round per round?
         suspend fun beginRound() {
             round = Round(
-                queryTrack(tracks[Random.nextInt(0, tracks.size)]),
-                players.filter { it.value.playing }.map { it.key }.toMutableList()
+                players.filter { it.value.playing }.map { it.key }.toMutableList(),
+                Question(0, queryTrack(tracks[Random.nextInt(0, tracks.size)]))
             )
             sendToAll(Packet("round", roundInfo))
             //TODO: guess timeout
@@ -435,9 +443,9 @@ object MusicGuesserModule : Module {
 
         fun guess(user: TrackedUser, year: Int?) {
             if (year != null) {
-                round!!.guesses[user] = evaluateGuess(round!!.song, year)
+                round!!.question.guesses[user] = evaluateGuess(round!!.question.song, year)
             } else {
-                round!!.guesses.remove(user)
+                round!!.question.guesses.remove(user)
             }
             maybeShowResults()
         }
@@ -447,14 +455,16 @@ object MusicGuesserModule : Module {
         private val fallOfFactor = 0.025f
         private fun evaluateGuess(song: Song, year: Int): Guess {
             val difference = abs(year - song.releaseDate.year).toFloat()
-            val points = (100f * (1f - difference / (maximumYear - minimumYear)) / (1f + difference * fallOfFactor)).roundToInt()
+            val points =
+                (100f * (1f - difference / (maximumYear - minimumYear)) / (1f + difference * fallOfFactor)).roundToInt()
             return Guess(year, points)
         }
 
         private fun maybeShowResults() {
-            if (!round!!.showResult && round!!.guesses.size >= round!!.players.size) {
-                round!!.showResult = true
-                val winner = round!!.guesses.maxBy { it.value.points }.key
+            val question = round!!.question
+            if (!question.showResult && question.guesses.size >= round!!.players.size) {
+                question.showResult = true
+                val winner = question.guesses.maxBy { it.value.points }.key
                 val newScore = scores.getOrDefault(winner, 0) + 1
                 scores[winner] = newScore
                 sendToAll(Packet("round", roundInfo))
@@ -478,17 +488,22 @@ object MusicGuesserModule : Module {
 
         val roundInfo
             get() = round?.let { round ->
-                RoundInfo(
-                    Round.SongInfo(
-                        round.song.previewUrl,
-                        round.reveal(round.song.trackName),
-                        round.reveal(round.song.artistName),
-                        round.reveal(round.song.artworkUrl100),
-                        round.reveal(round.song.releaseDate.year),
-                    ),
+                val question = round.question
+                val song = question.song
+                Round.Info(
                     round.players.map { p -> p.id },
-                    round.showResult,
-                    round.reveal(round.guesses.map { (key, value) -> key.id to value }.toMap())
+                    Question.Info(
+                        question.i,
+                        Song.Info(
+                            song.previewUrl,
+                            question.reveal(song.trackName),
+                            question.reveal(song.artistName),
+                            question.reveal(song.artworkUrl100),
+                            question.reveal(song.releaseDate.year),
+                        ),
+                        question.showResult,
+                        question.reveal(question.guesses.map { (key, value) -> key.id to value }.toMap())
+                    )
                 )
             }
 
@@ -527,34 +542,38 @@ object MusicGuesserModule : Module {
         data class GameInfo(
             val you: String?,
             val host: String?,
-            val admin: Boolean,
+            val admin: Boolean
         )
 
         data class Round(
-            val song: Song,
             val players: MutableList<TrackedUser>,
-            var showResult: Boolean = false,
-            var guesses: MutableMap<TrackedUser, Guess> = mutableMapOf(),
+            val question: Question
         ) {
+
+            @Serializable
+            data class Info(
+                val players: List<String>,
+                val question: Question.Info
+            )
+        }
+
+        data class Question(
+            val i: Int,
+            val song: Song,
+            var showResult: Boolean = false,
+            var guesses: MutableMap<TrackedUser, Guess> = mutableMapOf()
+        ) {
+
             fun <T> reveal(value: T): T? {
                 return if (showResult) value else null
             }
 
             @Serializable
-            data class RoundInfo(
-                val song: SongInfo,
-                val players: List<String>,
+            data class Info(
+                val i: Int,
+                val song: Song.Info,
                 val showResults: Boolean,
                 val guesses: Map<String, Guess>?
-            )
-
-            @Serializable
-            data class SongInfo(
-                val previewUrl: String,
-                val trackName: String?,
-                val artistName: String?,
-                val artworkUrl: String?,
-                val releaseYear: Int?
             )
         }
     }

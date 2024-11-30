@@ -37,6 +37,12 @@
     }
 
     interface Round {
+        players: PlayerId[]
+        question: Question
+    }
+
+    interface Question {
+        i: number
         song: {
             previewUrl: string
             trackName: string | null
@@ -44,7 +50,6 @@
             artworkUrl: string | null
             releaseYear: number | null
         }
-        players: PlayerId[]
         showResults: boolean
         guesses: { [player: PlayerId]: Guess } | null
     }
@@ -71,7 +76,7 @@
     let popup: Popup | null = $state(null)
 
     let sortedPlayers = $derived(players.toSorted((a, b) => b.score - a.score))
-    let guesses = $derived(Object.entries(round?.guesses ?? {}))
+    let guesses = $derived(Object.entries(round?.question.guesses ?? {}))
     let sortedGuesses = $derived(guesses.toSorted((a, b) => b[1].points - a[1].points))
 
     const socket = openSocket<Packet<keyof PacketTypeMap>>('/music-guesser')
@@ -101,7 +106,7 @@
 
     let yearInputValue = $state(1985)
 
-    let canMakeGuess = $derived(game.you !== null && round !== null && round.players.includes(game.you) && !round.showResults)
+    let canMakeGuess = $derived(game.you !== null && round !== null && round.players.includes(game.you) && !round.question.showResults)
     let guessLocked = $state(false)
 
     const guess = () => {
@@ -237,85 +242,89 @@
         </div>
     {:else}
         <div class="round" transition:fly={{duration: 500, x: 300}}>
-            <div class="title">
-                <h2>Round</h2>
-                {#key !round.showResults}
-                    <h3 in:fly={{duration: 300, y: -30}}
-                        out:fly={{duration: 300, y: 30}}>{ round.showResults ? 'Result' : 'Guess' }</h3>
-                {/key}
-            </div>
-            <div class="song" class:expanded={round.showResults}>
-                {#if !round.showResults}
-                    <div style="display: none" use:volumeFading></div>
-                {:else}
-                    <div class="info">
-                        <img src={round.song.artworkUrl} alt="Album Cover" in:fade={{delay: 1000, duration: 200}}>
-                        <div class="details">
-                            <h4 in:fade={{delay: 1500, duration: 200}}>{round.song.trackName}</h4>
-                            <h5 in:fade={{delay: 2000, duration: 200}}>{round.song.artistName}</h5>
+            {#key round.question.i}
+                <div class="title">
+                    <h2>Round</h2>
+                    {#key !round.question.showResults}
+                        <h3 in:fly={{duration: 300, y: -30}}
+                            out:fly={{duration: 300, y: 30}}>{ round.question.showResults ? 'Result' : 'Guess' }</h3>
+                    {/key}
+                </div>
+                <div class="song" class:expanded={round.question.showResults}>
+                    {#if !round.question.showResults}
+                        <div style="display: none" use:volumeFading></div>
+                    {:else}
+                        <div class="info">
+                            <img src={round.question.song.artworkUrl} alt="Album Cover"
+                                 in:fade={{delay: 1000, duration: 200}}>
+                            <div class="details">
+                                <h4 in:fade={{delay: 1500, duration: 200}}>{round.question.song.trackName}</h4>
+                                <h5 in:fade={{delay: 2000, duration: 200}}>{round.question.song.artistName}</h5>
+                            </div>
                         </div>
-                    </div>
-                {/if}
-                <audio src={round.song.previewUrl} autoplay bind:volume onvolumechange={saveVolume} controls></audio>
-            </div>
-            <!--suppress JSUnusedGlobalSymbols -->
-            <div class="timeline" bind:clientWidth={timelineWidth}>
-                {#each {length: timelineBars} as _, i}
-                    <div class="bar" data-year={yearInputMin + i * timelineBarStep}></div>
-                {/each}
-
-                {#if canMakeGuess}
-                    <input type="range" name="year" id="yearInput" min={yearInputMin} max={yearInputMax}
-                           bind:value={yearInputValue} disabled={guessLocked} out:fly={{duration: 300, y: 200}}>
-                    <div class="pin interactive-pin" out:fly={{duration: 300, y: 30}}
-                         style="left: {(yearInputValue - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{yearInputValue}</div>
-                {/if}
-
-                {#if round !== null && round.showResults}
-                    {#each guesses as [id, guess], i (id)}
-                        {@const player = players.find(p => p.id === id)}
-                        <div class="pin" in:fly|global={{delay: 3000 + i * 1000, duration: 300, y: 30}}
-                             style="left: {(guess.year - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
-                            {#if player?.verified}
-                                <img src={player.avatar} alt={player.name}>
-                            {:else}
-                                {player?.name}
-                            {/if}
-                        </div>
+                    {/if}
+                    <audio src={round.question.song.previewUrl} autoplay bind:volume onvolumechange={saveVolume}
+                           controls></audio>
+                </div>
+                <!--suppress JSUnusedGlobalSymbols -->
+                <div class="timeline" bind:clientWidth={timelineWidth}>
+                    {#each {length: timelineBars} as _, i}
+                        <div class="bar" data-year={yearInputMin + i * timelineBarStep}></div>
                     {/each}
-                    <div class="pin above"
-                         in:fly={{delay: 3000 + guesses.length * 1000, duration: 300, y: -30}}
-                         style="left: {((round.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{round.song.releaseYear}</div>
-                {/if}
-            </div>
-            {#if round !== null && round.showResults}
-                <div class="leaderboard" in:fade={{delay: 3500 + guesses.length * 1000}}>
-                    {#each sortedGuesses as [id, guess], i (id)}
-                        {@const player = players.find(p => p.id === id)}
-                        <div class="row">
-                            <div class="rank">#{i + 1}</div>
-                            <div class="player">
+
+                    {#if canMakeGuess}
+                        <input type="range" name="year" id="yearInput" min={yearInputMin} max={yearInputMax}
+                               bind:value={yearInputValue} disabled={guessLocked} out:fly={{duration: 300, y: 200}}>
+                        <div class="pin interactive-pin" out:fly={{duration: 300, y: 30}}
+                             style="left: {(yearInputValue - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{yearInputValue}</div>
+                    {/if}
+
+                    {#if round !== null && round.question.showResults}
+                        {#each guesses as [id, guess], i (id)}
+                            {@const player = players.find(p => p.id === id)}
+                            <div class="pin" in:fly|global={{delay: 3000 + i * 1000, duration: 300, y: 30}}
+                                 style="left: {(guess.year - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
                                 {#if player?.verified}
-                                    <img src={player?.avatar} alt="Profile">
-                                {/if}
-                                <span>{player?.name}</span>
-                                {#if player?.verified}
-                                    &#x2714;
+                                    <img src={player.avatar} alt={player.name}>
+                                {:else}
+                                    {player?.name}
                                 {/if}
                             </div>
-                            <div class="score">{guess.points}</div>
-                        </div>
-                    {/each}
+                        {/each}
+                        <div class="pin above"
+                             in:fly={{delay: 3000 + guesses.length * 1000, duration: 300, y: -30}}
+                             style="left: {((round.question.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{round.question.song.releaseYear}</div>
+                    {/if}
                 </div>
-            {/if}
-            <div class="actions">
-                {#if canMakeGuess}
-                    <button onclick={guess} out:fade={{duration: 300}}>{guessLocked ? 'Edit' : 'Guess'}</button>
+                {#if round !== null && round.question.showResults}
+                    <div class="leaderboard" in:fade={{delay: 3500 + guesses.length * 1000}}>
+                        {#each sortedGuesses as [id, guess], i (id)}
+                            {@const player = players.find(p => p.id === id)}
+                            <div class="row">
+                                <div class="rank">#{i + 1}</div>
+                                <div class="player">
+                                    {#if player?.verified}
+                                        <img src={player?.avatar} alt="Profile">
+                                    {/if}
+                                    <span>{player?.name}</span>
+                                    {#if player?.verified}
+                                        &#x2714;
+                                    {/if}
+                                </div>
+                                <div class="score">{guess.points}</div>
+                            </div>
+                        {/each}
+                    </div>
                 {/if}
-                {#if isOperator}
-                    <button onclick={() => socket.send("finish")}>End</button>
-                {/if}
-            </div>
+                <div class="actions">
+                    {#if canMakeGuess}
+                        <button onclick={guess} out:fade={{duration: 300}}>{guessLocked ? 'Edit' : 'Guess'}</button>
+                    {/if}
+                    {#if isOperator}
+                        <button onclick={() => socket.send("finish")}>End</button>
+                    {/if}
+                </div>
+            {/key}
         </div>
     {/if}
     {#if popup !== null}
@@ -493,6 +502,7 @@
                     filter: grayscale(1);
 
                     /*noinspection CssInvalidPseudoSelector*/
+
                     &::-webkit-media-controls-panel {
                         background-color: hsl(0, 0%, 87%);
                         filter: invert(1);
