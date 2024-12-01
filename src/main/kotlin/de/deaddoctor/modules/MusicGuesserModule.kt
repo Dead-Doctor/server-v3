@@ -460,7 +460,7 @@ object MusicGuesserModule : Module {
 
         private val minimumYear = 1950
         private val maximumYear = 2020
-        private val fallOfFactor = 0.025f
+        private val fallOfFactor = 0.05f
         private fun evaluateGuess(song: Song, year: Int): Guess {
             val difference = abs(year - song.releaseDate.year).toFloat()
             val points =

@@ -116,7 +116,7 @@ fun Application.module() {
                     section("grid") {
                         div {
                             h3 { +"Play Games" }
-                            p { +"Enjoy all the games i have made." }
+                            p { +"Enjoy all the games I have made." }
                             a(href = "/games") { +"All Games" }
                         }
                         div {
