@@ -322,6 +322,8 @@
                 <div class="actions">
                     {#if canMakeGuess}
                         <button onclick={guess} out:fade={{duration: 300}}>{guessLocked ? 'Edit' : 'Guess'}</button>
+                    {:else if !round.question.showResult && !isOperator}
+                        <button out:fade={{duration: 300}} disabled>Spectating</button>
                     {/if}
                     {#if isOperator}
                         <button onclick={() => socket.send("next")}>Next</button>
