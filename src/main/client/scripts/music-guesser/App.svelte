@@ -39,6 +39,7 @@
     interface Round {
         players: PlayerId[]
         question: Question
+        results: { [player: PlayerId]: number } | null
     }
 
     interface Question {
@@ -50,7 +51,7 @@
             artworkUrl: string | null
             releaseYear: number | null
         }
-        showResults: boolean
+        showResult: boolean
         guesses: { [player: PlayerId]: Guess } | null
     }
 
@@ -78,6 +79,7 @@
     let sortedPlayers = $derived(players.toSorted((a, b) => b.score - a.score))
     let guesses = $derived(Object.entries(round?.question.guesses ?? {}))
     let sortedGuesses = $derived(guesses.toSorted((a, b) => b[1].points - a[1].points))
+    let sortedResults = $derived(Object.entries(round?.results ?? {}).toSorted((a, b) => b[1] - a[1]))
 
     const socket = openSocket<Packet<keyof PacketTypeMap>>('/music-guesser')
     const isPacket = <T extends keyof PacketTypeMap>(packet: Packet<any>, type: T): packet is Packet<T> => packet.type === type
@@ -106,7 +108,7 @@
 
     let yearInputValue = $state(1985)
 
-    let canMakeGuess = $derived(game.you !== null && round !== null && round.players.includes(game.you) && !round.question.showResults)
+    let canMakeGuess = $derived(game.you !== null && round !== null && round.players.includes(game.you) && !round.question.showResult)
     let guessLocked = $state(false)
 
     const guess = () => {
@@ -141,8 +143,8 @@
                 }
             }
         } else if (isPacket(packet, 'round')) {
+            if ((packet.data?.question.i ?? -1) > (round?.question.i ?? -1)) guessLocked = false
             round = packet.data
-            if (!round) guessLocked = false
         }
     })
 
@@ -242,16 +244,16 @@
         </div>
     {:else}
         <div class="round" transition:fly={{duration: 500, x: 300}}>
-            {#key round.question.i}
-                <div class="title">
-                    <h2>Round</h2>
-                    {#key !round.question.showResults}
-                        <h3 in:fly={{duration: 300, y: -30}}
-                            out:fly={{duration: 300, y: 30}}>{ round.question.showResults ? 'Result' : 'Guess' }</h3>
-                    {/key}
-                </div>
-                <div class="song" class:expanded={round.question.showResults}>
-                    {#if !round.question.showResults}
+            <div class="title">
+                <h2>Round</h2>
+                {#key !round.question.showResult}
+                    <h3 in:fly={{duration: 300, y: -30}}
+                        out:fly={{duration: 300, y: 30}}>{ round.question.showResult ? 'Result' : 'Guess' }</h3>
+                {/key}
+            </div>
+            {#if round.results == null}
+                <div class="song" class:expanded={round.question.showResult}>
+                    {#if !round.question.showResult}
                         <div style="display: none" use:volumeFading></div>
                     {:else}
                         <div class="info">
@@ -274,15 +276,16 @@
 
                     {#if canMakeGuess}
                         <input type="range" name="year" id="yearInput" min={yearInputMin} max={yearInputMax}
-                               bind:value={yearInputValue} disabled={guessLocked} out:fly={{duration: 300, y: 200}}>
-                        <div class="pin interactive-pin" out:fly={{duration: 300, y: 30}}
+                               bind:value={yearInputValue} disabled={guessLocked}
+                               transition:fly={{duration: 300, y: 200}}>
+                        <div class="pin interactive-pin" transition:fly={{duration: 300, y: 30}}
                              style="left: {(yearInputValue - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{yearInputValue}</div>
                     {/if}
 
-                    {#if round !== null && round.question.showResults}
+                    {#if round !== null && round.question.showResult}
                         {#each guesses as [id, guess], i (id)}
                             {@const player = players.find(p => p.id === id)}
-                            <div class="pin" in:fly|global={{delay: 3000 + i * 1000, duration: 300, y: 30}}
+                            <div class="pin" in:fly|global={{delay: 3000 + i * 1000, duration: 300, y: 30}} out:fade
                                  style="left: {(guess.year - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
                                 {#if player?.verified}
                                     <img src={player.avatar} alt={player.name}>
@@ -292,12 +295,12 @@
                             </div>
                         {/each}
                         <div class="pin above"
-                             in:fly={{delay: 3000 + guesses.length * 1000, duration: 300, y: -30}}
+                             in:fly={{delay: 3000 + guesses.length * 1000, duration: 300, y: -30}} out:fade
                              style="left: {((round.question.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{round.question.song.releaseYear}</div>
                     {/if}
                 </div>
-                {#if round !== null && round.question.showResults}
-                    <div class="leaderboard" in:fade={{delay: 3500 + guesses.length * 1000}}>
+                {#if round !== null && round.question.showResult}
+                    <div class="leaderboard" in:fade={{delay: 3500 + guesses.length * 1000}} out:fade>
                         {#each sortedGuesses as [id, guess], i (id)}
                             {@const player = players.find(p => p.id === id)}
                             <div class="row">
@@ -321,10 +324,34 @@
                         <button onclick={guess} out:fade={{duration: 300}}>{guessLocked ? 'Edit' : 'Guess'}</button>
                     {/if}
                     {#if isOperator}
-                        <button onclick={() => socket.send("finish")}>End</button>
+                        <button onclick={() => socket.send("next")}>Next</button>
                     {/if}
                 </div>
-            {/key}
+            {:else}
+                <div class="leaderboard" in:fade>
+                    {#each sortedResults as [id, points], i (id)}
+                        {@const player = players.find(p => p.id === id)}
+                        <div class="row">
+                            <div class="rank">#{i + 1}</div>
+                            <div class="player">
+                                {#if player?.verified}
+                                    <img src={player?.avatar} alt="Profile">
+                                {/if}
+                                <span>{player?.name}</span>
+                                {#if player?.verified}
+                                    &#x2714;
+                                {/if}
+                            </div>
+                            <div class="score">{points}</div>
+                        </div>
+                    {/each}
+                </div>
+                <div class="actions">
+                    {#if isOperator}
+                        <button onclick={() => socket.send("finish")}>Finish</button>
+                    {/if}
+                </div>
+            {/if}
         </div>
     {/if}
     {#if popup !== null}

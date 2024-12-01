@@ -216,6 +216,11 @@ object MusicGuesserModule : Module {
                 if (user !is TrackedUser || game.round?.players?.contains(user) != true) return@destination
                 game.guess(user, year)
             }
+            destination("next") {
+                val game = currentGame ?: return@destination
+                if (user !is TrackedUser || !game.isOperator(user) || game.round == null) return@destination
+                game.next()
+            }
             destination("finish") {
                 val game = currentGame ?: return@destination
                 if (user !is TrackedUser || !game.isOperator(user) || game.round == null) return@destination
@@ -433,9 +438,12 @@ object MusicGuesserModule : Module {
 
         //TODO: multiple round per round?
         suspend fun beginRound() {
+            val players = players.filter { it.value.playing }.map { it.key }
             round = Round(
-                players.filter { it.value.playing }.map { it.key }.toMutableList(),
-                Question(0, queryTrack(tracks[Random.nextInt(0, tracks.size)]))
+                players.toMutableList(),
+                Question.random(0),
+                false,
+                players.associateWith { 0 }.toMutableMap()
             )
             sendToAll(Packet("round", roundInfo))
             //TODO: guess timeout
@@ -464,10 +472,25 @@ object MusicGuesserModule : Module {
             val question = round!!.question
             if (!question.showResult && question.guesses.size >= round!!.players.size) {
                 question.showResult = true
-                val winner = question.guesses.maxBy { it.value.points }.key
+                question.guesses.forEach { (user, guess) -> round!!.results[user] = round!!.results[user]!! + guess.points }
+                sendToAll(Packet("round", roundInfo))
+            }
+        }
+
+        private val questionsPerRound = 5
+        suspend fun next() {
+            val n = round!!.question.i + 1
+            if (n < questionsPerRound) {
+                round!!.question = Question.random(n)
+                sendToAll(Packet("round", roundInfo))
+            } else {
+                round!!.showResults = true
+                round!!.results.replaceAll { _, total -> (total.toFloat() / questionsPerRound).roundToInt() }
+                sendToAll(Packet("round", roundInfo))
+
+                val winner = round!!.results.maxBy { it.value }.key
                 val newScore = scores.getOrDefault(winner, 0) + 1
                 scores[winner] = newScore
-                sendToAll(Packet("round", roundInfo))
                 sendToAll(Packet("playerScoreChanged", PlayerScoreChanged(winner.id, newScore)))
             }
         }
@@ -503,7 +526,8 @@ object MusicGuesserModule : Module {
                         ),
                         question.showResult,
                         question.reveal(question.guesses.map { (key, value) -> key.id to value }.toMap())
-                    )
+                    ),
+                    if (round.showResults) round.results.map { (key, value) -> key.id to value }.toMap() else null
                 )
             }
 
@@ -547,13 +571,16 @@ object MusicGuesserModule : Module {
 
         data class Round(
             val players: MutableList<TrackedUser>,
-            val question: Question
+            var question: Question,
+            var showResults: Boolean,
+            val results: MutableMap<TrackedUser, Int>
         ) {
 
             @Serializable
             data class Info(
                 val players: List<String>,
-                val question: Question.Info
+                val question: Question.Info,
+                val results: Map<String, Int>?
             )
         }
 
@@ -563,6 +590,11 @@ object MusicGuesserModule : Module {
             var showResult: Boolean = false,
             var guesses: MutableMap<TrackedUser, Guess> = mutableMapOf()
         ) {
+            companion object {
+                suspend fun random(i: Int): Question {
+                    return Question(i, queryTrack(tracks[Random.nextInt(0, tracks.size)]))
+                }
+            }
 
             fun <T> reveal(value: T): T? {
                 return if (showResult) value else null
@@ -572,7 +604,7 @@ object MusicGuesserModule : Module {
             data class Info(
                 val i: Int,
                 val song: Song.Info,
-                val showResults: Boolean,
+                val showResult: Boolean,
                 val guesses: Map<String, Guess>?
             )
         }
