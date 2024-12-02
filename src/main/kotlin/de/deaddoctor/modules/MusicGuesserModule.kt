@@ -31,7 +31,6 @@ import kotlin.concurrent.thread
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.random.Random
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.days
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -227,7 +226,7 @@ object MusicGuesserModule : Module {
             destination("override") { year: Int ->
                 val game = currentGame ?: return@destination
                 if (user !is TrackedUser || !game.isOperator(user) || game.round == null) return@destination
-                game.override(year)
+                game.override(year, user is AccountUser && user.admin)
             }
             destination("next") {
                 val game = currentGame ?: return@destination
@@ -287,8 +286,8 @@ object MusicGuesserModule : Module {
         val primaryGenreName: String,
         val isStreamable: Boolean
     ) {
-        @Transient
-        val duration: Duration = trackTimeMillis.milliseconds
+        /*@Transient
+        val duration: Duration = trackTimeMillis.milliseconds*/
 
         @Transient
         val releaseDate: LocalDateTime = releaseDateTime.toLocalDateTime(TimeZone.UTC)
@@ -459,8 +458,8 @@ object MusicGuesserModule : Module {
             }
         }
 
-        fun override(year: Int) {
-            overrides[round!!.question.song.trackId] = year
+        fun override(year: Int, save: Boolean) {
+            if (save) overrides[round!!.question.song.trackId] = year
             round!!.question.guesses.replaceAll { _, guess -> evaluateGuess(guess.year) }
             sendToAll(Packet("round", roundInfo))
         }
