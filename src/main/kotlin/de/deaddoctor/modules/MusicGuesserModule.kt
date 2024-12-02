@@ -6,6 +6,7 @@ import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.http.content.*
+import io.ktor.server.application.*
 import io.ktor.server.plugins.cachingheaders.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -57,12 +58,17 @@ object MusicGuesserModule : Module {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     private var ready = false
-    private val tracksCache = File("tracks.json")
+    private val tracksCache = File("$NAME_ID/tracks.json")
     private lateinit var tracks: MutableList<Track>
+    private val overridesFile = File("$NAME_ID/overrides.json")
+    private lateinit var overrides: MutableMap<Long, Int>
 
     init {
-        thread(isDaemon = true, name = "fetch-playlists") {
+        thread(isDaemon = true, name = "fetch-playlists-and-overrides") {
             runBlocking {
+                overrides = if (overridesFile.isFile) jsonParser.decodeFromStream(overridesFile.inputStream())
+                else mutableMapOf()
+
                 if (!tracksCache.isFile || (System.currentTimeMillis() - tracksCache.lastModified()).milliseconds > cacheDuration) {
                     tracks = mutableListOf()
                     for (storeFront in storeFronts) {
@@ -100,6 +106,10 @@ object MusicGuesserModule : Module {
     private var currentGame: Game? = null
 
     override fun Route.route() {
+        this.application.monitor.subscribe(ApplicationStopped) {
+            jsonParser.encodeToStream(overrides, overridesFile.outputStream())
+        }
+
         install(CachingHeaders) {
             options { _, _ -> CachingOptions(CacheControl.NoStore(null)) }
         }
@@ -152,8 +162,7 @@ object MusicGuesserModule : Module {
                 val game = currentGame
                 if (game == null || user !is TrackedUser) {
                     closeConnection(
-                        connection,
-                        CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
+                        connection, CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
                     )
                     return@connection
                 }
@@ -173,8 +182,7 @@ object MusicGuesserModule : Module {
                 if (!name.all { it.isLetterOrDigit() || it in allowedSpecialCharacters }) {
                     nameErrors.add("Can only contain <samp>letters</samp>, <samp>digits</samp> or any of the following: ${
                         allowedSpecialCharacters.toCharArray().joinToString(", ") { "<samp>$it</samp>" }
-                    }."
-                    )
+                    }.")
                 }
                 return nameErrors
             }
@@ -216,6 +224,11 @@ object MusicGuesserModule : Module {
                 if (user !is TrackedUser || game.round?.players?.contains(user) != true) return@destination
                 game.guess(user, year)
             }
+            destination("override") { year: Int ->
+                val game = currentGame ?: return@destination
+                if (user !is TrackedUser || !game.isOperator(user) || game.round == null) return@destination
+                game.override(year)
+            }
             destination("next") {
                 val game = currentGame ?: return@destination
                 if (user !is TrackedUser || !game.isOperator(user) || game.round == null) return@destination
@@ -225,38 +238,6 @@ object MusicGuesserModule : Module {
                 val game = currentGame ?: return@destination
                 if (user !is TrackedUser || !game.isOperator(user) || game.round == null) return@destination
                 game.endRound()
-            }
-        }
-
-        get("test")
-        {
-            if (!ready) throw Exception("Not ready yet")
-            val track = tracks[Random.nextInt(0, tracks.size)]
-            val song = queryTrack(track)
-            call.respondPage(NAME) {
-                content {
-                    section {
-                        h1 { +NAME }
-                        h3 { +"Try to guess the release year!" }
-                    }
-                    section {
-                        p { +"${song.trackName} - ${song.duration}" }
-                        p { +"${song.artistName} - ${song.collectionName}" }
-                        p {
-                            +"Reveal Year: "
-                            button {
-                                onClick = "innerText = '${song.releaseDate.year}'"
-                                +"Click"
-                            }
-                        }
-                    }
-                    section {
-                        audio {
-                            src = song.previewUrl
-                            controls = true
-                        }
-                    }
-                }
             }
         }
     }
@@ -436,7 +417,6 @@ object MusicGuesserModule : Module {
             sendToUser(user, Packet("kicked", "You got kicked"))
         }
 
-        //TODO: multiple round per round?
         suspend fun beginRound() {
             val players = players.filter { it.value.playing }.map { it.key }
             round = Round(
@@ -451,18 +431,21 @@ object MusicGuesserModule : Module {
 
         fun guess(user: TrackedUser, year: Int?) {
             if (year != null) {
-                round!!.question.guesses[user] = evaluateGuess(round!!.question.song, year)
+                round!!.question.guesses[user] = evaluateGuess(year)
             } else {
                 round!!.question.guesses.remove(user)
             }
             maybeShowResults()
         }
 
+        private fun getYear(song: Song) = overrides[song.trackId] ?: song.releaseDate.year
+
         private val minimumYear = 1950
         private val maximumYear = 2020
         private val fallOfFactor = 0.05f
-        private fun evaluateGuess(song: Song, year: Int): Guess {
-            val difference = abs(year - song.releaseDate.year).toFloat()
+        private fun evaluateGuess(year: Int): Guess {
+            val song = round!!.question.song
+            val difference = abs(year - getYear(song)).toFloat()
             val points =
                 (100f * (1f - difference / (maximumYear - minimumYear)) / (1f + difference * fallOfFactor)).roundToInt()
             return Guess(year, points)
@@ -472,13 +455,22 @@ object MusicGuesserModule : Module {
             val question = round!!.question
             if (!question.showResult && question.guesses.size >= round!!.players.size) {
                 question.showResult = true
-                question.guesses.forEach { (user, guess) -> round!!.results[user] = round!!.results[user]!! + guess.points }
                 sendToAll(Packet("round", roundInfo))
             }
         }
 
+        fun override(year: Int) {
+            overrides[round!!.question.song.trackId] = year
+            round!!.question.guesses.replaceAll { _, guess -> evaluateGuess(guess.year) }
+            sendToAll(Packet("round", roundInfo))
+        }
+
         private val questionsPerRound = 5
         suspend fun next() {
+            round!!.question.guesses.forEach { (user, guess) ->
+                round!!.results[user] = round!!.results[user]!! + guess.points
+            }
+
             val n = round!!.question.i + 1
             if (n < questionsPerRound) {
                 round!!.question = Question.random(n)
@@ -514,20 +506,18 @@ object MusicGuesserModule : Module {
                 val question = round.question
                 val song = question.song
                 Round.Info(
-                    round.players.map { p -> p.id },
-                    Question.Info(
+                    round.players.map { p -> p.id }, Question.Info(
                         question.i,
                         Song.Info(
                             song.previewUrl,
                             question.reveal(song.trackName),
                             question.reveal(song.artistName),
                             question.reveal(song.artworkUrl100),
-                            question.reveal(song.releaseDate.year),
+                            question.reveal(getYear(song)),
                         ),
                         question.showResult,
                         question.reveal(question.guesses.map { (key, value) -> key.id to value }.toMap())
-                    ),
-                    if (round.showResults) round.results.map { (key, value) -> key.id to value }.toMap() else null
+                    ), if (round.showResults) round.results.map { (key, value) -> key.id to value }.toMap() else null
                 )
             }
 
@@ -591,9 +581,7 @@ object MusicGuesserModule : Module {
             var guesses: MutableMap<TrackedUser, Guess> = mutableMapOf()
         ) {
             companion object {
-                suspend fun random(i: Int): Question {
-                    return Question(i, queryTrack(tracks[Random.nextInt(0, tracks.size)]))
-                }
+                suspend fun random(i: Int) = Question(i, queryTrack(tracks[Random.nextInt(0, tracks.size)]))
             }
 
             fun <T> reveal(value: T): T? {

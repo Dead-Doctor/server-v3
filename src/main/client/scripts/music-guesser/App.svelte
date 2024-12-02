@@ -116,6 +116,15 @@
         socket.send('guess', guessLocked ? yearInputValue : null)
     }
 
+    let overriding = $state(false)
+
+    const override = () => {
+        if (overriding) {
+            socket.send('override', yearInputValue)
+        }
+        overriding = !overriding;
+    }
+
     socket.receive(packet => {
         if (isPacket(packet, 'checkedName')) {
             usernameInputErrors = packet.data
@@ -143,7 +152,10 @@
                 }
             }
         } else if (isPacket(packet, 'round')) {
-            if ((packet.data?.question.i ?? -1) > (round?.question.i ?? -1)) guessLocked = false
+            if ((packet.data?.question.i ?? -1) > (round?.question.i ?? -1)) {
+                guessLocked = false
+                overriding = false
+            }
             round = packet.data
         }
     })
@@ -274,9 +286,9 @@
                         <div class="bar" data-year={yearInputMin + i * timelineBarStep}></div>
                     {/each}
 
-                    {#if canMakeGuess}
+                    {#if canMakeGuess || overriding}
                         <input type="range" name="year" id="yearInput" min={yearInputMin} max={yearInputMax}
-                               bind:value={yearInputValue} disabled={guessLocked}
+                               bind:value={yearInputValue} disabled={!overriding && guessLocked}
                                transition:fly={{duration: 300, y: 200}}>
                         <div class="pin interactive-pin" transition:fly={{duration: 300, y: 30}}
                              style="left: {(yearInputValue - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{yearInputValue}</div>
@@ -326,10 +338,14 @@
                         <button out:fade={{duration: 300}} disabled>Spectating</button>
                     {/if}
                     {#if isOperator}
+                        {#if round.question.showResult}
+                            <button onclick={override}>{overriding ? 'Save' : 'Override'}</button>
+                        {/if}
                         <button onclick={() => socket.send("next")}>Next</button>
                     {/if}
                 </div>
             {:else}
+                <!--TODO: add animations -->
                 <div class="leaderboard" in:fade>
                     {#each sortedResults as [id, points], i (id)}
                         {@const player = players.find(p => p.id === id)}
@@ -683,6 +699,7 @@
                     width: 5rem;
                     height: 3.5rem;
                     transition: 50ms linear all;
+                    z-index: 8;
 
                     &::after {
                         transition: 50ms linear all;
