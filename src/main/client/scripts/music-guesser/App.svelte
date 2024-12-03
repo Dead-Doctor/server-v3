@@ -65,6 +65,7 @@
         buttonText: string
         buttonDisabled: boolean
         buttonAction: () => void
+        closable: boolean
     }
 
     const getData = <T>(id: string): T => {
@@ -93,7 +94,8 @@
             buttonDisabled: true,
             buttonAction() {
                 socket.send('join', usernameInputValue)
-            }
+            },
+            closable: false
         }
     }
 
@@ -125,6 +127,19 @@
         overriding = !overriding;
     }
 
+    const next = () => {
+        popup = {
+            message: 'Are you sure you want to skip?',
+            buttonText: 'Yes',
+            buttonDisabled: false,
+            buttonAction() {
+                socket.send("next")
+                popup = null
+            },
+            closable: true
+        }
+    }
+
     socket.receive(packet => {
         if (isPacket(packet, 'checkedName')) {
             usernameInputErrors = packet.data
@@ -149,7 +164,8 @@
                 buttonDisabled: false,
                 buttonAction() {
                     location.pathname = '/'
-                }
+                },
+                closable: false
             }
         } else if (isPacket(packet, 'round')) {
             if ((packet.data?.question.i ?? -1) > (round?.question.i ?? -1)) {
@@ -168,7 +184,8 @@
             buttonDisabled: false,
             buttonAction() {
                 location.reload()
-            }
+            },
+            closable: true
         }
     })
 
@@ -341,7 +358,7 @@
                         {#if round.question.showResult}
                             <button onclick={override}>{overriding ? 'Save' : 'Override'}</button>
                         {/if}
-                        <button onclick={() => socket.send("next")}>Next</button>
+                        <button onclick={next}>Next</button>
                     {/if}
                 </div>
             {:else}
@@ -391,8 +408,11 @@
                     <span class="login">Or <a
                             href={`/login?redirectUrl=${encodeURIComponent(location.pathname)}`}>Login</a></span>
                 {/if}
-                <button onclick={() => popup?.buttonAction()}
-                        disabled={popup?.buttonDisabled}>{popup.buttonText}</button>
+                <div class="actions">
+                    <button onclick={() => popup?.buttonAction()}
+                            disabled={popup?.buttonDisabled}>{popup.buttonText}</button>
+                    <button onclick={() => popup = null}>Close</button>
+                </div>
             </div>
         </div>
     {/if}
@@ -842,7 +862,7 @@
                     color: var(--muted);
                 }
 
-                button {
+                .actions {
                     align-self: end;
                 }
             }
