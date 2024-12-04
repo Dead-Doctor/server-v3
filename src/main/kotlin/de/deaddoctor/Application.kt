@@ -138,6 +138,7 @@ fun Application.module() {
                         a(href = "/${ChatModule.path()}") { +"Chat" }
                         a(href = "/${SnakeModule.path()}") { +"Snake" }
                         a(href = "/${MusicGuesserModule.path()}") { +MusicGuesserModule.NAME }
+                        a(href = "/${QuizModule.path()}") { +"Quiz" }
                     }
                 }
             }
@@ -167,6 +168,7 @@ fun Application.module() {
         enable(ChatModule)
         enable(SnakeModule)
         enable(MusicGuesserModule)
+        enable(QuizModule)
         routeOAuth()
         staticResources("/", "dist")
     }
