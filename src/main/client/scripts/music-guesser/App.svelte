@@ -1,4 +1,5 @@
 <script lang="ts">
+    import {getData} from "../routing";
     import {openSocket} from '../ws'
     import {fade, fly, slide} from 'svelte/transition'
     import {sineInOut} from 'svelte/easing'
@@ -66,11 +67,6 @@
         buttonDisabled: boolean
         buttonAction: () => void
         closable: boolean
-    }
-
-    const getData = <T>(id: string): T => {
-        let scriptElement = document.querySelector(`script[type="application/json"]#data-${id}`)!
-        return JSON.parse(scriptElement.textContent!)
     }
     let players: Player[] = $state(getData('playerInfo'))
     let game: Game = $state(getData('gameInfo'))
