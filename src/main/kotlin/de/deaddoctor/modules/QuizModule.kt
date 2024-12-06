@@ -1,13 +1,15 @@
 package de.deaddoctor.modules
 
 import de.deaddoctor.Module
+import de.deaddoctor.ViteBuild.addScript
+import de.deaddoctor.addData
 import de.deaddoctor.respondPage
 import io.ktor.server.routing.*
-import kotlinx.html.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
+import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.random.Random
 
@@ -44,6 +46,11 @@ object QuizModule : Module {
     @OptIn(ExperimentalSerializationApi::class)
     private val questions: Array<Question> = jsonParser.decodeFromStream(dataFile.inputStream())
 
+    private val logger = LoggerFactory.getLogger(javaClass)
+    init {
+        logger.info("Successfully loaded ${questions.size} questions!")
+    }
+
     override fun path() = "quiz"
 
     override fun Route.route() {
@@ -51,20 +58,9 @@ object QuizModule : Module {
             val question = questions[Random.nextInt(questions.size)]
 
             call.respondPage("Quiz") {
-                content {
-                    section {
-                        h1 { +"Quiz" }
-                        h3 { +question.text }
-                        for (answer in question.answers) {
-                            p {
-                                +answer.text
-                                if (answer.correct) entity(Entities.checkmark)
-                            }
-                        }
-                        for (tag in question.tags) {
-                            span { +tag }
-                        }
-                    }
+                head {
+                    addData("question", question)
+                    addScript("quiz/main")
                 }
             }
         }
