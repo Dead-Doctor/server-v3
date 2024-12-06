@@ -13,6 +13,8 @@
     }
 
     let question: Question = getData('question')
+    let guess = $state(-1)
+    let showResults = $state(false)
 </script>
 
 <section>
@@ -21,11 +23,20 @@
 <section class="content">
     <h4 class="question">{question.text}</h4>
     <div class="answers">
-        {#each question.answers as answer}
-            <button class="answer" class:correct={answer.correct}>{answer.text}</button>
+        {#each question.answers as answer, i}
+            <button
+                    class="answer"
+                    class:selected={i === guess}
+                    class:correct={showResults && answer.correct}
+                    class:incorrect={showResults && !answer.correct && i === guess}
+                    disabled={showResults}
+                    onclick={() => guess = i}
+            >{answer.text}</button>
         {/each}
     </div>
-    <button class="guess">Guess</button>
+    {#if !showResults}
+        <button class="guess" onclick={() => showResults = true}>Guess</button>
+    {/if}
 </section>
 
 <style>
@@ -36,17 +47,18 @@
     }
 
     .question {
-        border-radius: 500px;
+        border-radius: 50px;
         text-align: center;
-        padding-top: 10px;
-        padding-bottom: 10px;
-        padding-left: 50px;
-        padding-right: 50px;
+        padding: 10px 50px;
         border: 2px solid #244242;
     }
 
     .answer {
         border: 2px solid #244242;
+    }
+
+    .selected {
+        background-color: gray;
     }
 
     .correct {
@@ -55,10 +67,6 @@
 
     .incorrect {
         background-color: red;
-    }
-
-    .selected {
-        background-color: gray;
     }
 
     .guess {
