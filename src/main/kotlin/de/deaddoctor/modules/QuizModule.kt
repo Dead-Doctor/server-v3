@@ -5,6 +5,8 @@ import de.deaddoctor.ViteBuild.addScript
 import de.deaddoctor.addData
 import de.deaddoctor.respondPage
 import io.ktor.server.routing.*
+import kotlinx.html.h1
+import kotlinx.html.h2
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -41,26 +43,37 @@ object QuizModule : Module {
     @Serializable
     data class Answer(val text: String, val correct: Boolean)
 
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     private val dataFile = File("quiz.json")
+    private var errorMsg: String? = null
     @OptIn(ExperimentalSerializationApi::class)
-    private val questions: Array<Question> = jsonParser.decodeFromStream(dataFile.inputStream())
-
-    private val logger = LoggerFactory.getLogger(javaClass)
-    init {
-        logger.info("Successfully loaded ${questions.size} questions!")
-    }
+    private val questions: Array<Question>? = jsonParser.runCatching { decodeFromStream(dataFile.inputStream()) as Array<Question> }.onFailure {
+        errorMsg = "Parsing Error: ${it.message}"
+        logger.error("Error while parsing json!", it)
+    }.onSuccess {
+        logger.info("Successfully loaded ${it.size} questions!")
+    }.getOrNull()
 
     override fun path() = "quiz"
 
     override fun Route.route() {
         get {
-            val question = questions[Random.nextInt(questions.size)]
+            if (questions != null) {
+                val question = questions[Random.nextInt(questions.size)]
 
-            call.respondPage("Quiz") {
-                head {
-                    addData("question", question)
-                    addScript("quiz/main")
+                call.respondPage("Quiz") {
+                    head {
+                        addData("question", question)
+                        addScript("quiz/main")
+                    }
+                }
+            } else {
+                call.respondPage("Quiz") {
+                    content {
+                        h1 { +"Error" }
+                        h2 { +(errorMsg ?: "???") }
+                    }
                 }
             }
         }
