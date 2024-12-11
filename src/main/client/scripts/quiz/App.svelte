@@ -13,6 +13,30 @@
     }
 
     let question: Question = getData('question')
+
+    const shuffle = <T>(array: T[]) => {
+        let currentIndex = array.length;
+
+        // While there remain elements to shuffle...
+        while (currentIndex != 0) {
+
+            // Pick a remaining element...
+            let randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex--;
+
+            // And swap it with the current element.
+            [array[currentIndex], array[randomIndex]] = [
+                array[randomIndex], array[currentIndex]];
+        }
+    }
+
+    const shuffled = <T>(array: T[]): T[] => {
+        const result = [...array]
+        shuffle(result)
+        return result
+    }
+
+    let shuffledAnswers = $derived(shuffled(question.answers))
     let guess = $state(-1)
     let showResults = $state(false)
 </script>
@@ -23,7 +47,7 @@
 <section class="content">
     <h4 class="question">{question.text}</h4>
     <div class="answers">
-        {#each question.answers as answer, i}
+        {#each shuffledAnswers as answer, i}
             <button
                     class="answer"
                     class:selected={i === guess}
