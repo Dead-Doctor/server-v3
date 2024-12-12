@@ -39,12 +39,11 @@
 
     interface Round {
         players: PlayerId[]
-        question: Question
+        questions: Question[]
         results: { [player: PlayerId]: number } | null
     }
 
     interface Question {
-        i: number
         song: {
             previewUrl: string
             trackName: string | null
@@ -73,8 +72,10 @@
     let round: Round | null = $state(getData('round'))
     let popup: Popup | null = $state(null)
 
+    let currentQuestion = $derived(round?.questions[round.questions.length - 1])
+
     let sortedPlayers = $derived(players.toSorted((a, b) => b.score - a.score))
-    let guesses = $derived(Object.entries(round?.question.guesses ?? {}))
+    let guesses = $derived(Object.entries(currentQuestion?.guesses ?? {}))
     let sortedGuesses = $derived(guesses.toSorted((a, b) => b[1].points - a[1].points))
     let sortedResults = $derived(Object.entries(round?.results ?? {}).toSorted((a, b) => b[1] - a[1]))
 
@@ -106,7 +107,7 @@
 
     let yearInputValue = $state(1985)
 
-    let canMakeGuess = $derived(game.you !== null && round !== null && round.players.includes(game.you) && !round.question.showResult)
+    let canMakeGuess = $derived(game.you !== null && round !== null && round.players.includes(game.you) && !currentQuestion?.showResult)
     let guessLocked = $state(false)
 
     const guess = () => {
@@ -124,12 +125,16 @@
     }
 
     const next = () => {
+        if (currentQuestion?.showResult) {
+            socket.send('next')
+            return
+        }
         popup = {
             message: 'Are you sure you want to skip?',
             buttonText: 'Yes',
             buttonDisabled: false,
             buttonAction() {
-                socket.send("next")
+                socket.send('next')
                 popup = null
             },
             closable: true
@@ -164,7 +169,7 @@
                 closable: false
             }
         } else if (isPacket(packet, 'round')) {
-            if ((packet.data?.question.i ?? -1) > (round?.question.i ?? -1)) {
+            if ((packet.data?.questions.length ?? -1) > (round?.questions.length ?? -1)) {
                 guessLocked = false
                 overriding = false
             }
@@ -271,118 +276,138 @@
         <div class="round" transition:fly={{duration: 500, x: 300}}>
             <div class="title">
                 <h2>Round</h2>
-                {#key !round.question.showResult}
+                {#key [round.results == null, !currentQuestion?.showResult]}
                     <h3 in:fly={{duration: 300, y: -30}}
-                        out:fly={{duration: 300, y: 30}}>{ round.question.showResult ? 'Result' : 'Guess' }</h3>
+                        out:fly={{duration: 300, y: 30}}>{ round.results == null ? !currentQuestion?.showResult ? 'Guess' : 'Result' : 'Results' }</h3>
                 {/key}
             </div>
-            {#if round.results == null}
-                <div class="song" class:expanded={round.question.showResult}>
-                    {#if !round.question.showResult}
-                        <div style="display: none" use:volumeFading></div>
-                    {:else}
-                        <div class="info">
-                            <img src={round.question.song.artworkUrl} alt="Album Cover"
-                                 in:fade={{delay: 1000, duration: 200}}>
-                            <div class="details">
-                                <h4 in:fade={{delay: 1500, duration: 200}}>{round.question.song.trackName}</h4>
-                                <h5 in:fade={{delay: 2000, duration: 200}}>{round.question.song.artistName}</h5>
-                            </div>
-                        </div>
-                    {/if}
-                    <audio src={round.question.song.previewUrl} autoplay bind:volume onvolumechange={saveVolume}
-                           controls></audio>
-                </div>
-                <!--suppress JSUnusedGlobalSymbols -->
-                <div class="timeline" bind:clientWidth={timelineWidth}>
-                    {#each {length: timelineBars} as _, i}
-                        <div class="bar" data-year={yearInputMin + i * timelineBarStep}></div>
-                    {/each}
-
-                    {#if canMakeGuess || overriding}
-                        <input type="range" name="year" id="yearInput" min={yearInputMin} max={yearInputMax}
-                               bind:value={yearInputValue} disabled={!overriding && guessLocked}
-                               transition:fly={{duration: 300, y: 200}}>
-                        <div class="pin interactive-pin" transition:fly={{duration: 300, y: 30}}
-                             style="left: {(yearInputValue - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{yearInputValue}</div>
-                    {/if}
-
-                    {#if round !== null && round.question.showResult}
-                        {#each guesses as [id, guess], i (id)}
-                            {@const player = players.find(p => p.id === id)}
-                            <div class="pin" in:fly|global={{delay: 3000 + i * 1000, duration: 300, y: 30}} out:fade
-                                 style="left: {(guess.year - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
-                                {#if player?.verified}
-                                    <img src={player.avatar} alt={player.name}>
+            {#key round.results}
+                <div class="content" in:fly={{duration: 500, x: 300}} out:fly={{duration: 500, x: -300}}>
+                    {#if round.results == null}
+                        <div class="song" class:expanded={currentQuestion?.showResult}>
+                            <div class="info">
+                                {#if !currentQuestion?.showResult}
+                                    <div style="display: none" use:volumeFading></div>
                                 {:else}
-                                    {player?.name}
+                                    <img src={currentQuestion?.song.artworkUrl} alt="Album Cover"
+                                         in:fade={{delay: 1000, duration: 200}}>
+                                    <div class="details">
+                                        <h4 in:fade={{delay: 1500, duration: 200}}>{currentQuestion?.song.trackName}</h4>
+                                        <h5 in:fade={{delay: 2000, duration: 200}}>{currentQuestion?.song.artistName}</h5>
+                                    </div>
                                 {/if}
                             </div>
-                        {/each}
-                        <div class="pin above"
-                             in:fly={{delay: 3000 + guesses.length * 1000, duration: 300, y: -30}} out:fade
-                             style="left: {((round.question.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{round.question.song.releaseYear}</div>
-                    {/if}
-                </div>
-                {#if round !== null && round.question.showResult}
-                    <div class="leaderboard" in:fade={{delay: 3500 + guesses.length * 1000}} out:fade>
-                        {#each sortedGuesses as [id, guess], i (id)}
-                            {@const player = players.find(p => p.id === id)}
-                            <div class="row">
-                                <div class="rank">#{i + 1}</div>
-                                <div class="player">
-                                    {#if player?.verified}
-                                        <img src={player?.avatar} alt="Profile">
-                                    {/if}
-                                    <span>{player?.name}</span>
-                                    {#if player?.verified}
-                                        &#x2714;
-                                    {/if}
-                                </div>
-                                <div class="score">{guess.points}</div>
-                            </div>
-                        {/each}
-                    </div>
-                {/if}
-                <div class="actions">
-                    {#if canMakeGuess}
-                        <button onclick={guess} out:fade={{duration: 300}}>{guessLocked ? 'Edit' : 'Guess'}</button>
-                    {:else if !round.question.showResult && !isOperator}
-                        <button out:fade={{duration: 300}} disabled>Spectating</button>
-                    {/if}
-                    {#if isOperator}
-                        {#if round.question.showResult}
-                            <button onclick={override}>{overriding ? 'Save' : 'Override'}</button>
-                        {/if}
-                        <button onclick={next}>Next</button>
-                    {/if}
-                </div>
-            {:else}
-                <!--TODO: add animations -->
-                <div class="leaderboard" in:fade>
-                    {#each sortedResults as [id, points], i (id)}
-                        {@const player = players.find(p => p.id === id)}
-                        <div class="row">
-                            <div class="rank">#{i + 1}</div>
-                            <div class="player">
-                                {#if player?.verified}
-                                    <img src={player?.avatar} alt="Profile">
-                                {/if}
-                                <span>{player?.name}</span>
-                                {#if player?.verified}
-                                    &#x2714;
-                                {/if}
-                            </div>
-                            <div class="score">{points}</div>
+                            <audio src={currentQuestion?.song.previewUrl} autoplay bind:volume
+                                   onvolumechange={saveVolume}
+                                   controls></audio>
                         </div>
-                    {/each}
-                </div>
-                <div class="actions">
-                    {#if isOperator}
-                        <button onclick={() => socket.send("finish")}>Finish</button>
+                        <!--suppress JSUnusedGlobalSymbols -->
+                        <div class="timeline" bind:clientWidth={timelineWidth}>
+                            {#each {length: timelineBars} as _, i}
+                                <div class="bar" data-year={yearInputMin + i * timelineBarStep}></div>
+                            {/each}
+
+                            {#if canMakeGuess || overriding}
+                                <input type="range" name="year" id="yearInput" min={yearInputMin} max={yearInputMax}
+                                       bind:value={yearInputValue} disabled={!overriding && guessLocked}
+                                       transition:fly={{duration: 300, y: 200}}>
+                                <div class="pin interactive-pin" transition:fly={{duration: 300, y: 30}}
+                                     style="left: {(yearInputValue - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{yearInputValue}</div>
+                            {/if}
+
+                            {#if round !== null && currentQuestion?.showResult}
+                                {#each guesses as [id, guess], i (id)}
+                                    {@const player = players.find(p => p.id === id)}
+                                    <div class="pin" in:fly|global={{delay: 3000 + i * 1000, duration: 300, y: 30}}
+                                         out:fade
+                                         style="left: {(guess.year - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">
+                                        {#if player?.verified}
+                                            <img src={player.avatar} alt={player.name}>
+                                        {:else}
+                                            {player?.name}
+                                        {/if}
+                                    </div>
+                                {/each}
+                                <div class="pin above"
+                                     in:fly={{delay: 3000 + guesses.length * 1000, duration: 300, y: -30}} out:fade
+                                     style="left: {((currentQuestion?.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{currentQuestion?.song.releaseYear}</div>
+                            {/if}
+                        </div>
+                        <div>
+                            {#if round !== null && currentQuestion?.showResult}
+                                <div class="leaderboard" in:slide={{delay: 3500 + guesses.length * 1000, duration: 500}}
+                                     out:slide={{duration: 500}}>
+                                    {#each sortedGuesses as [id, guess], i (id)}
+                                        {@const player = players.find(p => p.id === id)}
+                                        <div class="row">
+                                            <div class="rank">#{i + 1}</div>
+                                            <div class="player">
+                                                {#if player?.verified}
+                                                    <img src={player?.avatar} alt="Profile">
+                                                {/if}
+                                                <span>{player?.name}</span>
+                                                {#if player?.verified}
+                                                    &#x2714;
+                                                {/if}
+                                            </div>
+                                            <div class="score">{guess.points}</div>
+                                        </div>
+                                    {/each}
+                                </div>
+                            {/if}
+                        </div>
+                        <div class="actions">
+                            {#if canMakeGuess}
+                                <button onclick={guess}>{guessLocked ? 'Edit' : 'Guess'}</button>
+                            {:else if !currentQuestion?.showResult && !isOperator}
+                                <button disabled>Spectating</button>
+                            {/if}
+                            {#if isOperator}
+                                {#if currentQuestion?.showResult}
+                                    <button onclick={override}>{overriding ? 'Save' : 'Override'}</button>
+                                {/if}
+                                <button onclick={next}>Next</button>
+                            {/if}
+                        </div>
+                    {:else}
+                        <!--suppress JSUnusedGlobalSymbols -->
+                        <div class="timeline" bind:clientWidth={timelineWidth}>
+                            {#each {length: timelineBars} as _, i}
+                                <div class="bar" data-year={yearInputMin + i * timelineBarStep}></div>
+                            {/each}
+                            {#each round.questions as question, i}
+                                <div class="pin"
+                                     in:fly|global={{delay: 500 + i * 500, duration: 300, y: 30}} out:fade
+                                     style="left: {((question.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{i + 1}</div>
+                            {/each}
+                        </div>
+                        <div class="leaderboard" in:fade|global={{delay: 1000 + round.questions.length * 500, duration: 5}}>
+                            {#each sortedResults as [id, points], i (id)}
+                                {@const player = players.find(p => p.id === id)}
+                                <div class="row"
+                                     in:slide|global={{delay: 1000 + round.questions.length * 500 + (sortedResults.length - 1 - i) * 500, duration: 500}}>
+                                    <div class="rank">#{i + 1}</div>
+                                    <div class="player">
+                                        {#if player?.verified}
+                                            <img src={player?.avatar} alt="Profile">
+                                        {/if}
+                                        <span>{player?.name}</span>
+                                        {#if player?.verified}
+                                            &#x2714;
+                                        {/if}
+                                    </div>
+                                    <div class="score">{points}</div>
+                                </div>
+                            {/each}
+                        </div>
+                        <div class="actions">
+                            {#if isOperator}
+                                <button onclick={() => socket.send("finish")}>Finish</button>
+                            {/if}
+                        </div>
                     {/if}
                 </div>
-            {/if}
+            {/key}
         </div>
     {/if}
     {#if popup !== null}
@@ -424,60 +449,30 @@
             flex-direction: column;
             gap: 3rem;
 
-            .leaderboard {
-                display: grid;
-                grid-template-columns: auto 1fr auto;
-                background-color: var(--secondary);
-                border: var(--border);
-                border-radius: 1.5rem;
-                font-size: 1.5em;
+            .player {
+                filter: brightness(50%);
 
-                .row {
-                    display: grid;
-                    grid-column: span 3;
-                    grid-template-columns: subgrid;
-                    padding: 0.8em 1.4em;
-                    column-gap: 1.4em;
-                    border-bottom: var(--border);
-                    justify-content: center;
-                    align-items: center;
+                &.connected {
+                    filter: none;
+                }
 
-                    &:last-child {
-                        border-bottom: none;
-                    }
+                .placard {
+                    margin-left: 0.4em;
+                    padding: 0.3em 0.6em;
+                    color: var(--muted);
+                    background-color: var(--decoration);
+                    font-size: 0.6em;
+                    border-radius: 0.8em;
+                }
 
-                    .player {
-                        filter: brightness(50%);
+                button {
+                    margin-left: 0.4em;
+                    padding: 0.3em 1em;
+                    color: var(--muted);
+                    font-size: 0.6em;
 
-                        &.connected {
-                            filter: none;
-                        }
-
-                        .placard {
-                            margin-left: 0.4em;
-                            padding: 0.3em 0.6em;
-                            color: var(--muted);
-                            background-color: var(--decoration);
-                            font-size: 0.6em;
-                            border-radius: 0.8em;
-                        }
-
-                        button {
-                            margin-left: 0.4em;
-                            padding: 0.3em 1em;
-                            color: var(--muted);
-                            font-size: 0.6em;
-
-                            &:first-of-type {
-                                margin-left: 1.4em;
-                            }
-                        }
-                    }
-
-                    .score {
-                        justify-content: center;
-                        font-size: 1.5em;
-                        font-weight: bold;
+                    &:first-of-type {
+                        margin-left: 1.4em;
                     }
                 }
             }
@@ -490,8 +485,8 @@
         .round {
             grid-column: 1;
             grid-row: 1;
-            display: flex;
-            flex-direction: column;
+            display: grid;
+            grid-template-rows: repeat(2, auto) 1fr;
             gap: 3rem;
 
             .title {
@@ -511,252 +506,261 @@
                 }
             }
 
-            .song {
-                align-self: center;
+            .content {
+                grid-column: 1;
+                grid-row: 2;
                 display: flex;
                 flex-direction: column;
-                width: 50rem;
-                height: 2rem;
-                background-color: var(--secondary);
-                border: var(--border);
-                border-radius: 1rem;
-                overflow: hidden;
-                transition: width 500ms ease-in-out, height 500ms ease-in-out;
+                gap: 3rem;
 
-                .info {
+                .song {
+                    align-self: center;
                     display: flex;
-                    height: calc(100% - 2rem);
-                    align-items: center;
-
-                    img {
-                        width: 8rem;
-                        height: 8rem;
-                        margin: 0 1rem;
-                        border: var(--border);
-                        border-radius: 0.4rem;
-                    }
-
-                    .details {
-                        display: flex;
-                        flex-direction: column;
-                        width: 100%;
-                        padding: 0 1.5rem;
-                        justify-content: center;
-
-                        h4 {
-                            font-size: 2em;
-                            font-weight: bold;
-                        }
-
-                        h5 {
-                            color: var(--muted);
-                            font-size: 1.5em;
-                            font-weight: 600;
-                        }
-                    }
-                }
-
-                audio {
-                    width: 100%;
+                    flex-direction: column;
+                    width: 50rem;
                     height: 2rem;
-                    background-color: hsl(0, 0%, 25%);
-                    filter: grayscale(1);
-
-                    /*noinspection CssInvalidPseudoSelector*/
-
-                    &::-webkit-media-controls-panel {
-                        background-color: hsl(0, 0%, 87%);
-                        filter: invert(1);
-                    }
-                }
-
-                &.expanded {
-                    height: 12rem;
-
-                    audio {
-                        border-top: var(--border);
-                    }
-                }
-            }
-
-            .timeline {
-                position: relative;
-                display: flex;
-                margin: 3.5rem 0 4.5rem 0;
-                justify-content: space-between;
-                border-bottom: var(--border);
-
-                .bar {
-                    position: relative;
-                    width: 0;
-
-                    &:nth-child(odd)::before {
-                        content: attr(data-year);
-                        position: absolute;
-                        display: block;
-                        bottom: 1.4rem;
-                        padding: 0.4rem;
-                        transform: translateX(-50%);
-                    }
-
-                    &::after {
-                        content: '';
-                        position: absolute;
-                        display: block;
-                        bottom: 0;
-                        left: 0;
-                        width: var(--decoration-thickness);
-                        height: 1rem;
-                        background-color: var(--decoration);
-                    }
-
-                    &:nth-child(odd)::after {
-                        height: 1.4rem;
-                    }
-                }
-
-                input {
-                    position: absolute;
-                    top: 1rem;
-                    left: -2.5rem;
-                    right: -2.5rem;
-                    margin: 0;
-                    width: auto;
-                    height: 3.5rem;
-                    border: none;
-                    opacity: 0;
-                    z-index: 9;
-
-                    &::-webkit-slider-thumb {
-                        width: 5rem;
-                        height: 100%;
-                        border: none;
-                        border-radius: 1rem;
-                    }
-
-                    &::-moz-range-thumb {
-                        width: 5rem;
-                        height: 100%;
-                        border: none;
-                        border-radius: 1rem;
-                    }
-
-                    &:disabled {
-                        cursor: not-allowed;
-                    }
-                }
-
-                .pin {
-                    position: absolute;
-                    display: flex;
-                    top: 1rem;
-                    min-width: 3.5rem;
-                    padding: 0.5rem;
-                    justify-content: center;
-                    align-items: center;
-                    font-size: 1.4rem;
-                    font-weight: bold;
                     background-color: var(--secondary);
                     border: var(--border);
                     border-radius: 1rem;
-                    transform: translateX(-50%);
+                    overflow: hidden;
+                    transition: width 500ms ease-in-out, height 500ms ease-in-out;
 
-                    img {
-                        height: 3rem;
-                        border-radius: 50%;
+                    .info {
+                        display: flex;
+                        height: calc(100% - 2rem);
+                        align-items: center;
+
+                        img {
+                            width: 8rem;
+                            height: 8rem;
+                            margin: 0 1rem;
+                            border: var(--border);
+                            border-radius: 0.4rem;
+                        }
+
+                        .details {
+                            display: flex;
+                            flex-direction: column;
+                            width: 100%;
+                            padding: 0 1.5rem;
+                            justify-content: center;
+
+                            h4 {
+                                font-size: 2em;
+                                font-weight: bold;
+                            }
+
+                            h5 {
+                                color: var(--muted);
+                                font-size: 1.5em;
+                                font-weight: 600;
+                            }
+                        }
                     }
 
-                    &::before {
-                        content: '';
-                        position: absolute;
-                        bottom: 100%;
-                        left: calc(50% - 1rem);
-                        right: calc(50% - 1rem);
+                    audio {
+                        width: 100%;
                         height: 2rem;
-                        border-bottom: 1rem solid var(--decoration);
-                        border-left: 1rem solid transparent;
-                        border-right: 1rem solid transparent;
+                        background-color: hsl(0, 0%, 25%);
+                        filter: grayscale(1);
+
+                        /*noinspection CssInvalidPseudoSelector*/
+
+                        &::-webkit-media-controls-panel {
+                            background-color: hsl(0, 0%, 87%);
+                            filter: invert(1);
+                        }
                     }
 
-                    &::after {
-                        content: '';
+                    &.expanded {
+                        height: 12rem;
+
+                        audio {
+                            border-top: var(--border);
+                        }
+                    }
+                }
+
+                .timeline {
+                    position: relative;
+                    display: flex;
+                    margin: 3.5rem 0 4.5rem 0;
+                    justify-content: space-between;
+                    border-bottom: var(--border);
+
+                    .bar {
+                        position: relative;
+                        width: 0;
+
+                        &:nth-child(odd)::before {
+                            content: attr(data-year);
+                            position: absolute;
+                            display: block;
+                            bottom: 1.4rem;
+                            padding: 0.4rem;
+                            transform: translateX(-50%);
+                        }
+
+                        &::after {
+                            content: '';
+                            position: absolute;
+                            display: block;
+                            bottom: 0;
+                            left: 0;
+                            width: var(--decoration-thickness);
+                            height: 1rem;
+                            background-color: var(--decoration);
+                        }
+
+                        &:nth-child(odd)::after {
+                            height: 1.4rem;
+                        }
+                    }
+
+                    input {
                         position: absolute;
-                        bottom: 100%;
-                        --thickness: calc(var(--decoration-thickness) * sqrt(2));
-                        left: calc(50% - 1rem + var(--thickness));
-                        right: calc(50% - 1rem + var(--thickness));
-                        height: calc(2rem - 2 * var(--thickness));
-                        border-bottom: calc(1rem - var(--thickness)) solid var(--secondary);
-                        border-left: calc(1rem - var(--thickness)) solid transparent;
-                        border-right: calc(1rem - var(--thickness)) solid transparent;
+                        top: 1rem;
+                        left: -2.5rem;
+                        right: -2.5rem;
+                        margin: 0;
+                        width: auto;
+                        height: 3.5rem;
+                        border: none;
+                        opacity: 0;
+                        z-index: 9;
+
+                        &::-webkit-slider-thumb {
+                            width: 5rem;
+                            height: 100%;
+                            border: none;
+                            border-radius: 1rem;
+                        }
+
+                        &::-moz-range-thumb {
+                            width: 5rem;
+                            height: 100%;
+                            border: none;
+                            border-radius: 1rem;
+                        }
+
+                        &:disabled {
+                            cursor: not-allowed;
+                        }
                     }
 
-                    &.above {
-                        top: auto;
-                        bottom: 1rem;
+                    .pin {
+                        position: absolute;
+                        display: flex;
+                        top: 1rem;
+                        min-width: 3.5rem;
+                        padding: 0.5rem;
+                        justify-content: center;
+                        align-items: center;
+                        font-size: 1.4rem;
+                        font-weight: bold;
+                        background-color: var(--secondary);
+                        border: var(--border);
+                        border-radius: 1rem;
+                        transform: translateX(-50%);
+
+                        img {
+                            height: 3rem;
+                            border-radius: 50%;
+                        }
 
                         &::before {
-                            bottom: auto;
-                            top: 100%;
-                            border-bottom: none;
-                            border-top: 1rem solid var(--decoration);
+                            content: '';
+                            position: absolute;
+                            bottom: 100%;
+                            left: calc(50% - 1rem);
+                            right: calc(50% - 1rem);
+                            height: 2rem;
+                            border-bottom: 1rem solid var(--decoration);
+                            border-left: 1rem solid transparent;
+                            border-right: 1rem solid transparent;
                         }
 
                         &::after {
-                            bottom: auto;
-                            top: 100%;
-                            border-bottom: none;
-                            border-top: calc(1rem - var(--thickness)) solid var(--secondary);
+                            content: '';
+                            position: absolute;
+                            bottom: 100%;
+                            --thickness: calc(var(--decoration-thickness) * sqrt(2));
+                            left: calc(50% - 1rem + var(--thickness));
+                            right: calc(50% - 1rem + var(--thickness));
+                            height: calc(2rem - 2 * var(--thickness));
+                            border-bottom: calc(1rem - var(--thickness)) solid var(--secondary);
+                            border-left: calc(1rem - var(--thickness)) solid transparent;
+                            border-right: calc(1rem - var(--thickness)) solid transparent;
+                        }
+
+                        &.above {
+                            top: auto;
+                            bottom: 1rem;
+
+                            &::before {
+                                bottom: auto;
+                                top: 100%;
+                                border-bottom: none;
+                                border-top: 1rem solid var(--decoration);
+                            }
+
+                            &::after {
+                                bottom: auto;
+                                top: 100%;
+                                border-bottom: none;
+                                border-top: calc(1rem - var(--thickness)) solid var(--secondary);
+                            }
                         }
                     }
-                }
 
-                .interactive-pin {
-                    width: 5rem;
-                    height: 3.5rem;
-                    transition: 50ms linear all;
-                    z-index: 8;
-
-                    &::after {
+                    .interactive-pin {
+                        width: 5rem;
+                        height: 3.5rem;
                         transition: 50ms linear all;
-                    }
-
-                    input:hover + &,
-                    input:focus-visible + & {
-                        background-color: var(--primary);
+                        z-index: 8;
 
                         &::after {
-                            border-bottom-color: var(--primary);
+                            transition: 50ms linear all;
                         }
-                    }
 
-                    input:active + & {
-                        background-color: var(--accent);
+                        input:hover + &,
+                        input:focus-visible + & {
+                            background-color: var(--primary);
 
-                        &::after {
-                            border-bottom-color: var(--accent);
+                            &::after {
+                                border-bottom-color: var(--primary);
+                            }
                         }
-                    }
 
-                    input:disabled + & {
-                        color: var(--muted);
-                        background-color: var(--background);
-                        cursor: not-allowed;
+                        input:active + & {
+                            background-color: var(--accent);
 
-                        &::after {
-                            border-bottom-color: var(--background);
+                            &::after {
+                                border-bottom-color: var(--accent);
+                            }
+                        }
+
+                        input:disabled + & {
+                            color: var(--muted);
+                            background-color: var(--background);
+                            cursor: not-allowed;
+
+                            &::after {
+                                border-bottom-color: var(--background);
+                            }
                         }
                     }
                 }
-            }
 
-            .actions {
-                align-self: end;
-                display: flex;
+                .actions {
+                    align-self: end;
+                    display: flex;
 
-                button {
-                    font-size: 1.4em;
-                    font-weight: bold;
+                    button {
+                        width: 12rem;
+                        font-size: 1.4em;
+                        font-weight: bold;
+                    }
                 }
             }
         }
