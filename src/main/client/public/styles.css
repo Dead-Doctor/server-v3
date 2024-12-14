@@ -223,6 +223,16 @@ input[type='range'] {
             background-color: var(--accent);
         }
     }
+
+    &:disabled {
+        cursor: not-allowed;
+        background-color: var(--background);
+
+        &::-moz-range-thumb {
+            cursor: not-allowed;
+            background-color: var(--background);
+        }
+    }
 }
 
 input[type='range']:hover::-webkit-slider-thumb,
@@ -232,6 +242,11 @@ input[type='range']:focus-visible::-webkit-slider-thumb {
 
 input[type='range']:active::-webkit-slider-thumb {
     background-color: var(--accent);
+}
+
+input[type='range']:disabled::-moz-range-thumb {
+    cursor: not-allowed;
+    background-color: var(--background);
 }
 
 header {

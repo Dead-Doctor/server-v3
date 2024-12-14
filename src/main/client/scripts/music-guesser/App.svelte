@@ -268,6 +268,26 @@
                     </div>
                 {/each}
             </div>
+            <div class="options">
+                <div class="section">
+                    <h5>Random Options:</h5>
+                    <div class="option">
+                        <label for="justASlider">Slider</label>
+                        <input type="range" name="justASlider" id="justASlider" disabled={!isOperator}>
+                    </div>
+                </div>
+                <div class="section">
+                    <h5>Scoring Options:</h5>
+                    <div class="option">
+                        <label for="optionScoringA">A</label>
+                        <input type="range" name="optionScoringA" id="optionScoringA" disabled={!isOperator}>
+                    </div>
+                    <div class="option">
+                        <label for="optionScoringB">B</label>
+                        <input type="range" name="optionScoringB" id="optionScoringB" disabled={!isOperator}>
+                    </div>
+                </div>
+            </div>
             {#if isOperator}
                 <button onclick={() => socket.send("beginRound")}>Begin Round</button>
             {/if}
@@ -473,6 +493,26 @@
 
                     &:first-of-type {
                         margin-left: 1.4em;
+                    }
+                }
+            }
+
+            .options {
+                display: flex;
+                flex-direction: column;
+                gap: 2rem;
+
+                .section {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 1rem 4rem;
+
+                    h5 {
+                        flex-basis: 100%;
+                    }
+
+                    .option {
+                        flex: 1;
                     }
                 }
             }
