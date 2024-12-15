@@ -497,7 +497,17 @@ object MusicGuesserModule : Module {
 
         private fun getName(user: TrackedUser) = if (user is AccountUser) user.name else names[user]!!
 
-        fun gameInfo(user: TrackedUser) = GameInfo(playerById(user.id)?.id, host?.id, user is AccountUser && user.admin)
+        fun gameInfo(user: TrackedUser) = GameInfo(
+            playerById(user.id)?.id,
+            host?.id,
+            user is AccountUser && user.admin,
+            //TODO
+            OptionsInfo(
+                "Custom..",
+                0.5f,
+                0.5f
+            )
+        )
 
         val roundInfo
             get() = round?.let { round ->
@@ -556,7 +566,15 @@ object MusicGuesserModule : Module {
         data class GameInfo(
             val you: String?,
             val host: String?,
-            val admin: Boolean
+            val admin: Boolean,
+            val options: OptionsInfo
+        )
+
+        @Serializable
+        data class OptionsInfo(
+            val scoringFunction: String,
+            val a: Float,
+            val b: Float
         )
 
         data class Round(

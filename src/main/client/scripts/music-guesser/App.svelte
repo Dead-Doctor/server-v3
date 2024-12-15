@@ -35,6 +35,11 @@
         you: PlayerId | null
         host: PlayerId | null
         admin: boolean
+        options: {
+            function: string
+            a: number
+            b: number
+        }
     }
 
     interface Round {
@@ -69,6 +74,10 @@
     }
     let players: Player[] = $state(getData('playerInfo'))
     let game: Game = $state(getData('gameInfo'))
+    let scoringFunctions = {
+        decay: {a: 0.145, b: 0.093},
+        bell: {a: 0.084, b: 0.16}
+    }
     let round: Round | null = $state(getData('round'))
     let popup: Popup | null = $state(null)
 
@@ -270,21 +279,29 @@
             </div>
             <div class="options">
                 <div class="section">
-                    <h5>Random Options:</h5>
+                    <h5>Scoring Options:</h5>
                     <div class="option">
-                        <label for="justASlider">Slider</label>
-                        <input type="range" name="justASlider" id="justASlider" disabled={!isOperator}>
+                        <label for="optionScoringFunction">Function</label>
+                        <select name="optionScoringFunction" id="optionScoringFunction" disabled={!isOperator}>
+                            {#each Object.entries(scoringFunctions) as scoringFunction}
+                                <option value={scoringFunction[0]} onselect={() => {
+                                    game.options.a = scoringFunction[1].a
+                                    game.options.b = scoringFunction[1].b
+                                }}>{scoringFunction[0]}</option>
+                            {/each}
+                            <option value="custom">Custom..</option>
+                        </select>
                     </div>
                 </div>
                 <div class="section">
-                    <h5>Scoring Options:</h5>
+                    <h5>Advanced Options:</h5>
                     <div class="option">
                         <label for="optionScoringA">A</label>
-                        <input type="range" name="optionScoringA" id="optionScoringA" disabled={!isOperator}>
+                        <input type="range" name="optionScoringA" id="optionScoringA" bind:value={game.options.a} disabled={!isOperator}>
                     </div>
                     <div class="option">
                         <label for="optionScoringB">B</label>
-                        <input type="range" name="optionScoringB" id="optionScoringB" disabled={!isOperator}>
+                        <input type="range" name="optionScoringB" id="optionScoringB" bind:value={game.options.b} disabled={!isOperator}>
                     </div>
                 </div>
             </div>
