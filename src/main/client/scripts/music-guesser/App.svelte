@@ -35,11 +35,17 @@
         you: PlayerId | null
         host: PlayerId | null
         admin: boolean
-        options: {
-            function: string
-            a: number
-            b: number
-        }
+        options: Options
+    }
+
+    interface Options {
+        function: string
+        a: number
+        b: number
+    }
+
+    type ScoringFunctions = {
+        [name: string]: { a: number, b: number }
     }
 
     interface Round {
@@ -72,12 +78,30 @@
         buttonAction: () => void
         closable: boolean
     }
+
     let players: Player[] = $state(getData('playerInfo'))
     let game: Game = $state(getData('gameInfo'))
-    let scoringFunctions = {
+    let scoringFunctions: ScoringFunctions = {
         decay: {a: 0.145, b: 0.093},
         bell: {a: 0.084, b: 0.16}
     }
+
+    const scoringOptionChange = () => {
+        const scoringFunction = game.options.function
+        if (scoringFunction === 'custom') return
+        game.options.a = scoringFunctions[scoringFunction].a
+        game.options.b = scoringFunctions[scoringFunction].b
+        updateScoringOptions()
+    }
+    const changeScoringOptionSlider = () => {
+        game.options.function = 'custom'
+        updateScoringOptions()
+    }
+
+    const updateScoringOptions = () => {
+        //TODO: inform server about update
+    }
+
     let round: Round | null = $state(getData('round'))
     let popup: Popup | null = $state(null)
 
@@ -282,12 +306,11 @@
                     <h5>Scoring Options:</h5>
                     <div class="option">
                         <label for="optionScoringFunction">Function</label>
-                        <select name="optionScoringFunction" id="optionScoringFunction" disabled={!isOperator}>
+                        <select name="optionScoringFunction" id="optionScoringFunction"
+                                bind:value={game.options.function} onchange={scoringOptionChange}
+                                disabled={!isOperator}>
                             {#each Object.entries(scoringFunctions) as scoringFunction}
-                                <option value={scoringFunction[0]} onselect={() => {
-                                    game.options.a = scoringFunction[1].a
-                                    game.options.b = scoringFunction[1].b
-                                }}>{scoringFunction[0]}</option>
+                                <option value={scoringFunction[0]}>{scoringFunction[0]}</option>
                             {/each}
                             <option value="custom">Custom..</option>
                         </select>
@@ -297,11 +320,15 @@
                     <h5>Advanced Options:</h5>
                     <div class="option">
                         <label for="optionScoringA">A</label>
-                        <input type="range" name="optionScoringA" id="optionScoringA" bind:value={game.options.a} disabled={!isOperator}>
+                        <input type="range" name="optionScoringA" id="optionScoringA" min="0" max="1" step="any"
+                               bind:value={game.options.a} oninput={changeScoringOptionSlider}
+                               disabled={!isOperator}>
                     </div>
                     <div class="option">
                         <label for="optionScoringB">B</label>
-                        <input type="range" name="optionScoringB" id="optionScoringB" bind:value={game.options.b} disabled={!isOperator}>
+                        <input type="range" name="optionScoringB" id="optionScoringB" min="0" max="1" step="any"
+                               bind:value={game.options.b} oninput={changeScoringOptionSlider}
+                               disabled={!isOperator}>
                     </div>
                 </div>
             </div>
@@ -418,7 +445,8 @@
                                      style="left: {((question.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{i + 1}</div>
                             {/each}
                         </div>
-                        <div class="leaderboard" in:fade|global={{delay: 1000 + round.questions.length * 500, duration: 5}}>
+                        <div class="leaderboard"
+                             in:fade|global={{delay: 1000 + round.questions.length * 500, duration: 5}}>
                             {#each sortedResults as [id, points], i (id)}
                                 {@const player = players.find(p => p.id === id)}
                                 <div class="row"
