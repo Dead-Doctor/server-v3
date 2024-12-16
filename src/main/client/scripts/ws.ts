@@ -1,4 +1,10 @@
-export const openSocket = <T>(pathname: string = location.pathname) => {
+export interface SocketAddressable<T> {
+    send(destination: string, content?: any): void
+    receive(callback: (data: T) => any): void
+    raw: WebSocket
+}
+
+export const openSocket = <T>(pathname: string = location.pathname): SocketAddressable<T> => {
     const socket = new WebSocket((location.protocol === "https:" ? 'wss:' : 'ws:') + '//' + location.host + pathname + '/ws');
 
     socket.addEventListener('open', () => {

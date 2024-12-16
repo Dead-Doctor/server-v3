@@ -1,6 +1,7 @@
 <script lang="ts">
     import {getData} from "../routing";
     import {openSocket} from '../ws'
+    import Leaderboard from "../Leaderboard.svelte";
     import {fade, fly, slide} from 'svelte/transition'
     import {sineInOut} from 'svelte/easing'
 
@@ -107,9 +108,26 @@
 
     let currentQuestion = $derived(round?.questions[round.questions.length - 1])
 
-    let sortedPlayers = $derived(players.toSorted((a, b) => b.score - a.score))
+    let sortedPlayers = $derived(players.toSorted((a, b) => b.score - a.score).map(player => ({
+        id: player.id,
+        name: player.name,
+        verified: player.verified,
+        avatar: player.avatar,
+        inactive: !player.playing,
+        value: player.score
+    })))
     let guesses = $derived(Object.entries(currentQuestion?.guesses ?? {}))
-    let sortedGuesses = $derived(guesses.toSorted((a, b) => b[1].points - a[1].points))
+    let sortedGuesses = $derived(guesses.toSorted((a, b) => b[1].points - a[1].points).map(([id, guess]) => {
+        const player = players.find(p => p.id === id)!
+        return {
+            id: player.id,
+            name: player.name,
+            verified: player.verified,
+            avatar: player.avatar,
+            inactive: false,
+            value: guess.points
+        }
+    }))
     let sortedResults = $derived(Object.entries(round?.results ?? {}).toSorted((a, b) => b[1] - a[1]))
 
     const socket = openSocket<Packet<keyof PacketTypeMap>>('/music-guesser')
@@ -272,35 +290,12 @@
     {#if game.you === null || round === null}
         <div class="lobby" transition:fly={{duration: 500, x: -300}}>
             <h2>Music Guesser</h2>
-            <div class="leaderboard">
-                {#each sortedPlayers as player, i}
-                    <div class="row" transition:slide>
-                        <div class="rank">#{i + 1}</div>
-                        <div class="player" class:connected={player.playing}>
-                            {#if player.verified}
-                                <img src={player.avatar} alt="Profile">
-                            {/if}
-                            <span>{player.name}</span>
-                            {#if player.verified}
-                                &#x2714;
-                            {/if}
-                            {#if player.playing}
-                                {#if player.id === game.you}
-                                    <span class="placard">You</span>
-                                {/if}
-                                {#if player.id === game.host}
-                                    <span class="placard">Host</span>
-                                {/if}
-                                {#if game.you !== null && ((game.you === game.host && player.id !== game.you) || game.admin)}
-                                    <button onclick={() => socket.send("promote", player.id)}>Promote</button>
-                                    <button onclick={() => socket.send("kick", player.id)}>Kick</button>
-                                {/if}
-                            {/if}
-                        </div>
-                        <div class="score">{player.score}</div>
-                    </div>
-                {/each}
-            </div>
+            <Leaderboard players={sortedPlayers} lobby={{
+                you: game.you,
+                host: game.host,
+                admin: game.admin,
+                socket
+            }}/>
             <div class="options">
                 <div class="section">
                     <h5>Scoring Options:</h5>
@@ -399,25 +394,7 @@
                         </div>
                         <div>
                             {#if round !== null && currentQuestion?.showResult}
-                                <div class="leaderboard" in:slide={{delay: 3500 + guesses.length * 1000, duration: 500}}
-                                     out:slide={{duration: 500}}>
-                                    {#each sortedGuesses as [id, guess], i (id)}
-                                        {@const player = players.find(p => p.id === id)}
-                                        <div class="row">
-                                            <div class="rank">#{i + 1}</div>
-                                            <div class="player">
-                                                {#if player?.verified}
-                                                    <img src={player?.avatar} alt="Profile">
-                                                {/if}
-                                                <span>{player?.name}</span>
-                                                {#if player?.verified}
-                                                    &#x2714;
-                                                {/if}
-                                            </div>
-                                            <div class="score">{guess.points}</div>
-                                        </div>
-                                    {/each}
-                                </div>
+                                <Leaderboard players={sortedGuesses}/>
                             {/if}
                         </div>
                         <div class="actions">
@@ -445,26 +422,18 @@
                                      style="left: {((question.song.releaseYear ?? 0) - yearInputMin) / (yearInputMax - yearInputMin) * timelineWidth}px">{i + 1}</div>
                             {/each}
                         </div>
-                        <div class="leaderboard"
-                             in:fade|global={{delay: 1000 + round.questions.length * 500, duration: 5}}>
-                            {#each sortedResults as [id, points], i (id)}
-                                {@const player = players.find(p => p.id === id)}
-                                <div class="row"
-                                     in:slide|global={{delay: 1000 + round.questions.length * 500 + (sortedResults.length - 1 - i) * 500, duration: 500}}>
-                                    <div class="rank">#{i + 1}</div>
-                                    <div class="player">
-                                        {#if player?.verified}
-                                            <img src={player?.avatar} alt="Profile">
-                                        {/if}
-                                        <span>{player?.name}</span>
-                                        {#if player?.verified}
-                                            &#x2714;
-                                        {/if}
-                                    </div>
-                                    <div class="score">{points}</div>
-                                </div>
-                            {/each}
-                        </div>
+                        <Leaderboard players={sortedResults.map(([id, points]) => {
+                            const player = players.find(p => p.id === id)
+                            if (player === undefined) throw new Error()
+                            return {
+                                id: player.id,
+                                name: player.name,
+                                verified: player.verified,
+                                avatar: player.avatar,
+                                inactive: false,
+                                value: points
+                            }
+                        })} transition={{delay: i => 1000 + (round?.questions.length ?? 0) * 500 + (sortedResults.length - 1 - i) * 500, duration: () => 500}}/>
                         <div class="actions">
                             {#if isOperator}
                                 <button onclick={() => socket.send("finish")}>Finish</button>
@@ -513,34 +482,6 @@
             display: flex;
             flex-direction: column;
             gap: 3rem;
-
-            .player {
-                filter: brightness(50%);
-
-                &.connected {
-                    filter: none;
-                }
-
-                .placard {
-                    margin-left: 0.4em;
-                    padding: 0.3em 0.6em;
-                    color: var(--muted);
-                    background-color: var(--decoration);
-                    font-size: 0.6em;
-                    border-radius: 0.8em;
-                }
-
-                button {
-                    margin-left: 0.4em;
-                    padding: 0.3em 1em;
-                    color: var(--muted);
-                    font-size: 0.6em;
-
-                    &:first-of-type {
-                        margin-left: 1.4em;
-                    }
-                }
-            }
 
             .options {
                 display: flex;
@@ -846,55 +787,6 @@
                         font-size: 1.4em;
                         font-weight: bold;
                     }
-                }
-            }
-        }
-
-        .leaderboard {
-            display: grid;
-            grid-template-columns: auto 1fr auto;
-            background-color: var(--secondary);
-            border: var(--border);
-            border-radius: 1.5rem;
-            font-size: 1.5em;
-
-            .row {
-                display: grid;
-                grid-column: span 3;
-                grid-template-columns: subgrid;
-                padding: 0.8em 1.4em;
-                column-gap: 1.4em;
-                border-bottom: var(--border);
-                justify-content: center;
-                align-items: center;
-
-                &:last-child {
-                    border-bottom: none;
-                }
-
-                > * {
-                    display: flex;
-                    align-items: center;
-                }
-
-                .rank {
-                    color: var(--muted);
-                    justify-content: center;
-                }
-
-                .player {
-                    gap: 0.5em;
-
-                    img {
-                        height: 2em;
-                        border-radius: 50%;
-                    }
-                }
-
-                .score {
-                    justify-content: center;
-                    font-size: 1.5em;
-                    font-weight: bold;
                 }
             }
         }
