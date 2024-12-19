@@ -183,6 +183,7 @@ fun Application.module() {
         enable(WebsocketModule)
         enable(ChatModule)
         enable(SnakeModule)
+        enable(LobbyModule)
         enable(MusicGuesserModule)
         enable(QuizModule)
         routeOAuth()

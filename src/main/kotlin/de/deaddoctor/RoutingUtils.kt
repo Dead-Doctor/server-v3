@@ -87,7 +87,7 @@ suspend fun ApplicationCall.respondCss(css: String) {
 object ViteBuild {
     @OptIn(ExperimentalSerializationApi::class)
     val manifest =
-        Json.decodeFromStream<MutableMap<String, ManifestChunk>>(javaClass.getResourceAsStream("/dist/.vite/manifest.json"))
+        Json.decodeFromStream<MutableMap<String, ManifestChunk>>(javaClass.getResourceAsStream("/dist/.vite/manifest.json")!!)
 
     @Serializable
     data class ManifestChunk(

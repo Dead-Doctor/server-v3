@@ -105,7 +105,7 @@ object MusicGuesserModule : Module {
     private var currentGame: Game? = null
 
     override fun Route.route() {
-        this.application.monitor.subscribe(ApplicationStopped) {
+        application.monitor.subscribe(ApplicationStopped) {
             jsonParser.encodeToStream(overrides, overridesFile.outputStream())
         }
 
