@@ -16,8 +16,10 @@ import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.forwardedheaders.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.request.*
+import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.sessions.*
+import io.ktor.server.util.*
 import io.ktor.server.websocket.*
 import kotlinx.html.*
 import java.io.File
@@ -90,6 +92,20 @@ fun Application.module() {
             }
         }
     }
+    val redirectTrailingSlash = createApplicationPlugin("RedirectTrailingSlash") {
+        println("RedirectTrailingSlash is installed!")
+        onCall { call ->
+            val path = call.request.url.encodedPath
+            if (path.length > 1 && path.endsWith('/')) {
+                call.respondRedirect(url {
+                    takeFrom(call.request.url)
+                    encodedPath = path.removeSuffix("/")
+                })
+            }
+        }
+    }
+    install(redirectTrailingSlash)
+
     val adjectives = listOf(
         "coolest", "best", "top", "supreme", "ultimate", "unbeatable", "unmatched", "unrivaled", "flawless", "perfect",
         "exquisite", "immaculate", "legendary", "incomparable", "phenomenal", "outstanding", "stellar", "fantastic",
