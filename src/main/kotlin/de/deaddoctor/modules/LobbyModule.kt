@@ -2,14 +2,16 @@ package de.deaddoctor.modules
 
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
+import de.deaddoctor.modules.MusicGuesserModule.Game.*
+import de.deaddoctor.modules.MusicGuesserModule.Packet
+import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.websocket.*
 import kotlinx.coroutines.Job
 import kotlinx.serialization.Serializable
 
 object LobbyModule : Module {
-    private val lobbies = mutableMapOf<String, Lobby>()
-
     override fun path() = "lobby"
 
     private val idCharacters = ('A'..'Z') + ('0'..'9')
@@ -17,8 +19,15 @@ object LobbyModule : Module {
         for (i in 0 until 4) append(idCharacters.random())
     }
 
+    private val lobbies = mutableMapOf<String, Lobby>()
+
+    private val ApplicationCall.lobby: Lobby?
+        get() = parameters["id"]?.let { lobbies[it] }
+    private val Connection.lobby: Lobby?
+        get() = session.call.lobby
+
     override fun Route.route() {
-        get("/new") {
+        get("new") {
             var id = generateId()
             while (lobbies.containsKey(id)) {
                 id = generateId()
@@ -27,16 +36,25 @@ object LobbyModule : Module {
             call.respondRedirect("/${path()}/$id")
         }
 
-        get("/{id}") {
-            val lobby = call.parameters["id"]?.let { lobbies[it] } ?: return@get call.respondRedirect("/games")
+        route("{id}") {
+            get {
+                val lobby = call.lobby ?: return@get call.respondRedirect("/games")
+                val user = call.trackedUser
 
-            call.respondPage("Lobby") {
-                head {
-                    addData("youInfo", YouInfo(call.trackedUser))
-                    addData("lobbyInfo", lobby.info)
-                    addScript("lobby/main")
+                if (!lobby.joinedAndActive(user) && (user is AccountUser || lobby.joined(user))) {
+                    lobby.activate(user)
+                }
+
+                call.respondPage("Lobby") {
+                    head {
+                        addData("youInfo", YouInfo(call.trackedUser))
+                        addData("lobbyInfo", Lobby.Info(lobby))
+                        addScript("lobby/main")
+                    }
                 }
             }
+
+
         }
     }
 
@@ -55,30 +73,39 @@ object LobbyModule : Module {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
 
+        fun joined(user: TrackedUser) = players.containsKey(user)
+        fun joinedAndActive(user: TrackedUser) = players[user]?.state?.active ?: false
+
+        fun activate(user: TrackedUser, name: String? = null) {
+            val initialActivation = !joined(user)
+
+            if (initialActivation) {
+                val player = Player(user, Player.State.ACTIVE, name)
+                players[user] = player
+//                sendToAll(Packet("playerJoined", Player.Info(player)))
+            } else {
+                players[user]?.state = Player.State.ACTIVE
+//                sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
+            }
+
+//            if (host == null) promote(user)
+        }
+
         class Player(
             val user: TrackedUser,
-            private val state: State,
+            var state: State,
             customName: String?,
-            val disconnectJob: Job,
-            private val score: Int
         ) {
-            enum class State(val playing: Boolean) {
-                LEFT(false),
-                JOINED(true),
-                CONNECTED(true)
+            val disconnectJob: Job? = null
+            val score: Int = 0
+
+            enum class State(val active: Boolean) {
+                INACTIVE(false),
+                ACTIVE(true),
+                ACTIVE_CONNECTED(true)
             }
 
             private val name = if (user is AccountUser) user.name else customName!!
-
-            val info: Info
-                get() = Info(
-                    user.id,
-                    name,
-                    user is AccountUser,
-                    (user as? AccountUser)?.avatar,
-                    state.playing,
-                    score
-                )
 
             @Serializable
             data class Info(
@@ -86,21 +113,29 @@ object LobbyModule : Module {
                 val name: String,
                 val verified: Boolean,
                 val avatar: String?,
-                val playing: Boolean,
+                val active: Boolean,
                 val score: Int
-            )
+            ) {
+                constructor(o: Player) : this(
+                    o.user.id,
+                    o.name,
+                    o.user is AccountUser,
+                    (o.user as? AccountUser)?.avatar,
+                    o.state.active,
+                    o.score
+                )
+            }
         }
-
-        val info: Info
-            get() = Info(
-                players.map { it.value.info },
-                host?.id ?: "null",
-            )
 
         @Serializable
         data class Info(
             val players: List<Player.Info>,
-            val host: String,
-        )
+            val host: String
+        ) {
+            constructor(o: Lobby) : this(
+                o.players.map { Player.Info(it.value) },
+            o.host?.id ?: "null",
+            )
+        }
     }
 }

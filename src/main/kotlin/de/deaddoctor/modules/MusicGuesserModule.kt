@@ -109,6 +109,7 @@ object MusicGuesserModule : Module {
             jsonParser.encodeToStream(overrides, overridesFile.outputStream())
         }
 
+        //TODO: dont disable caching headers for the entire application
         install(CachingHeaders) {
             options { _, _ -> CachingOptions(CacheControl.NoStore(null)) }
         }
