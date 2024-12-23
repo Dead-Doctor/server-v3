@@ -8,8 +8,12 @@ import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration.Companion.seconds
 
 object LobbyModule : Module {
     override fun path() = "lobby"
@@ -41,8 +45,11 @@ object LobbyModule : Module {
                 val lobby = call.lobby ?: return@get call.respondRedirect("/games")
                 val user = call.trackedUser
 
-                if (!lobby.joinedAndActive(user) && (user is AccountUser || lobby.joined(user))) {
-                    lobby.activate(user)
+                if (!lobby.joined(user)) {
+                    if (user is AccountUser)
+                        lobby.joinActivate(user)
+                } else if (!lobby.active(user)) {
+                    lobby.activate(lobby.getPlayer(user)!!)
                 }
 
                 call.respondPage("Lobby") {
@@ -54,7 +61,69 @@ object LobbyModule : Module {
                 }
             }
 
+            webSocketAddressable("ws") {
+                connection {
+                    val lobby = connection.lobby
+                    if (lobby == null || user !is TrackedUser) {
+                        closeConnection(
+                            connection, CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
+                        )
+                        return@connection
+                    }
+                    if (!lobby.active(user)) return@connection
+                    lobby.activeConnect(lobby.getPlayer(user)!!)
+                }
 
+                fun checkName(name: String): MutableList<String> {
+                    val nameErrors = mutableListOf<String>()
+                    if (name.length < 3) {
+                        nameErrors.add("Has to be at least <samp>3</samp> characters long.")
+                    }
+                    if (name.length > 20) {
+                        nameErrors.add("Can't be longer than <samp>20</samp> characters.")
+                    }
+                    val allowedSpecialCharacters = "-_.!?"
+                    if (!name.all { it.isLetterOrDigit() || it in allowedSpecialCharacters }) {
+                        nameErrors.add("Can only contain <samp>letters</samp>, <samp>digits</samp> or any of the following: ${
+                            allowedSpecialCharacters.toCharArray().joinToString(", ") { "<samp>$it</samp>" }
+                        }.")
+                    }
+                    return nameErrors
+                }
+                destination("checkName") { name: String ->
+                    val errors = checkName(name)
+                    sendToUser(user, Packet("checkedName", errors))
+                }
+                destination("join") { name: String ->
+                    val lobby = connection.lobby ?: return@destination
+                    if (user !is TrackedUser || user is AccountUser || lobby.joined(user) || checkName(name).isNotEmpty()) return@destination
+                    val player = lobby.joinActivate(user, name)
+                    lobby.activeConnect(player)
+                    sendToUser(user, Packet("join", user.id))
+                }
+                disconnection {
+                    val lobby = connection.lobby ?: return@disconnection
+                    if (user !is TrackedUser || !lobby.joined(user) || countConnections(user) != 0) return@disconnection
+                    lobby.activeDisconnect(lobby.getPlayer(user)!!)
+                }
+//                destination("promote") { playerId: String ->
+//                    val lobby = connection.lobby ?: return@destination
+//                    val player = lobby.playerById(playerId)
+//                    if (user !is TrackedUser || !game.isOperator(user) || player == null || !game.joined(player)) return@destination
+//                    game.promote(player)
+//                }
+//                destination("kick") { playerId: String ->
+//                    val lobby = connection.lobby ?: return@destination
+//                    val player = game.playerById(playerId)
+//                    if (user !is TrackedUser || !game.isOperator(user) || player == null || !game.joined(player)) return@destination
+//                    game.kick(player)
+//                }
+//                destination("beginRound") {
+//                    val lobby = connection.lobby ?: return@destination
+//                    if (user !is TrackedUser || !game.isOperator(user) || game.round != null) return@destination
+//                    game.beginRound()
+//                }
+            }
         }
     }
 
@@ -73,22 +142,66 @@ object LobbyModule : Module {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
 
+
         fun joined(user: TrackedUser) = players.containsKey(user)
-        fun joinedAndActive(user: TrackedUser) = players[user]?.state?.active ?: false
+        fun active(user: TrackedUser) = players[user]?.state?.active ?: false
+        fun getPlayer(user: TrackedUser) = players[user]
 
-        fun activate(user: TrackedUser, name: String? = null) {
-            val initialActivation = !joined(user)
+        fun joinActivate(user: TrackedUser, name: String? = null): Player {
+            val player = Player(user, Player.State.ACTIVE, name)
+            players[user] = player
+//            sendToAll(Packet("playerJoined", Player.Info(player)))
 
-            if (initialActivation) {
-                val player = Player(user, Player.State.ACTIVE, name)
-                players[user] = player
-//                sendToAll(Packet("playerJoined", Player.Info(player)))
-            } else {
-                players[user]?.state = Player.State.ACTIVE
-//                sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
+            if (host == null) promote(player)
+
+            return player
+        }
+
+        fun activate(player: Player) {
+            player.state = Player.State.ACTIVE
+//            sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
+        }
+
+        private fun deactivate(player: Player) {
+            player.state = Player.State.INACTIVE
+
+//            if (round?.players?.remove(user) == true) {
+//                if (round!!.players.isEmpty()) {
+//                    round = null
+//                    sendToAll(Packet("round", roundInfo))
+//                } else {
+//                    maybeShowResults()
+//                }
+//            }
+
+            player.disconnectJob.cancel()
+//            sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
+            val firstRemainingPlayer = players.values.firstOrNull { it.state.active }
+            if (firstRemainingPlayer == null) {
+//                destroyLobby()
+                return
             }
+            if (player.user == host) promote(firstRemainingPlayer)
+        }
 
-//            if (host == null) promote(user)
+        fun activeConnect(player: Player) {
+            player.state = Player.State.ACTIVE_CONNECTED
+            player.disconnectJob.cancel()
+        }
+
+        fun activeDisconnect(player: Player) {
+            if (player.state != Player.State.ACTIVE_CONNECTED) return
+
+            player.state = Player.State.ACTIVE
+            player.disconnectJob = CoroutineScope(Job()).launch {
+                delay(5.seconds)
+                deactivate(player)
+            }
+        }
+
+        private fun promote(player: Player) {
+            host = player.user
+//            sendToAll(Packet("hostChanged", host?.id))
         }
 
         class Player(
@@ -96,7 +209,8 @@ object LobbyModule : Module {
             var state: State,
             customName: String?,
         ) {
-            val disconnectJob: Job? = null
+            private val name = if (user is AccountUser) user.name else customName!!
+            var disconnectJob: Job = Job()
             val score: Int = 0
 
             enum class State(val active: Boolean) {
@@ -104,8 +218,6 @@ object LobbyModule : Module {
                 ACTIVE(true),
                 ACTIVE_CONNECTED(true)
             }
-
-            private val name = if (user is AccountUser) user.name else customName!!
 
             @Serializable
             data class Info(
@@ -125,6 +237,14 @@ object LobbyModule : Module {
                     o.score
                 )
             }
+
+            override fun equals(other: Any?): Boolean {
+                if (this === other) return true
+                if (other !is Player) return false
+                return user == other.user
+            }
+
+            override fun hashCode() = user.hashCode()
         }
 
         @Serializable
