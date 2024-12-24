@@ -2,8 +2,6 @@ package de.deaddoctor.modules
 
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
-import de.deaddoctor.modules.MusicGuesserModule.Game.*
-import de.deaddoctor.modules.MusicGuesserModule.Packet
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -22,6 +20,7 @@ object LobbyModule : Module {
     private fun generateId() = buildString {
         for (i in 0 until 4) append(idCharacters.random())
     }
+    private lateinit var socket: WebSocketSender
 
     private val lobbies = mutableMapOf<String, Lobby>()
 
@@ -61,7 +60,7 @@ object LobbyModule : Module {
                 }
             }
 
-            webSocketAddressable("ws") {
+            socket = webSocketAddressable("ws") {
                 connection {
                     val lobby = connection.lobby
                     if (lobby == null || user !is TrackedUser) {
@@ -92,7 +91,7 @@ object LobbyModule : Module {
                 }
                 destination("checkName") { name: String ->
                     val errors = checkName(name)
-                    sendToUser(user, Packet("checkedName", errors))
+                    sendBack(Packet("checkedName", errors))
                 }
                 destination("join") { name: String ->
                     val lobby = connection.lobby ?: return@destination
@@ -106,12 +105,12 @@ object LobbyModule : Module {
                     if (user !is TrackedUser || !lobby.joined(user) || countConnections(user) != 0) return@disconnection
                     lobby.activeDisconnect(lobby.getPlayer(user)!!)
                 }
-//                destination("promote") { playerId: String ->
-//                    val lobby = connection.lobby ?: return@destination
-//                    val player = lobby.playerById(playerId)
-//                    if (user !is TrackedUser || !game.isOperator(user) || player == null || !game.joined(player)) return@destination
-//                    game.promote(player)
-//                }
+                destination("promote") { playerId: String ->
+                    val lobby = connection.lobby ?: return@destination
+                    val player = TrackedUser(playerId)
+                    if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return@destination
+                    lobby.promote(player)
+                }
 //                destination("kick") { playerId: String ->
 //                    val lobby = connection.lobby ?: return@destination
 //                    val player = game.playerById(playerId)
@@ -128,6 +127,9 @@ object LobbyModule : Module {
     }
 
     @Serializable
+    data class Packet<T>(val type: String, val data: T)
+
+    @Serializable
     data class YouInfo(
         val you: String,
         val admin: Boolean
@@ -142,7 +144,6 @@ object LobbyModule : Module {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
 
-
         fun joined(user: TrackedUser) = players.containsKey(user)
         fun active(user: TrackedUser) = players[user]?.state?.active ?: false
         fun getPlayer(user: TrackedUser) = players[user]
@@ -150,16 +151,16 @@ object LobbyModule : Module {
         fun joinActivate(user: TrackedUser, name: String? = null): Player {
             val player = Player(user, Player.State.ACTIVE, name)
             players[user] = player
-//            sendToAll(Packet("playerJoined", Player.Info(player)))
+            sendToAll(Packet("playerJoined", Player.Info(player)))
 
-            if (host == null) promote(player)
+            if (host == null) promote(user)
 
             return player
         }
 
         fun activate(player: Player) {
             player.state = Player.State.ACTIVE
-//            sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
+            sendToAll(Packet("playerActiveChanged", PlayerActiveChanged(player)))
         }
 
         private fun deactivate(player: Player) {
@@ -175,13 +176,13 @@ object LobbyModule : Module {
 //            }
 
             player.disconnectJob.cancel()
-//            sendToAll(Packet("playerStateChanged", PlayerStateChanged(user.id, players[user]!!.playing)))
+            sendToAll(Packet("playerActiveChanged", PlayerActiveChanged(player)))
             val firstRemainingPlayer = players.values.firstOrNull { it.state.active }
             if (firstRemainingPlayer == null) {
 //                destroyLobby()
                 return
             }
-            if (player.user == host) promote(firstRemainingPlayer)
+            if (player.user == host) promote(firstRemainingPlayer.user)
         }
 
         fun activeConnect(player: Player) {
@@ -199,9 +200,11 @@ object LobbyModule : Module {
             }
         }
 
-        private fun promote(player: Player) {
-            host = player.user
-//            sendToAll(Packet("hostChanged", host?.id))
+        fun isOperator(user: TrackedUser) = user == host || (user is AccountUser && user.admin)
+
+        fun promote(user: TrackedUser) {
+            host = user
+            sendToAll(Packet("hostChanged", host?.id))
         }
 
         class Player(
@@ -248,6 +251,14 @@ object LobbyModule : Module {
         }
 
         @Serializable
+        data class PlayerActiveChanged(val player: String, val active: Boolean) {
+            constructor(player: Player) : this(
+                player.user.id,
+                player.state.active,
+            )
+        }
+
+        @Serializable
         data class Info(
             val players: List<Player.Info>,
             val host: String
@@ -256,6 +267,14 @@ object LobbyModule : Module {
                 o.players.map { Player.Info(it.value) },
             o.host?.id ?: "null",
             )
+        }
+
+        private inline fun <reified T> sendToAll(packet: Packet<T>) {
+            socket.sendToAll(socket.connections.filter { it.lobby == this }, packet)
+        }
+
+        private inline fun <reified T> sendToUser(user: TrackedUser, packet: Packet<T>) {
+            socket.sendToUser(user, packet)
         }
     }
 }
