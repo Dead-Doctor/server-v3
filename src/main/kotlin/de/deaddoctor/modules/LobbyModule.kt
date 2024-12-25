@@ -2,6 +2,7 @@ package de.deaddoctor.modules
 
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
+import de.deaddoctor.modules.MusicGuesserModule.Packet
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -111,16 +112,16 @@ object LobbyModule : Module {
                     if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return@destination
                     lobby.promote(player)
                 }
-//                destination("kick") { playerId: String ->
+                destination("kick") { playerId: String ->
+                    val lobby = connection.lobby ?: return@destination
+                    val player = TrackedUser(playerId)
+                    if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return@destination
+                    lobby.kick(player)
+                }
+//                destination("beginGame") {
 //                    val lobby = connection.lobby ?: return@destination
-//                    val player = game.playerById(playerId)
-//                    if (user !is TrackedUser || !game.isOperator(user) || player == null || !game.joined(player)) return@destination
-//                    game.kick(player)
-//                }
-//                destination("beginRound") {
-//                    val lobby = connection.lobby ?: return@destination
-//                    if (user !is TrackedUser || !game.isOperator(user) || game.round != null) return@destination
-//                    game.beginRound()
+//                    if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return@destination
+//                    lobby.beginGame()
 //                }
             }
         }
@@ -205,6 +206,12 @@ object LobbyModule : Module {
         fun promote(user: TrackedUser) {
             host = user
             sendToAll(Packet("hostChanged", host?.id))
+        }
+
+        fun kick(user: TrackedUser) {
+            val player = getPlayer(user)!!
+            deactivate(player)
+            sendToUser(user, Packet("kicked", "You got kicked"))
         }
 
         class Player(
