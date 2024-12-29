@@ -2,7 +2,6 @@ package de.deaddoctor.modules
 
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
-import de.deaddoctor.modules.MusicGuesserModule.Packet
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -132,7 +131,7 @@ object LobbyModule : Module {
 
     @Serializable
     data class YouInfo(
-        val you: String,
+        val id: String,
         val admin: Boolean
     ) {
         constructor(user: TrackedUser) : this(
