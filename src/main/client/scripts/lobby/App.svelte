@@ -126,16 +126,19 @@
 </script>
 
 <section>
-    <h2>Lobby</h2>
-    <Leaderboard
-        players={sortedPlayers}
-        lobby={{
-            you: you.id,
-            host: lobby.host,
-            admin: you.admin,
-            socket,
-        }}
-    />
+    <div class="lobby">
+        <h2>Lobby</h2>
+        <Leaderboard
+            players={sortedPlayers}
+            lobby={{
+                you: you.id,
+                host: lobby.host,
+                admin: you.admin,
+                socket,
+            }}
+        />
+        <button>Begin</button>
+    </div>
     {#if popup !== null}
         <div class="overlay" in:fade={{ duration: 200 }} out:fade={{ delay: 300, duration: 200 }}>
             <div class="popup" in:fly={{ delay: 200, duration: 300, y: 200 }} out:fly={{ duration: 300, y: 200 }}>
@@ -178,6 +181,16 @@
 </section>
 
 <style>
+    .lobby {
+        display: flex;
+        flex-direction: column;
+        gap: 3rem;
+
+        button {
+            align-self: end;
+        }
+    }
+
     .overlay {
         display: flex;
         position: fixed;

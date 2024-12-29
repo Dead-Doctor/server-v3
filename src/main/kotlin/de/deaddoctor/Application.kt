@@ -127,6 +127,7 @@ fun Application.module() {
                             i { +"games" }
                             +" and "
                             i { +"maps" }
+                            +" (WIP)"
                         }
                     }
                     section("grid") {
@@ -149,8 +150,10 @@ fun Application.module() {
                 content {
                     h1 { +"Games" }
                     section(classes = "grid") {
-                        a(href = "/${TestModule.path()}") { +"Test" }
-                        a(href = "/${WebsocketModule.path()}") { +"Websockets" }
+                        if ((call.user as? AccountUser)?.admin == true) {
+                            a(href = "/${TestModule.path()}") { +"Test" }
+                            a(href = "/${WebsocketModule.path()}") { +"Websockets" }
+                        }
                         a(href = "/${ChatModule.path()}") { +"Chat" }
                         a(href = "/${SnakeModule.path()}") { +"Snake" }
                         a(href = "/${MusicGuesserModule.path()}") { +MusicGuesserModule.NAME }
