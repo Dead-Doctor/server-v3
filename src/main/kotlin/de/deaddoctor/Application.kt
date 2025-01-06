@@ -187,6 +187,7 @@ fun Application.module() {
         enable(ChatModule)
         enable(SnakeModule)
         enable(LobbyModule)
+        enable(GameModule)
         enable(MusicGuesserModule)
         enable(QuizModule)
         routeOAuth()
