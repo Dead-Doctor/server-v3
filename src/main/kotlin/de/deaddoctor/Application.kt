@@ -22,6 +22,7 @@ import io.ktor.server.sessions.*
 import io.ktor.server.util.*
 import io.ktor.server.websocket.*
 import kotlinx.html.*
+import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
@@ -48,6 +49,8 @@ fun main() {
 }
 
 fun Application.module() {
+    val logger = LoggerFactory.getLogger(javaClass)
+
     install(ForwardedHeaders)
     install(XForwardedHeaders)
     install(AutoHeadResponse)
@@ -93,7 +96,7 @@ fun Application.module() {
         }
     }
     val redirectTrailingSlash = createApplicationPlugin("RedirectTrailingSlash") {
-        println("RedirectTrailingSlash is installed!")
+        logger.info("RedirectTrailingSlash is installed!")
         onCall { call ->
             val path = call.request.url.encodedPath
             if (path.length > 1 && path.endsWith('/')) {

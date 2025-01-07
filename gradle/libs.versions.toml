@@ -4,7 +4,9 @@ kotlin-version = "2.0.21"
 kotlinx-html-version = "0.11.0"
 kotlinx-datetime-version = "0.6.1"
 ktor-version = "3.0.1"
-logback-version = "1.4.14"
+logback-version = "1.5.16"
+kotlin-css-version = "1.0.0-pre.129-kotlin-1.4.20"
+bcs-version = "0.1.2"
 
 [libraries]
 ktor-server-core = { module = "io.ktor:ktor-server-core-jvm", version.ref = "ktor-version" }
@@ -28,9 +30,10 @@ ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx
 
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime-version" }
 kotlinx-html = { module = "org.jetbrains.kotlinx:kotlinx-html-jvm", version.ref = "kotlinx-html-version" }
-kotlin-css = { module = "org.jetbrains:kotlin-css-jvm", version = "1.0.0-pre.129-kotlin-1.4.20" }
+kotlin-css = { module = "org.jetbrains:kotlin-css-jvm", version.ref = "kotlin-css-version" }
 
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback-version" }
+bcs = { module = "xyz.mcxross.bcs:bcs-jvm", version.ref = "bcs-version" }
 
 ktor-server-test-host = { module = "io.ktor:ktor-server-test-host-jvm", version.ref = "ktor-version" }
 kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version.ref = "kotlin-version" }
@@ -38,4 +41,4 @@ kotlin-test-junit = { module = "org.jetbrains.kotlin:kotlin-test-junit", version
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin-version" }
 ktor = { id = "io.ktor.plugin", version.ref = "ktor-version" }
-kotlin-plugin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version = "2.0.21" }
+kotlin-plugin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin-version" }
