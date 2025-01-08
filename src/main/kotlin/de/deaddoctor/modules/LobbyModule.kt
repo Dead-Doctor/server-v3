@@ -11,6 +11,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlin.reflect.full.createInstance
 import kotlin.time.Duration.Companion.seconds
 
 object LobbyModule : Module {
@@ -20,13 +21,14 @@ object LobbyModule : Module {
     private fun generateId() = buildString {
         for (i in 0 until 4) append(idCharacters.random())
     }
+
     private lateinit var socket: WebSocketSender
 
     private val lobbies = mutableMapOf<String, Lobby>()
 
-    private val ApplicationCall.lobby: Lobby?
+    val ApplicationCall.lobby: Lobby?
         get() = parameters["id"]?.let { lobbies[it] }
-    private val Connection.lobby: Lobby?
+    val Connection.lobby: Lobby?
         get() = session.call.lobby
 
     override fun Route.route() {
@@ -55,6 +57,8 @@ object LobbyModule : Module {
                     head {
                         addData("youInfo", YouInfo(call.trackedUser))
                         addData("lobbyInfo", Lobby.Info(lobby))
+                        addData("gameTypes", GameModule.gameTypesInfo)
+                        addData("gameSelected", lobby.gameSelected.id)
                         addScript("lobby/main")
                     }
                 }
@@ -83,7 +87,8 @@ object LobbyModule : Module {
                     }
                     val allowedSpecialCharacters = "-_.!?"
                     if (!name.all { it.isLetterOrDigit() || it in allowedSpecialCharacters }) {
-                        nameErrors.add("Can only contain <samp>letters</samp>, <samp>digits</samp> or any of the following: ${
+                        nameErrors.add(
+                            "Can only contain <samp>letters</samp>, <samp>digits</samp> or any of the following: ${
                             allowedSpecialCharacters.toCharArray().joinToString(", ") { "<samp>$it</samp>" }
                         }.")
                     }
@@ -117,11 +122,17 @@ object LobbyModule : Module {
                     if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return@destination
                     lobby.kick(player)
                 }
-//                destination("beginGame") {
-//                    val lobby = connection.lobby ?: return@destination
-//                    if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return@destination
-//                    lobby.beginGame()
-//                }
+                destination("gameSelected") { gameSelected: String ->
+                    val lobby = connection.lobby ?: return@destination
+                    val gameType = GameModule.getGameType(gameSelected)
+                    if (user !is TrackedUser || !lobby.isOperator(user) || gameType == null) return@destination
+                    lobby.selectGame(gameType)
+                }
+                destination("beginGame") {
+                    val lobby = connection.lobby ?: return@destination
+                    if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return@destination
+                    lobby.beginGame()
+                }
             }
         }
     }
@@ -143,6 +154,8 @@ object LobbyModule : Module {
     class Lobby(private val id: String) {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
+        var gameSelected = GameModule.gameTypes[0]
+        var game: Game<*>? = null
 
         fun joined(user: TrackedUser) = players.containsKey(user)
         fun active(user: TrackedUser) = players[user]?.state?.active ?: false
@@ -213,6 +226,16 @@ object LobbyModule : Module {
             sendToUser(user, Packet("kicked", "You got kicked"))
         }
 
+        fun selectGame(gameType: GameModule.GameType<*>) {
+            gameSelected = gameType
+            sendToAll(Packet("gameSelected", gameType.id))
+        }
+
+        fun beginGame() {
+            game = gameSelected.instanceClass.createInstance()
+            sendToAll(Packet("gameStarted", "/game/${gameSelected.id}/$id"))
+        }
+
         class Player(
             val user: TrackedUser,
             var state: State,
@@ -271,16 +294,18 @@ object LobbyModule : Module {
         ) {
             constructor(o: Lobby) : this(
                 o.players.map { Player.Info(it.value) },
-            o.host?.id ?: "null",
+                o.host?.id ?: "null",
             )
         }
 
         private inline fun <reified T> sendToAll(packet: Packet<T>) {
             socket.sendToAll(socket.connections.filter { it.lobby == this }, packet)
+            //TODO: send to all players even those that are only connected through a game websocket
         }
 
         private inline fun <reified T> sendToUser(user: TrackedUser, packet: Packet<T>) {
             socket.sendToUser(user, packet)
+            //TODO: send to all players even those that are only connected through a game websocket
         }
     }
 }

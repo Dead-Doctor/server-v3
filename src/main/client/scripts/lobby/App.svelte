@@ -3,7 +3,6 @@
     import { openSocket } from '../ws';
     import Leaderboard from '../Leaderboard.svelte';
     import { fade, fly, slide } from 'svelte/transition';
-    import { sineInOut } from 'svelte/easing';
 
     interface PacketTypeMap {
         checkedName: string[];
@@ -12,20 +11,19 @@
         playerActiveChanged: { player: PlayerId; active: boolean };
         hostChanged: PlayerId;
         kicked: string;
+        gameSelected: string;
+        gameStarted: string;
     }
-
     interface Packet<K extends keyof PacketTypeMap> {
         type: K;
         data: PacketTypeMap[K];
     }
 
     type PlayerId = string;
-
     interface You {
         id: PlayerId;
         admin: boolean;
     }
-
     interface Player {
         id: PlayerId;
         name: string;
@@ -34,12 +32,14 @@
         active: boolean;
         score: number;
     }
-
     interface Lobby {
         players: Player[];
         host: PlayerId;
     }
-
+    interface GameType {
+        id: string;
+        name: string;
+    }
     interface Popup {
         message: string;
         buttonText: string;
@@ -54,6 +54,10 @@
 
     let you: You = $state(getData('youInfo'));
     let lobby: Lobby = $state(getData('lobbyInfo'));
+    let gameTypes: GameType[] = getData('gameTypes');
+    let gameSelected: string = $state(getData('gameSelected'));
+
+    let isOperator = $derived(lobby.host === you.id || you.admin);
 
     let sortedPlayers = $derived(
         lobby.players
@@ -108,6 +112,10 @@
                 },
                 closable: false,
             };
+        } else if (isPacket(packet, 'gameSelected')) {
+            gameSelected = packet.data;
+        } else if (isPacket(packet, 'gameStarted')) {
+            location.pathname = packet.data;
         }
     });
 
@@ -137,7 +145,18 @@
                 socket,
             }}
         />
-        <button>Begin</button>
+        <select
+            name="gameSelect"
+            id="gameSelect"
+            disabled={!isOperator}
+            bind:value={gameSelected}
+            onchange={() => socket.send('gameSelected', gameSelected)}
+        >
+            {#each gameTypes as type}
+                <option value={type.id}>{type.name}</option>
+            {/each}
+        </select>
+        <button disabled={!isOperator} onclick={() => socket.send('beginGame')}>Begin</button>
     </div>
     {#if popup !== null}
         <div class="overlay" in:fade={{ duration: 200 }} out:fade={{ delay: 300, duration: 200 }}>

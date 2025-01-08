@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 
-const entries = ['wsTest.ts', 'chat.ts', 'snake.ts', 'lobby/main.ts', 'music-guesser/main.ts', 'quiz/main.ts']
+const entries = ['wsTest', 'chat', 'snake', 'lobby/main', 'music-guesser/main', 'quiz/main', 'game/music-guesser/main']
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -14,7 +14,7 @@ export default defineConfig({
         outDir: './../resources/dist',
         emptyOutDir: true,
         rollupOptions: {
-            input: entries.map(entry => `src/main/client/scripts/${entry}`)
+            input: entries.map(entry => `src/main/client/scripts/${entry}.ts`)
         }
     },
     esbuild: {
