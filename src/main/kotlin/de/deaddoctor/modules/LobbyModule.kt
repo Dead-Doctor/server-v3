@@ -64,6 +64,20 @@ object LobbyModule : Module {
                 }
             }
 
+            webSocketBinary("wsBin") {
+                connection {
+                    println("Connected!")
+                }
+
+                disconnection {
+                    println("Disconnected!")
+                }
+
+                message { data: ByteArray ->
+                    println("Received data!")
+                }
+            }
+
             socket = webSocketAddressable("ws") {
                 connection {
                     val lobby = connection.lobby

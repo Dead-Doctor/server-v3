@@ -7,13 +7,13 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 fun Route.webSocketAddressable(
-    s: String,
+    path: String,
     registerEvents: WebSocketEventRegistrant.() -> Unit
 ): WebSocketSender {
     val handler = WebSocketEventRegistrant().apply(registerEvents)
     val connections = mutableListOf<Connection>()
 
-    webSocket(s) {
+    webSocket(path) {
         val user = call.user
         val connection = Connection(this, user)
         val webSocketEventHandlerContext = WebSocketEventHandlerContext(connections, connection)
