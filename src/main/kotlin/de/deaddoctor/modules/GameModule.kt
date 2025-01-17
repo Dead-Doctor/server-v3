@@ -60,7 +60,7 @@ object GameModule : Module {
                             val packetData = data.copyOfRange(1, data.size)
                             println("packetData: ${packetData.toHexString()}")
 
-                            game.handlers.destinations[packetType](game, packetData)
+//                            game.handlers.destinations[packetType](packetData)
                         }
                     }
                 }
@@ -73,7 +73,7 @@ object GameModule : Module {
     val gameTypesInfo: List<GameType.Info>
         get() = gameTypes.map { GameType.Info(it) }
 
-    class GameType<T : Game<T>>(val id: String, val name: String, val instanceClass: KClass<T>) {
+    class GameType<T : Game>(val id: String, val name: String, val instanceClass: KClass<T>) {
         @Serializable
         data class Info(val id: String, val name: String) {
             constructor(type: GameType<*>) : this(type.id, type.name)
@@ -81,16 +81,9 @@ object GameModule : Module {
     }
 }
 
-abstract class Game<T>(socketHandlerRegistrant: Handlers<T>.() -> Unit) {
-    class Handlers<T> {
-        val destinations = mutableListOf<suspend T.(ByteArray) -> Unit>()
+abstract class Game(socketHandlerRegistrant: Handlers.() -> Unit) {
 
-        inline fun <reified U> destination(crossinline handler: suspend T.(U) -> Unit) {
-            destinations.add { data: ByteArray -> handler(Bcs.decodeFromByteArray<U>(data)) }
-        }
-    }
-
-    val handlers = Handlers<T>().apply(socketHandlerRegistrant)
+    val handlers = Handlers().apply(socketHandlerRegistrant)
 
     abstract suspend fun get(call: ApplicationCall)
 }

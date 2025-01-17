@@ -1,8 +1,11 @@
 package de.deaddoctor
 
+import de.deaddoctor.modules.LobbyModule.lobby
+import de.deaddoctor.modules.games.MusicGuesserGame
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import xyz.mcxross.bcs.Bcs
 
 class WebSocketBinaryEventRegistrant {
     var connection: (suspend (WebSocketEventHandlerContext) -> Unit)? = null
@@ -24,11 +27,19 @@ class WebSocketBinaryEventRegistrant {
     }
 }
 
+class Handlers {
+    val destinations = mutableListOf<suspend (WebSocketEventHandlerContext, ByteArray) -> Unit>()
+
+    inline fun <reified U> destination(crossinline handler: suspend (WebSocketEventHandlerContext, U) -> Unit) {
+        destinations.add { context, data: ByteArray -> handler(context, Bcs.decodeFromByteArray<U>(data)) }
+    }
+}
+
 fun Route.webSocketBinary(
     path: String,
-    registerEvents: WebSocketBinaryEventRegistrant.() -> Unit
+    registerEvents: Handlers.() -> Unit
 ): WebSocketSender {
-    val handlers = WebSocketBinaryEventRegistrant().apply(registerEvents)
+    val handlers = Handlers().apply(registerEvents)
     val connections = mutableListOf<Connection>()
 
     webSocket(path) {
@@ -39,16 +50,20 @@ fun Route.webSocketBinary(
         //TODO: migrate to binary
         val webSocketEventHandlerContext = WebSocketEventHandlerContext(connections, connection)
 
-        handlers.connection?.let { it(webSocketEventHandlerContext) }
+//        handlers.connection?.let { it(webSocketEventHandlerContext) }
 
         for (frame in incoming) {
-            if (frame is Frame.Text) {
+            if (frame is Frame.Binary) {
                 val data = frame.readBytes()
-                handlers.message?.let { it(webSocketEventHandlerContext, data) }
+
+                val packetType = data[0].toInt()
+                val packetData = data.copyOfRange(1, data.size)
+                handlers.destinations[packetType](webSocketEventHandlerContext, packetData)
             }
+
         }
         connections.remove(connection)
-        handlers.disconnection?.let { it(webSocketEventHandlerContext) }
+//        handlers.disconnection?.let { it(webSocketEventHandlerContext) }
     }
 
     //TODO: migrate to binary

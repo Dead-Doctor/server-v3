@@ -2,6 +2,7 @@ package de.deaddoctor.modules
 
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
+import de.deaddoctor.modules.games.MusicGuesserGame.SomePacket
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -64,18 +65,13 @@ object LobbyModule : Module {
                 }
             }
 
+            suspend fun helloDestination(ctx: WebSocketEventHandlerContext, something: SomePacket) {
+                println(ctx)
+                println(something)
+            }
+
             webSocketBinary("wsBin") {
-                connection {
-                    println("Connected!")
-                }
-
-                disconnection {
-                    println("Disconnected!")
-                }
-
-                message { data: ByteArray ->
-                    println("Received data!")
-                }
+                destination(::helloDestination)
             }
 
             socket = webSocketAddressable("ws") {
@@ -169,7 +165,7 @@ object LobbyModule : Module {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
         var gameSelected = GameModule.gameTypes[0]
-        var game: Game<*>? = null
+        var game: Game? = null
 
         fun joined(user: TrackedUser) = players.containsKey(user)
         fun active(user: TrackedUser) = players[user]?.state?.active ?: false
