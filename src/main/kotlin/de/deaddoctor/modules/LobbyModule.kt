@@ -2,7 +2,6 @@ package de.deaddoctor.modules
 
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
-import de.deaddoctor.modules.games.MusicGuesserGame.SomePacket
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -65,84 +64,84 @@ object LobbyModule : Module {
                 }
             }
 
-            suspend fun helloDestination(ctx: WebSocketEventHandlerContext, something: SomePacket) {
-                println(ctx)
-                println(something)
-            }
-
-            webSocketBinary("wsBin") {
-                destination(::helloDestination)
-            }
-
-            socket = webSocketAddressable("ws") {
-                connection {
-                    val lobby = connection.lobby
-                    if (lobby == null || user !is TrackedUser) {
-                        closeConnection(
-                            connection, CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
-                        )
-                        return@connection
-                    }
-                    if (!lobby.active(user)) return@connection
-                    lobby.activeConnect(lobby.getPlayer(user)!!)
+            suspend fun WebSocketEventHandlerContext.connect() {
+                val lobby = connection.lobby
+                if (lobby == null || user !is TrackedUser) {
+                    closeConnection(
+                        connection, CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
+                    )
+                    return
                 }
+                if (!lobby.active(user)) return
+                lobby.activeConnect(lobby.getPlayer(user)!!)
+            }
 
-                fun checkName(name: String): MutableList<String> {
-                    val nameErrors = mutableListOf<String>()
-                    if (name.length < 3) {
-                        nameErrors.add("Has to be at least <samp>3</samp> characters long.")
-                    }
-                    if (name.length > 20) {
-                        nameErrors.add("Can't be longer than <samp>20</samp> characters.")
-                    }
-                    val allowedSpecialCharacters = "-_.!?"
-                    if (!name.all { it.isLetterOrDigit() || it in allowedSpecialCharacters }) {
-                        nameErrors.add(
-                            "Can only contain <samp>letters</samp>, <samp>digits</samp> or any of the following: ${
+            fun checkName(name: String): MutableList<String> {
+                val nameErrors = mutableListOf<String>()
+                if (name.length < 3) {
+                    nameErrors.add("Has to be at least <samp>3</samp> characters long.")
+                }
+                if (name.length > 20) {
+                    nameErrors.add("Can't be longer than <samp>20</samp> characters.")
+                }
+                val allowedSpecialCharacters = "-_.!?"
+                if (!name.all { it.isLetterOrDigit() || it in allowedSpecialCharacters }) {
+                    nameErrors.add(
+                        "Can only contain <samp>letters</samp>, <samp>digits</samp> or any of the following: ${
                             allowedSpecialCharacters.toCharArray().joinToString(", ") { "<samp>$it</samp>" }
                         }.")
-                    }
-                    return nameErrors
                 }
-                destination("checkName") { name: String ->
-                    val errors = checkName(name)
-                    sendBack(Packet("checkedName", errors))
-                }
-                destination("join") { name: String ->
-                    val lobby = connection.lobby ?: return@destination
-                    if (user !is TrackedUser || user is AccountUser || lobby.joined(user) || checkName(name).isNotEmpty()) return@destination
-                    val player = lobby.joinActivate(user, name)
-                    lobby.activeConnect(player)
-                    sendToUser(user, Packet("join", user.id))
-                }
-                disconnection {
-                    val lobby = connection.lobby ?: return@disconnection
-                    if (user !is TrackedUser || !lobby.joined(user) || countConnections(user) != 0) return@disconnection
-                    lobby.activeDisconnect(lobby.getPlayer(user)!!)
-                }
-                destination("promote") { playerId: String ->
-                    val lobby = connection.lobby ?: return@destination
-                    val player = TrackedUser(playerId)
-                    if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return@destination
-                    lobby.promote(player)
-                }
-                destination("kick") { playerId: String ->
-                    val lobby = connection.lobby ?: return@destination
-                    val player = TrackedUser(playerId)
-                    if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return@destination
-                    lobby.kick(player)
-                }
-                destination("gameSelected") { gameSelected: String ->
-                    val lobby = connection.lobby ?: return@destination
-                    val gameType = GameModule.getGameType(gameSelected)
-                    if (user !is TrackedUser || !lobby.isOperator(user) || gameType == null) return@destination
-                    lobby.selectGame(gameType)
-                }
-                destination("beginGame") {
-                    val lobby = connection.lobby ?: return@destination
-                    if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return@destination
-                    lobby.beginGame()
-                }
+                return nameErrors
+            }
+            fun WebSocketEventHandlerContext.checkName(name: String) {
+                val errors = checkName(name)
+                sendBack(Packet("checkedName", errors))
+            }
+            fun WebSocketEventHandlerContext.join(name: String) {
+                val lobby = connection.lobby ?: return
+                if (user !is TrackedUser || user is AccountUser || lobby.joined(user) || checkName(name).isNotEmpty()) return
+                val player = lobby.joinActivate(user, name)
+                lobby.activeConnect(player)
+                sendToUser(user, Packet("join", user.id))
+            }
+            fun WebSocketEventHandlerContext.disconnect() {
+                val lobby = connection.lobby ?: return
+                if (user !is TrackedUser || !lobby.joined(user) || countConnections(user) != 0) return
+                lobby.activeDisconnect(lobby.getPlayer(user)!!)
+            }
+            fun WebSocketEventHandlerContext.promote(playerId: String) {
+                val lobby = connection.lobby ?: return
+                val player = TrackedUser(playerId)
+                if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return
+                lobby.promote(player)
+            }
+            fun WebSocketEventHandlerContext.kick(playerId: String) {
+                val lobby = connection.lobby ?: return
+                val player = TrackedUser(playerId)
+                if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return
+                lobby.kick(player)
+            }
+            fun WebSocketEventHandlerContext.gameSelected(gameSelected: String) {
+                val lobby = connection.lobby ?: return
+                val gameType = GameModule.getGameType(gameSelected)
+                if (user !is TrackedUser || !lobby.isOperator(user) || gameType == null) return
+                lobby.selectGame(gameType)
+            }
+            fun WebSocketEventHandlerContext.beginGame() {
+                val lobby = connection.lobby ?: return
+                if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return
+                lobby.beginGame()
+            }
+
+            webSocketBinary("ws") {
+                connection(WebSocketEventHandlerContext::connect)
+                receiver(WebSocketEventHandlerContext::checkName)
+                receiver(WebSocketEventHandlerContext::join)
+                disconnection(WebSocketEventHandlerContext::disconnect)
+                receiver(WebSocketEventHandlerContext::promote)
+                receiver(WebSocketEventHandlerContext::kick)
+                receiver(WebSocketEventHandlerContext::gameSelected)
+                receiver(WebSocketEventHandlerContext::beginGame)
             }
         }
     }

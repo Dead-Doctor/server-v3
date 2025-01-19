@@ -9,7 +9,6 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.serialization.Serializable
-import xyz.mcxross.bcs.Bcs
 import kotlin.reflect.KClass
 
 object GameModule : Module {
@@ -81,9 +80,9 @@ object GameModule : Module {
     }
 }
 
-abstract class Game(socketHandlerRegistrant: Handlers.() -> Unit) {
+abstract class Game(socketHandlerRegistrant: WebSocketBinaryEventHandler.() -> Unit) {
 
-    val handlers = Handlers().apply(socketHandlerRegistrant)
+    val webSocketBinaryEventHandler = WebSocketBinaryEventHandler().apply(socketHandlerRegistrant)
 
     abstract suspend fun get(call: ApplicationCall)
 }

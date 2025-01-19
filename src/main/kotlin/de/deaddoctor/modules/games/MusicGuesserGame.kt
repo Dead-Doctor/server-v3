@@ -10,7 +10,7 @@ import kotlinx.html.section
 import kotlinx.serialization.Serializable
 
 class MusicGuesserGame : Game({
-    destination(::helloDestination)
+    receiver(::helloDestination)
 }) {
 
     override suspend fun get(call: ApplicationCall) {

@@ -1,45 +1,47 @@
 package de.deaddoctor
 
-import de.deaddoctor.modules.LobbyModule.lobby
-import de.deaddoctor.modules.games.MusicGuesserGame
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import xyz.mcxross.bcs.Bcs
 
-class WebSocketBinaryEventRegistrant {
-    var connection: (suspend (WebSocketEventHandlerContext) -> Unit)? = null
-    var disconnection: (suspend (WebSocketEventHandlerContext) -> Unit)? = null
-    var message: (suspend (WebSocketEventHandlerContext, ByteArray) -> Unit)? = null
+class WebSocketBinaryEventHandler {
+    var handleConnection: suspend (WebSocketEventHandlerContext) -> Unit = {}
+    val handleDisconnection: suspend (WebSocketEventHandlerContext) -> Unit = {}
+    val receivers = mutableListOf<suspend (WebSocketEventHandlerContext, ByteArray) -> Unit>()
 
-    inline fun connection(crossinline handler: suspend WebSocketEventHandlerContext.() -> Unit) {
-        connection = { it.handler() }
+    suspend fun handleDestination(context: WebSocketEventHandlerContext, data: ByteArray) {
+        val packetType = data[0].toInt()
+        val packetData = data.copyOfRange(1, data.size)
+        receivers[packetType](context, packetData)
     }
 
-    inline fun disconnection(crossinline handler: suspend WebSocketEventHandlerContext.() -> Unit) {
-        disconnection = { it.handler() }
+    fun connection(handler: suspend (WebSocketEventHandlerContext) -> Unit) {
+        handleConnection = handler
     }
 
-    inline fun message(
-        crossinline handler: suspend WebSocketEventHandlerContext.(ByteArray) -> Unit
-    ) {
-        message = { ctx, data -> ctx.handler(data) }
+    fun disconnection(handler: suspend (WebSocketEventHandlerContext) -> Unit) {
+        handleConnection = handler
     }
-}
 
-class Handlers {
-    val destinations = mutableListOf<suspend (WebSocketEventHandlerContext, ByteArray) -> Unit>()
+    fun receiver(handler: suspend (WebSocketEventHandlerContext) -> Unit) {
+        receivers.add { context, _: ByteArray -> handler(context) }
+    }
 
-    inline fun <reified U> destination(crossinline handler: suspend (WebSocketEventHandlerContext, U) -> Unit) {
-        destinations.add { context, data: ByteArray -> handler(context, Bcs.decodeFromByteArray<U>(data)) }
+    inline fun <reified U> receiver(crossinline handler: suspend (WebSocketEventHandlerContext, U) -> Unit) {
+        receivers.add { context, data: ByteArray -> handler(context, Bcs.decodeFromByteArray<U>(data)) }
+    }
+
+    fun rawReceiver(handler: suspend (WebSocketEventHandlerContext, ByteArray) -> Unit) {
+        receivers.add { context, data: ByteArray -> handler(context, data) }
     }
 }
 
 fun Route.webSocketBinary(
     path: String,
-    registerEvents: Handlers.() -> Unit
+    registerEvents: WebSocketBinaryEventHandler.() -> Unit
 ): WebSocketSender {
-    val handlers = Handlers().apply(registerEvents)
+    val handler = WebSocketBinaryEventHandler().apply(registerEvents)
     val connections = mutableListOf<Connection>()
 
     webSocket(path) {
@@ -48,22 +50,19 @@ fun Route.webSocketBinary(
         connections.add(connection)
 
         //TODO: migrate to binary
-        val webSocketEventHandlerContext = WebSocketEventHandlerContext(connections, connection)
+        val context = WebSocketEventHandlerContext(connections, connection)
 
-//        handlers.connection?.let { it(webSocketEventHandlerContext) }
+        handler.handleConnection(context)
 
         for (frame in incoming) {
             if (frame is Frame.Binary) {
                 val data = frame.readBytes()
-
-                val packetType = data[0].toInt()
-                val packetData = data.copyOfRange(1, data.size)
-                handlers.destinations[packetType](webSocketEventHandlerContext, packetData)
+                handler.handleDestination(context, data)
             }
-
         }
+
         connections.remove(connection)
-//        handlers.disconnection?.let { it(webSocketEventHandlerContext) }
+        handler.handleDisconnection(context)
     }
 
     //TODO: migrate to binary
