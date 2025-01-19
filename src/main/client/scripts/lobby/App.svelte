@@ -1,23 +1,9 @@
 <script lang="ts">
     import { getData } from '../routing';
-    import { openSocket } from '../ws';
+    import { openSocketBinary } from '../ws';
     import Leaderboard from '../Leaderboard.svelte';
     import { fade, fly, slide } from 'svelte/transition';
-
-    interface PacketTypeMap {
-        checkedName: string[];
-        join: PlayerId;
-        playerJoined: Player;
-        playerActiveChanged: { player: PlayerId; active: boolean };
-        hostChanged: PlayerId;
-        kicked: string;
-        gameSelected: string;
-        gameStarted: string;
-    }
-    interface Packet<K extends keyof PacketTypeMap> {
-        type: K;
-        data: PacketTypeMap[K];
-    }
+    import { bcs } from '@iota/bcs';
 
     type PlayerId = string;
     interface You {
@@ -28,7 +14,7 @@
         id: PlayerId;
         name: string;
         verified: boolean;
-        avatar: string | null;
+        avatar: string | null | undefined;
         active: boolean;
         score: number;
     }
@@ -48,9 +34,75 @@
         closable: boolean;
     }
 
-    const socket = openSocket<Packet<keyof PacketTypeMap>>();
-    const isPacket = <T extends keyof PacketTypeMap>(packet: Packet<any>, type: T): packet is Packet<T> =>
-        packet.type === type;
+    const socket = openSocketBinary();
+    const sendCheckName = socket.destinationWith(bcs.string())
+    const sendJoin = socket.destinationWith(bcs.string())
+    const sendPromote = socket.destinationWith(bcs.string())
+    const sendKick = socket.destinationWith(bcs.string())
+    const sendGameSelected = socket.destinationWith(bcs.string())
+    const sendBeginGame = socket.destination()
+
+    socket.receiverWith(checkedName, bcs.vector(bcs.string()))
+    socket.receiverWith(join, bcs.string())
+    socket.receiverWith(playerJoined, bcs.struct('Player', {
+        id: bcs.string(),
+        name: bcs.string(),
+        verified: bcs.bool(),
+        avatar: bcs.option(bcs.string()),
+        active: bcs.bool(),
+        score: bcs.u32(),
+    }))
+    socket.receiverWith(playerActiveChanged, bcs.struct('PlayerActiveChanged', {
+        player: bcs.string(),
+        active: bcs.bool()
+    }))
+    socket.receiverWith(hostChanged, bcs.string())
+    socket.receiverWith(kicked, bcs.string())
+    socket.receiverWith(gameSelectedChanged, bcs.string())
+    socket.receiverWith(gameStarted, bcs.string())
+
+    function checkedName(errors: Iterable<string>) {
+        usernameInputErrors = errors as string[];
+        popup!.buttonDisabled = usernameInputErrors.length != 0;
+    }
+
+    function join(id: PlayerId) {
+        popup = null;
+        you.id = id;
+    }
+
+    function playerJoined(player: Player) {
+        lobby.players.push(player);
+    }
+
+    function playerActiveChanged(data: { player: PlayerId; active: boolean }) {
+        const player = lobby.players.find((p) => p.id === data.player)!;
+        player.active = data.active;
+    }
+
+    function hostChanged(id: PlayerId) {
+        lobby.host = id;
+    }
+
+    function kicked(message: string) {
+        popup = {
+            message,
+            buttonText: 'Close',
+            buttonDisabled: false,
+            buttonAction() {
+                location.pathname = '/';
+            },
+            closable: false,
+        };
+    }
+
+    function gameSelectedChanged(game: string) {
+        gameSelected = game;
+    }
+
+    function gameStarted(pathname: string) {
+        location.pathname = pathname;
+    }
 
     let you: You = $state(getData('youInfo'));
     let lobby: Lobby = $state(getData('lobbyInfo'));
@@ -82,44 +134,13 @@
             buttonText: 'Join',
             buttonDisabled: true,
             buttonAction() {
-                socket.send('join', usernameInputValue);
+                sendJoin(usernameInputValue)
             },
             closable: false,
         };
     }
 
-    socket.receive((packet) => {
-        if (isPacket(packet, 'checkedName')) {
-            usernameInputErrors = packet.data;
-            popup!.buttonDisabled = usernameInputErrors.length != 0;
-        } else if (isPacket(packet, 'join')) {
-            popup = null;
-            you.id = packet.data;
-        } else if (isPacket(packet, 'playerJoined')) {
-            lobby.players.push(packet.data);
-        } else if (isPacket(packet, 'playerActiveChanged')) {
-            const player = lobby.players.find((p) => p.id === packet.data.player)!;
-            player.active = packet.data.active;
-        } else if (isPacket(packet, 'hostChanged')) {
-            lobby.host = packet.data;
-        } else if (isPacket(packet, 'kicked')) {
-            popup = {
-                message: packet.data,
-                buttonText: 'Close',
-                buttonDisabled: false,
-                buttonAction() {
-                    location.pathname = '/';
-                },
-                closable: false,
-            };
-        } else if (isPacket(packet, 'gameSelected')) {
-            gameSelected = packet.data;
-        } else if (isPacket(packet, 'gameStarted')) {
-            location.pathname = packet.data;
-        }
-    });
-
-    socket.raw.addEventListener('close', (e) => {
+    socket.onDisconnect(e => {
         if (e.code === 1001) return;
         popup = {
             message: 'Lost connection',
@@ -130,7 +151,7 @@
             },
             closable: true,
         };
-    });
+    })
 </script>
 
 <section>
@@ -142,7 +163,8 @@
                 you: you.id,
                 host: lobby.host,
                 admin: you.admin,
-                socket,
+                onPromote(id) { sendPromote(id) },
+                onKick(id) { sendKick(id) }
             }}
         />
         <select
@@ -150,13 +172,13 @@
             id="gameSelect"
             disabled={!isOperator}
             bind:value={gameSelected}
-            onchange={() => socket.send('gameSelected', gameSelected)}
+            onchange={() => sendGameSelected(gameSelected)}
         >
             {#each gameTypes as type}
                 <option value={type.id}>{type.name}</option>
             {/each}
         </select>
-        <button disabled={!isOperator} onclick={() => socket.send('beginGame')}>Begin</button>
+        <button disabled={!isOperator} onclick={() => sendBeginGame()}>Begin</button>
     </div>
     {#if popup !== null}
         <div class="overlay" in:fade={{ duration: 200 }} out:fade={{ delay: 300, duration: 200 }}>
@@ -173,7 +195,7 @@
                         size="20"
                         maxlength="20"
                         bind:value={usernameInputValue}
-                        oninput={() => socket.send('checkName', usernameInputValue)}
+                        oninput={() => sendCheckName(usernameInputValue)}
                     />
                     <div>
                         {#each usernameInputErrors as error (error)}

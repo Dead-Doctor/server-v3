@@ -294,7 +294,8 @@
                 you: game.you,
                 host: game.host,
                 admin: game.admin,
-                socket
+                onPromote(id) { socket.send('promote', id) },
+                onKick(id) { socket.send('kick', id) }
             }}/>
             <div class="options">
                 <div class="section">

@@ -8,7 +8,7 @@
         id: PlayerId
         name: string
         verified: boolean
-        avatar: string | null
+        avatar: string | null | undefined
         inactive: boolean
         value: number
     }
@@ -17,7 +17,8 @@
         you: PlayerId | null
         host: PlayerId | null
         admin: boolean
-        socket: SocketAddressable<any>
+        onPromote: (id: PlayerId) => void
+        onKick: (id: PlayerId) => void
     }
 
     interface Props {
@@ -52,8 +53,8 @@
                         <span class="placard">Host</span>
                     {/if}
                     {#if lobby.you !== null && ((lobby.you === lobby.host && player.id !== lobby.you) || lobby.admin)}
-                        <button onclick={() => lobby.socket.send("promote", player.id)}>Promote</button>
-                        <button onclick={() => lobby.socket.send("kick", player.id)}>Kick</button>
+                        <button onclick={() => lobby.onPromote(player.id)}>Promote</button>
+                        <button onclick={() => lobby.onKick(player.id)}>Kick</button>
                     {/if}
                 {/if}
             </div>
