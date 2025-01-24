@@ -22,7 +22,14 @@ object LobbyModule : Module {
         for (i in 0 until 4) append(idCharacters.random())
     }
 
-    private lateinit var socket: WebSocketSender
+    private lateinit var sendCheckedName: WebSocketBinaryDestination<List<String>>
+    private lateinit var sendJoin: WebSocketBinaryDestination<String>
+    private lateinit var sendPlayerJoined: WebSocketBinaryDestination<Lobby.Player.Info>
+    private lateinit var sendPlayerActiveChanged: WebSocketBinaryDestination<Lobby.PlayerActiveChanged>
+    private lateinit var sendHostChanged: WebSocketBinaryDestination<String>
+    private lateinit var sendKicked: WebSocketBinaryDestination<String>
+    private lateinit var sendGameSelected: WebSocketBinaryDestination<String>
+    private lateinit var sendGameStarted: WebSocketBinaryDestination<String>
 
     private val lobbies = mutableMapOf<String, Lobby>()
 
@@ -64,7 +71,17 @@ object LobbyModule : Module {
                 }
             }
 
-            suspend fun WebSocketEventHandlerContext.connect() {
+            val socket = webSocketBinary("ws")
+            sendCheckedName = socket.destination()
+            sendJoin = socket.destination()
+            sendPlayerJoined = socket.destination()
+            sendPlayerActiveChanged = socket.destination()
+            sendHostChanged = socket.destination()
+            sendKicked = socket.destination()
+            sendGameSelected = socket.destination()
+            sendGameStarted = socket.destination()
+
+            suspend fun WebSocketBinaryContext.connect() {
                 val lobby = connection.lobby
                 if (lobby == null || user !is TrackedUser) {
                     closeConnection(
@@ -93,61 +110,60 @@ object LobbyModule : Module {
                 }
                 return nameErrors
             }
-            fun WebSocketEventHandlerContext.checkName(name: String) {
+            fun WebSocketBinaryContext.checkName(name: String) {
                 val errors = checkName(name)
-                sendBack(Packet("checkedName", errors))
+                sendCheckedName.sendToConnection(connection, errors)
             }
-            fun WebSocketEventHandlerContext.join(name: String) {
+            fun WebSocketBinaryContext.join(name: String) {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || user is AccountUser || lobby.joined(user) || checkName(name).isNotEmpty()) return
                 val player = lobby.joinActivate(user, name)
                 lobby.activeConnect(player)
-                sendToUser(user, Packet("join", user.id))
+                sendJoin.sendToUser(user, user.id)
             }
-            fun WebSocketEventHandlerContext.disconnect() {
+            fun WebSocketBinaryContext.disconnect() {
                 val lobby = connection.lobby ?: return
-                if (user !is TrackedUser || !lobby.joined(user) || countConnections(user) != 0) return
+                if (user !is TrackedUser || !lobby.joined(user) || countConnections() != 0) return
                 lobby.activeDisconnect(lobby.getPlayer(user)!!)
             }
-            fun WebSocketEventHandlerContext.promote(playerId: String) {
+            fun WebSocketBinaryContext.promote(playerId: String) {
                 val lobby = connection.lobby ?: return
                 val player = TrackedUser(playerId)
                 if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return
                 lobby.promote(player)
             }
-            fun WebSocketEventHandlerContext.kick(playerId: String) {
+            fun WebSocketBinaryContext.kick(playerId: String) {
                 val lobby = connection.lobby ?: return
                 val player = TrackedUser(playerId)
                 if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return
                 lobby.kick(player)
             }
-            fun WebSocketEventHandlerContext.gameSelected(gameSelected: String) {
+            fun WebSocketBinaryContext.gameSelected(gameSelected: String) {
                 val lobby = connection.lobby ?: return
                 val gameType = GameModule.getGameType(gameSelected)
                 if (user !is TrackedUser || !lobby.isOperator(user) || gameType == null) return
                 lobby.selectGame(gameType)
             }
-            fun WebSocketEventHandlerContext.beginGame() {
+            fun WebSocketBinaryContext.beginGame() {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return
                 lobby.beginGame()
             }
-
-            webSocketBinary("ws") {
-                connection(WebSocketEventHandlerContext::connect)
-                receiver(WebSocketEventHandlerContext::checkName)
-                receiver(WebSocketEventHandlerContext::join)
-                disconnection(WebSocketEventHandlerContext::disconnect)
-                receiver(WebSocketEventHandlerContext::promote)
-                receiver(WebSocketEventHandlerContext::kick)
-                receiver(WebSocketEventHandlerContext::gameSelected)
-                receiver(WebSocketEventHandlerContext::beginGame)
+            fun WebSocketBinaryContext.game(data: ByteArray) {
+                TODO("Not implemented yet!")
             }
+
+            socket.connection(WebSocketBinaryContext::connect)
+            socket.receiver(WebSocketBinaryContext::checkName)
+            socket.receiver(WebSocketBinaryContext::join)
+            socket.disconnection(WebSocketBinaryContext::disconnect)
+            socket.receiver(WebSocketBinaryContext::promote)
+            socket.receiver(WebSocketBinaryContext::kick)
+            socket.receiver(WebSocketBinaryContext::gameSelected)
+            socket.receiver(WebSocketBinaryContext::beginGame)
+            socket.rawReceiver(WebSocketBinaryContext::game)
         }
     }
-
-    @Serializable
-    data class Packet<T>(val type: String, val data: T)
 
     @Serializable
     data class YouInfo(
@@ -173,7 +189,7 @@ object LobbyModule : Module {
         fun joinActivate(user: TrackedUser, name: String? = null): Player {
             val player = Player(user, Player.State.ACTIVE, name)
             players[user] = player
-            sendToAll(Packet("playerJoined", Player.Info(player)))
+            sendPlayerJoined.sendToAll(Player.Info(player))
 
             if (host == null) promote(user)
 
@@ -182,7 +198,7 @@ object LobbyModule : Module {
 
         fun activate(player: Player) {
             player.state = Player.State.ACTIVE
-            sendToAll(Packet("playerActiveChanged", PlayerActiveChanged(player)))
+            sendPlayerActiveChanged.sendToAll(PlayerActiveChanged(player))
         }
 
         private fun deactivate(player: Player) {
@@ -198,7 +214,7 @@ object LobbyModule : Module {
 //            }
 
             player.disconnectJob.cancel()
-            sendToAll(Packet("playerActiveChanged", PlayerActiveChanged(player)))
+            sendPlayerActiveChanged.sendToAll(PlayerActiveChanged(player))
             val firstRemainingPlayer = players.values.firstOrNull { it.state.active }
             if (firstRemainingPlayer == null) {
 //                destroyLobby()
@@ -226,23 +242,24 @@ object LobbyModule : Module {
 
         fun promote(user: TrackedUser) {
             host = user
-            sendToAll(Packet("hostChanged", host?.id))
+
+            sendHostChanged.sendToAll(user.id)
         }
 
         fun kick(user: TrackedUser) {
             val player = getPlayer(user)!!
             deactivate(player)
-            sendToUser(user, Packet("kicked", "You got kicked"))
+            sendKicked.sendToUser(user, "You got kicked")
         }
 
         fun selectGame(gameType: GameModule.GameType<*>) {
             gameSelected = gameType
-            sendToAll(Packet("gameSelected", gameType.id))
+            sendGameSelected.sendToAll(gameType.id)
         }
 
         fun beginGame() {
             game = gameSelected.instanceClass.createInstance()
-            sendToAll(Packet("gameStarted", "/game/${gameSelected.id}/$id"))
+            sendGameStarted.sendToAll("/game/${gameSelected.id}/$id")
         }
 
         class Player(
@@ -305,16 +322,6 @@ object LobbyModule : Module {
                 o.players.map { Player.Info(it.value) },
                 o.host?.id ?: "null",
             )
-        }
-
-        private inline fun <reified T> sendToAll(packet: Packet<T>) {
-            socket.sendToAll(socket.connections.filter { it.lobby == this }, packet)
-            //TODO: send to all players even those that are only connected through a game websocket
-        }
-
-        private inline fun <reified T> sendToUser(user: TrackedUser, packet: Packet<T>) {
-            socket.sendToUser(user, packet)
-            //TODO: send to all players even those that are only connected through a game websocket
         }
     }
 }
