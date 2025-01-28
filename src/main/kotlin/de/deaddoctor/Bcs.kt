@@ -21,9 +21,12 @@ object Bcs {
     inline fun <reified T> decodeFromBytes(bytes: ByteArray): T = decodeFromBytes(serializer(), bytes)
 
     fun <T> decodeFromBytes(deserializer: DeserializationStrategy<T>, bytes: ByteArray): T {
-        val decoder = BcsDecoder(bytes)
+        val decoder = BcsDecoder(BcsDecoder.InputBuffer(bytes))
         return decoder.decodeSerializableValue(deserializer)
     }
+
+    const val TOP_BIT = 1 shl 7
+    const val OTHER_BITS = TOP_BIT - 1
 
     init {
         @Serializable
@@ -50,22 +53,19 @@ object Bcs {
 
         val sBytes = encodeToByteArray(s)
         val wBytes = encodeToByteArray(w)
-
         println(sBytes.joinToString { it.toUByte().toString(16) })
         println(wBytes.joinToString { it.toUByte().toString(16) })
 
         val sDecoded = decodeFromBytes<MyStruct>(sBytes)
+        val wDecoded = decodeFromBytes<Wrapper>(wBytes)
+        println(sDecoded)
+        println(wDecoded)
     }
 
     class BcsEncoder : Encoder, CompositeEncoder {
         override val serializersModule = EmptySerializersModule()
 
         val bytes = ByteStringBuilder()
-
-        companion object {
-            const val TOP_BIT = 1 shl 7
-            const val OTHER_BITS = TOP_BIT - 1
-        }
 
         private fun encodeULEB128(value: Int) {
             var remaining = value
@@ -210,38 +210,45 @@ object Bcs {
         }
     }
 
-    class BcsDecoder(val bytes: ByteArray) : Decoder {
+    class BcsDecoder(private val buffer: InputBuffer) : Decoder, CompositeDecoder {
         override val serializersModule = EmptySerializersModule()
 
-        override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder {
-            TODO("Not yet implemented")
+        private var elementIndex = 0
+        private var elementsCount = -1
+
+        private fun decodeULEB128(): Int {
+            var result = 0
+            var shift = 0
+            while (true) {
+                val current = buffer.readByte().toInt()
+                val value = current and OTHER_BITS
+
+                result = (value shl shift) or result
+                shift += 7
+
+                if (current and TOP_BIT == 0) return result
+            }
         }
 
+        // Boolean
         override fun decodeBoolean(): Boolean {
-            TODO("Not yet implemented")
+            if (buffer.remaining < 1) throw SerializationException("Tried to decode byte but reached EOF.")
+
+            return when (val byte = buffer.readByte().toInt()) {
+                0 -> false
+                1 -> true
+                else -> throw SerializationException("Tried to decode boolean but got '${byte}'.")
+            }
         }
 
+        // Integral numbers
         override fun decodeByte(): Byte {
-            TODO("Not yet implemented")
+            if (buffer.remaining < 1) throw SerializationException("Tried to decode byte but reached EOF.")
+
+            return buffer.readByte()
         }
 
-        override fun decodeChar(): Char {
-            TODO("Not yet implemented")
-        }
-
-        override fun decodeDouble(): Double {
-            TODO("Not yet implemented")
-        }
-
-        override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
-            TODO("Not yet implemented")
-        }
-
-        override fun decodeFloat(): Float {
-            TODO("Not yet implemented")
-        }
-
-        override fun decodeInline(descriptor: SerialDescriptor): Decoder {
+        override fun decodeShort(): Short {
             TODO("Not yet implemented")
         }
 
@@ -253,8 +260,28 @@ object Bcs {
             TODO("Not yet implemented")
         }
 
-        @ExperimentalSerializationApi
-        override fun decodeNotNullMark(): Boolean {
+        // Floating-point numbers
+        override fun decodeFloat(): Float {
+            TODO("Not yet implemented")
+        }
+
+        override fun decodeDouble(): Double {
+            TODO("Not yet implemented")
+        }
+
+        // Text
+        override fun decodeChar(): Char {
+            TODO("Not yet implemented")
+        }
+
+        override fun decodeString(): String {
+            val length = decodeULEB128()
+            if (buffer.remaining < length) throw SerializationException("Tried to decode string with length '${length}' but reached EOF.")
+            return String(buffer.getBytes(length))
+        }
+
+        // Specials
+        override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
             TODO("Not yet implemented")
         }
 
@@ -263,13 +290,86 @@ object Bcs {
             TODO("Not yet implemented")
         }
 
-        override fun decodeShort(): Short {
+        @ExperimentalSerializationApi
+        override fun decodeNotNullMark(): Boolean {
             TODO("Not yet implemented")
         }
 
-        override fun decodeString(): String {
+        // Complicated?
+        override fun decodeInline(descriptor: SerialDescriptor): Decoder {
             TODO("Not yet implemented")
         }
 
+        override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder {
+            return BcsDecoder(buffer)
+        }
+
+        // CompositeDecoder
+        override fun decodeElementIndex(descriptor: SerialDescriptor): Int {
+            if (elementIndex == elementsCount) return CompositeDecoder.DECODE_DONE
+            return elementIndex++
+        }
+
+        override fun decodeBooleanElement(descriptor: SerialDescriptor, index: Int) = decodeBoolean()
+
+        override fun decodeByteElement(descriptor: SerialDescriptor, index: Int) = decodeByte()
+
+        override fun decodeCharElement(descriptor: SerialDescriptor, index: Int) = decodeChar()
+
+        override fun decodeDoubleElement(descriptor: SerialDescriptor, index: Int) = decodeDouble()
+
+        override fun decodeFloatElement(descriptor: SerialDescriptor, index: Int) = decodeFloat()
+
+        override fun decodeInlineElement(descriptor: SerialDescriptor, index: Int) = decodeInline(descriptor)
+
+        override fun decodeIntElement(descriptor: SerialDescriptor, index: Int) = decodeInt()
+
+        override fun decodeLongElement(descriptor: SerialDescriptor, index: Int) = decodeLong()
+
+        override fun <T> decodeSerializableElement(
+            descriptor: SerialDescriptor,
+            index: Int,
+            deserializer: DeserializationStrategy<T>,
+            previousValue: T?
+        ) = decodeSerializableValue(deserializer)
+
+        @ExperimentalSerializationApi
+        override fun <T : Any> decodeNullableSerializableElement(
+            descriptor: SerialDescriptor,
+            index: Int,
+            deserializer: DeserializationStrategy<T?>,
+            previousValue: T?
+        ): T? {
+            TODO("Not yet implemented")
+        }
+
+        override fun decodeShortElement(descriptor: SerialDescriptor, index: Int) = decodeShort()
+
+        override fun decodeStringElement(descriptor: SerialDescriptor, index: Int) = decodeString()
+
+        override fun endStructure(descriptor: SerialDescriptor) {}
+
+        @ExperimentalSerializationApi
+        override fun decodeSequentially() = true
+
+        override fun decodeCollectionSize(descriptor: SerialDescriptor): Int {
+            elementsCount = decodeULEB128()
+            return elementsCount
+        }
+
+        class InputBuffer(private val bytes: ByteArray) {
+            var i = 0
+
+            val remaining
+                get() = bytes.size - i
+
+            fun readByte() = bytes[i++]
+
+            fun getBytes(count: Int): ByteArray {
+                val bytes = bytes.copyOfRange(i, i + count)
+                i += count
+                return bytes
+            }
+        }
     }
 }
