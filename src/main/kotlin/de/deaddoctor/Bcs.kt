@@ -10,9 +10,9 @@ import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.modules.EmptySerializersModule
 
 object Bcs {
-    inline fun <reified T> encodeToByteArray(value: T) = encodeToByteArray(serializer(), value)
+    inline fun <reified T> encodeToBytes(value: T) = encodeToBytes(serializer(), value)
 
-    fun <T> encodeToByteArray(serializer: SerializationStrategy<T>, value: T): ByteArray {
+    fun <T> encodeToBytes(serializer: SerializationStrategy<T>, value: T): ByteArray {
         val encoder = BcsEncoder()
         encoder.encodeSerializableValue(serializer, value)
         return encoder.bytes.toByteString().toByteArray()
@@ -27,40 +27,6 @@ object Bcs {
 
     const val TOP_BIT = 1 shl 7
     const val OTHER_BITS = TOP_BIT - 1
-
-    init {
-        @Serializable
-        data class MyStruct(
-            val boolean: Boolean,
-            val bytes: List<Byte>,
-            val label: String
-        )
-        @Serializable
-        data class Wrapper(
-            val inner: MyStruct,
-            val name: String
-        )
-
-        val s = MyStruct(
-            true,
-            listOf(0xC0.toByte(), 0xDE.toByte() ),
-            "a"
-        )
-        val w = Wrapper(
-            s,
-            "b"
-        )
-
-        val sBytes = encodeToByteArray(s)
-        val wBytes = encodeToByteArray(w)
-        println(sBytes.joinToString { it.toUByte().toString(16) })
-        println(wBytes.joinToString { it.toUByte().toString(16) })
-
-        val sDecoded = decodeFromBytes<MyStruct>(sBytes)
-        val wDecoded = decodeFromBytes<Wrapper>(wBytes)
-        println(sDecoded)
-        println(wDecoded)
-    }
 
     class BcsEncoder : Encoder, CompositeEncoder {
         override val serializersModule = EmptySerializersModule()
