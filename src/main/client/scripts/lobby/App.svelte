@@ -42,9 +42,9 @@
     const sendGameSelected = socket.destinationWith(bcs.string())
     const sendBeginGame = socket.destination()
 
-    socket.receiverWith(checkedName, bcs.vector(bcs.string()))
-    socket.receiverWith(join, bcs.string())
-    socket.receiverWith(playerJoined, bcs.struct('Player', {
+    socket.receiverWith(onCheckedName, bcs.vector(bcs.string()))
+    socket.receiverWith(onJoin, bcs.string())
+    socket.receiverWith(onPlayerJoined, bcs.struct('Player', {
         id: bcs.string(),
         name: bcs.string(),
         verified: bcs.bool(),
@@ -52,39 +52,40 @@
         active: bcs.bool(),
         score: bcs.u32(),
     }))
-    socket.receiverWith(playerActiveChanged, bcs.struct('PlayerActiveChanged', {
+    socket.receiverWith(onPlayerActiveChanged, bcs.struct('PlayerActiveChanged', {
         player: bcs.string(),
         active: bcs.bool()
     }))
-    socket.receiverWith(hostChanged, bcs.string())
-    socket.receiverWith(kicked, bcs.string())
-    socket.receiverWith(gameSelectedChanged, bcs.string())
-    socket.receiverWith(gameStarted, bcs.string())
+    socket.receiverWith(onHostChanged, bcs.string())
+    socket.receiverWith(onKicked, bcs.string())
+    socket.receiverWith(onGameSelected, bcs.string())
+    socket.receiverWith(onGameStarted, bcs.string())
 
-    function checkedName(errors: Iterable<string>) {
+    function onCheckedName(errors: Iterable<string>) {
         usernameInputErrors = errors as string[];
+        console.log(usernameInputErrors)
         popup!.buttonDisabled = usernameInputErrors.length != 0;
     }
 
-    function join(id: PlayerId) {
+    function onJoin(id: PlayerId) {
         popup = null;
         you.id = id;
     }
 
-    function playerJoined(player: Player) {
+    function onPlayerJoined(player: Player) {
         lobby.players.push(player);
     }
 
-    function playerActiveChanged(data: { player: PlayerId; active: boolean }) {
+    function onPlayerActiveChanged(data: { player: PlayerId; active: boolean }) {
         const player = lobby.players.find((p) => p.id === data.player)!;
         player.active = data.active;
     }
 
-    function hostChanged(id: PlayerId) {
+    function onHostChanged(id: PlayerId) {
         lobby.host = id;
     }
 
-    function kicked(message: string) {
+    function onKicked(message: string) {
         popup = {
             message,
             buttonText: 'Close',
@@ -96,11 +97,11 @@
         };
     }
 
-    function gameSelectedChanged(game: string) {
+    function onGameSelected(game: string) {
         gameSelected = game;
     }
 
-    function gameStarted(pathname: string) {
+    function onGameStarted(pathname: string) {
         location.pathname = pathname;
     }
 

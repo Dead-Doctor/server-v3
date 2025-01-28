@@ -71,14 +71,6 @@ object LobbyModule : Module {
                 }
             }
 
-            val testPlayer = Lobby.Player(TrackedUser("test"), Lobby.Player.State.INACTIVE, "helloWorld")
-            println(Bcs.encodeToByteArray(Lobby.Player.Info(testPlayer)).joinToString { it.toString(16) })
-            println(Bcs.encodeToByteArray(Lobby.Player.Info(testPlayer)).joinToString { it.toString(16) })
-
-            val bytes = Bcs.encodeToByteArray("")
-            println("Empty: ${bytes.joinToString { it.toString(16) }}")
-            println("Decoded: ${Bcs.decodeFromBytes<String>(bytes)}")
-
             val socket = webSocketBinary("ws")
             sendCheckedName = socket.destination()
             sendJoin = socket.destination()

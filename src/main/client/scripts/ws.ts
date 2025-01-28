@@ -1,4 +1,5 @@
 import type { BcsType } from "@iota/bcs";
+import { bcs } from '@iota/bcs';
 
 export interface SocketAddressable<T> {
     send(destination: string, content?: any): void
@@ -71,11 +72,11 @@ export const openSocketBinary = (pathname: string = location.pathname): SocketBi
         console.log(`[Websocket] Error: ${e}`);
     });
 
-    socket.addEventListener('message', e => {
-        const binaryData = e.data as Uint8Array
-        console.log(`[Websocket] Received: ${binaryData}`);
+    socket.addEventListener('message', async (e: MessageEvent<Blob>) => {
+        const binaryData = await e.data.bytes()
         const receiver = receivers[binaryData[0]]
-        receiver(binaryData.subarray(1))
+        console.log(`[Websocket] Received: ${binaryData}`);
+        receiver(binaryData.slice(1))
     })
 
     return {

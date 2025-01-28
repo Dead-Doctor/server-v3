@@ -5,8 +5,6 @@ import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
-import xyz.mcxross.bcs.Bcs
-import xyz.mcxross.bcs.Bcs.encodeToByteArray
 
 open class WebSocketBinaryEventHandler {
     var handleConnection: suspend (WebSocketBinaryContext) -> Unit = {}
@@ -32,7 +30,7 @@ open class WebSocketBinaryEventHandler {
     }
 
     inline fun <reified U> receiver(crossinline handler: suspend (WebSocketBinaryContext, U) -> Unit) {
-        receivers.add { context, data: ByteArray -> handler(context, Bcs.decodeFromByteArray<U>(data)) }
+        receivers.add { context, data: ByteArray -> handler(context, Bcs.decodeFromBytes<U>(data)) }
     }
 
     fun rawReceiver(handler: suspend (WebSocketBinaryContext, ByteArray) -> Unit) {
@@ -63,7 +61,7 @@ class WebSocketBinaryDestination<T>(val socket: WebSocketBinary, private val i: 
         sendToAll(socket.connections.filter { it.user == user }, content)
 
     fun encodePacket(content: T): ByteArray {
-        return byteArrayOf(i.toByte()) + encodeToByteArray(serializer, content)
+        return byteArrayOf(i.toByte()) + Bcs.encodeToBytes(serializer, content)
     }
 
     fun sendToAll(connections: List<Connection>, content: T) = with(encodePacket(content)) {
