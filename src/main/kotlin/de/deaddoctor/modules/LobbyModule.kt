@@ -22,14 +22,15 @@ object LobbyModule : Module {
         for (i in 0 until 4) append(idCharacters.random())
     }
 
-    private lateinit var sendCheckedName: WebSocketBinaryDestination<List<String>>
-    private lateinit var sendJoin: WebSocketBinaryDestination<String>
-    private lateinit var sendPlayerJoined: WebSocketBinaryDestination<Lobby.Player.Info>
-    private lateinit var sendPlayerActiveChanged: WebSocketBinaryDestination<Lobby.PlayerActiveChanged>
-    private lateinit var sendHostChanged: WebSocketBinaryDestination<String>
-    private lateinit var sendKicked: WebSocketBinaryDestination<String>
-    private lateinit var sendGameSelected: WebSocketBinaryDestination<String>
-    private lateinit var sendGameStarted: WebSocketBinaryDestination<String>
+    private val channel = Channel()
+    private val sendCheckedName = channel.destination<List<String>>()
+    private val sendJoin = channel.destination<String>()
+    private val sendPlayerJoined = channel.destination<Lobby.Player.Info>()
+    private val sendPlayerActiveChanged = channel.destination<Lobby.PlayerActiveChanged>()
+    private val sendHostChanged = channel.destination<String>()
+    private val sendKicked = channel.destination<String>()
+    private val sendGameSelected = channel.destination<String>()
+    private val sendGameStarted = channel.destination<String>()
 
     private val lobbies = mutableMapOf<String, Lobby>()
 
@@ -71,17 +72,9 @@ object LobbyModule : Module {
                 }
             }
 
-            val socket = webSocketBinary("ws")
-            sendCheckedName = socket.destination()
-            sendJoin = socket.destination()
-            sendPlayerJoined = socket.destination()
-            sendPlayerActiveChanged = socket.destination()
-            sendHostChanged = socket.destination()
-            sendKicked = socket.destination()
-            sendGameSelected = socket.destination()
-            sendGameStarted = socket.destination()
+            openChannel("ws", channel)
 
-            suspend fun WebSocketBinaryContext.connect() {
+            suspend fun Channel.Context.connect() {
                 val lobby = connection.lobby
                 if (lobby == null || user !is TrackedUser) {
                     closeConnection(
@@ -110,58 +103,58 @@ object LobbyModule : Module {
                 }
                 return nameErrors
             }
-            fun WebSocketBinaryContext.checkName(name: String) {
+            fun Channel.Context.checkName(name: String) {
                 val errors = checkName(name)
                 sendCheckedName.sendToConnection(connection, errors)
             }
-            fun WebSocketBinaryContext.join(name: String) {
+            fun Channel.Context.join(name: String) {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || user is AccountUser || lobby.joined(user) || checkName(name).isNotEmpty()) return
                 val player = lobby.joinActivate(user, name)
                 lobby.activeConnect(player)
                 sendJoin.sendToUser(user, user.id)
             }
-            fun WebSocketBinaryContext.disconnect() {
+            fun Channel.Context.disconnect() {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || !lobby.joined(user) || countConnections() != 0) return
                 lobby.activeDisconnect(lobby.getPlayer(user)!!)
             }
-            fun WebSocketBinaryContext.promote(playerId: String) {
+            fun Channel.Context.promote(playerId: String) {
                 val lobby = connection.lobby ?: return
                 val player = TrackedUser(playerId)
                 if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return
                 lobby.promote(player)
             }
-            fun WebSocketBinaryContext.kick(playerId: String) {
+            fun Channel.Context.kick(playerId: String) {
                 val lobby = connection.lobby ?: return
                 val player = TrackedUser(playerId)
                 if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return
                 lobby.kick(player)
             }
-            fun WebSocketBinaryContext.gameSelected(gameSelected: String) {
+            fun Channel.Context.gameSelected(gameSelected: String) {
                 val lobby = connection.lobby ?: return
                 val gameType = GameModule.getGameType(gameSelected)
                 if (user !is TrackedUser || !lobby.isOperator(user) || gameType == null) return
                 lobby.selectGame(gameType)
             }
-            fun WebSocketBinaryContext.beginGame() {
+            fun Channel.Context.beginGame() {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return
                 lobby.beginGame()
             }
-            fun WebSocketBinaryContext.game(data: ByteArray) {
+            fun Channel.Context.game(data: ByteArray) {
                 TODO("Not implemented yet!")
             }
 
-            socket.connection(WebSocketBinaryContext::connect)
-            socket.receiver(WebSocketBinaryContext::checkName)
-            socket.receiver(WebSocketBinaryContext::join)
-            socket.disconnection(WebSocketBinaryContext::disconnect)
-            socket.receiver(WebSocketBinaryContext::promote)
-            socket.receiver(WebSocketBinaryContext::kick)
-            socket.receiver(WebSocketBinaryContext::gameSelected)
-            socket.receiver(WebSocketBinaryContext::beginGame)
-            socket.rawReceiver(WebSocketBinaryContext::game)
+            channel.connection(Channel.Context::connect)
+            channel.receiver(Channel.Context::checkName)
+            channel.receiver(Channel.Context::join)
+            channel.disconnection(Channel.Context::disconnect)
+            channel.receiver(Channel.Context::promote)
+            channel.receiver(Channel.Context::kick)
+            channel.receiver(Channel.Context::gameSelected)
+            channel.receiver(Channel.Context::beginGame)
+            channel.rawReceiver(Channel.Context::game)
         }
     }
 

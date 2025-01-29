@@ -51,6 +51,7 @@ object GameModule : Module {
                             val lobby = call.lobby ?: return@webSocket close(CloseReason(CloseReason.Codes.NORMAL, "No lobby"))
                             val gameG = lobby.game ?: return@webSocket close(CloseReason(CloseReason.Codes.NORMAL, "No game"))
                             val game = gameG as MusicGuesserGame
+                            println("game: $game")
 
                             val data = frame.readBytes()
                             println("data: ${data.toHexString()}")
@@ -58,8 +59,6 @@ object GameModule : Module {
                             println("packetType: $packetType")
                             val packetData = data.copyOfRange(1, data.size)
                             println("packetData: ${packetData.toHexString()}")
-
-//                            game.handlers.destinations[packetType](packetData)
                         }
                     }
                 }
@@ -80,9 +79,9 @@ object GameModule : Module {
     }
 }
 
-abstract class Game(socketHandlerRegistrant: WebSocketBinaryEventHandler.() -> Unit) {
+abstract class Game(socketHandlerRegistrant: ChannelEvents.() -> Unit) {
 
-    val webSocketBinaryEventHandler = WebSocketBinaryEventHandler().apply(socketHandlerRegistrant)
+    val channelEvents = ChannelEvents().apply(socketHandlerRegistrant)
 
     abstract suspend fun get(call: ApplicationCall)
 }

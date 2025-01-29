@@ -1,6 +1,6 @@
 <script lang="ts">
     import { getData } from '../routing';
-    import { openSocketBinary } from '../ws';
+    import { connectChannel } from '../channel';
     import Leaderboard from '../Leaderboard.svelte';
     import { fade, fly, slide } from 'svelte/transition';
     import { bcs } from '@iota/bcs';
@@ -34,7 +34,7 @@
         closable: boolean;
     }
 
-    const socket = openSocketBinary();
+    const socket = connectChannel();
     const sendCheckName = socket.destinationWith(bcs.string())
     const sendJoin = socket.destinationWith(bcs.string())
     const sendPromote = socket.destinationWith(bcs.string())

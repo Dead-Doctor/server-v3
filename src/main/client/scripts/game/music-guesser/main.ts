@@ -1,14 +1,15 @@
 import { bcs } from '@iota/bcs';
-import { openSocketBinary } from '../../ws';
+import { connectChannel } from '../../channel';
 
-const wsBin = openSocketBinary()
-const sendHello = wsBin.destinationWith(bcs.struct('SomePacket', {
+const channel = connectChannel()
+const sendHello = channel.destinationWith(bcs.struct('SomePacket', {
     a: bcs.string(),
     value: bcs.u32()
 }))
 
-//TODO: test
-sendHello({
-    a: 'abc',
-    value: 69
-})
+setTimeout(() => {
+    sendHello({
+        a: 'abc',
+        value: 69
+    })
+}, 1000)
