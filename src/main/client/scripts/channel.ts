@@ -5,10 +5,10 @@ export interface Channel {
     destinationWith<T>(dataType: BcsType<T>): (data: T) => void
     receiver(handler: () => void): void
     receiverWith<T>(handler: (data: T) => void, dataType: BcsType<T>): void
-    onDisconnect(handler: (e: CloseEvent) => void): void
+    disconnection(handler: (e: CloseEvent) => void): void
 }
 
-export const connectChannel = (pathname: string = location.pathname): Channel => {
+export const connectChannel = (pathname: string = location.pathname, destinationPort: number | null = null, receiverPort: number = 0): Channel => {
     const socket = new WebSocket((location.protocol === "https:" ? 'wss:' : 'ws:') + '//' + location.host + pathname + '/ws');
 
     let destinationCount = 0;
@@ -28,9 +28,12 @@ export const connectChannel = (pathname: string = location.pathname): Channel =>
 
     socket.addEventListener('message', async (e: MessageEvent<Blob>) => {
         const binaryData = await e.data.bytes()
-        const receiver = receivers[binaryData[0]]
+        if (destinationPort != null && binaryData[0] != destinationPort)
+            return
+        const offset = destinationPort == null ? 0 : 1
+        const receiver = receivers[binaryData[offset]]
         console.log(`[Channel] Received: ${binaryData}`);
-        receiver(binaryData.slice(1))
+        receiver(binaryData.slice(offset + 1))
     })
 
     return {
@@ -38,8 +41,11 @@ export const connectChannel = (pathname: string = location.pathname): Channel =>
             const i = destinationCount++;
 
             return () => {
-                const packet = new Uint8Array(1)
-                packet[0] = i
+                const offset = destinationPort == null ? 0 : 1
+                const packet = new Uint8Array(offset + 1)
+                if (destinationPort != null)
+                    packet[0] = destinationPort
+                packet[offset] = i
 
                 console.log(`[Channel] Sent: ${packet}`);
                 socket.send(packet)
@@ -51,9 +57,12 @@ export const connectChannel = (pathname: string = location.pathname): Channel =>
             return (data: T) => {
                 const binary = dataType.serialize(data).toBytes()
 
-                const packet = new Uint8Array(binary.length + 1)
-                packet[0] = i
-                packet.set(binary, 1)
+                const offset = destinationPort == null ? 0 : 1
+                const packet = new Uint8Array(offset + 1 + binary.length)
+                if (destinationPort != null)
+                    packet[0] = destinationPort
+                packet[offset] = i
+                packet.set(binary, offset + 1)
 
                 console.log(`[Channel] Sent: ${packet}`);
                 socket.send(packet)
@@ -67,7 +76,7 @@ export const connectChannel = (pathname: string = location.pathname): Channel =>
                 handler(dataType.parse(data))
             })
         },
-        onDisconnect(handler: (e: CloseEvent) => void) {
+        disconnection(handler: (e: CloseEvent) => void) {
             socket.addEventListener('close', handler)
         }
     }

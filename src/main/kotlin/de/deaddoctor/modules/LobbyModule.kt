@@ -105,14 +105,14 @@ object LobbyModule : Module {
             }
             fun Channel.Context.checkName(name: String) {
                 val errors = checkName(name)
-                sendCheckedName.sendToConnection(connection, errors)
+                sendCheckedName.toConnection(connection, errors)
             }
             fun Channel.Context.join(name: String) {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || user is AccountUser || lobby.joined(user) || checkName(name).isNotEmpty()) return
                 val player = lobby.joinActivate(user, name)
                 lobby.activeConnect(player)
-                sendJoin.sendToUser(user, user.id)
+                sendJoin.toUser(user, user.id)
             }
             fun Channel.Context.disconnect() {
                 val lobby = connection.lobby ?: return
@@ -142,8 +142,10 @@ object LobbyModule : Module {
                 if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return
                 lobby.beginGame()
             }
-            fun Channel.Context.game(data: ByteArray) {
-                TODO("Not implemented yet!")
+            suspend fun Channel.Context.game(data: ByteArray) {
+                val lobby = connection.lobby ?: return
+                val game = lobby.game ?: return
+                game.channelEvents.handleReceiver(this, data)
             }
 
             channel.connection(Channel.Context::connect)
@@ -182,7 +184,7 @@ object LobbyModule : Module {
         fun joinActivate(user: TrackedUser, name: String? = null): Player {
             val player = Player(user, Player.State.ACTIVE, name)
             players[user] = player
-            sendPlayerJoined.sendToAll(Player.Info(player))
+            sendPlayerJoined.toAll(Player.Info(player))
 
             if (host == null) promote(user)
 
@@ -191,7 +193,7 @@ object LobbyModule : Module {
 
         fun activate(player: Player) {
             player.state = Player.State.ACTIVE
-            sendPlayerActiveChanged.sendToAll(PlayerActiveChanged(player))
+            sendPlayerActiveChanged.toAll(PlayerActiveChanged(player))
         }
 
         private fun deactivate(player: Player) {
@@ -207,7 +209,7 @@ object LobbyModule : Module {
 //            }
 
             player.disconnectJob.cancel()
-            sendPlayerActiveChanged.sendToAll(PlayerActiveChanged(player))
+            sendPlayerActiveChanged.toAll(PlayerActiveChanged(player))
             val firstRemainingPlayer = players.values.firstOrNull { it.state.active }
             if (firstRemainingPlayer == null) {
 //                destroyLobby()
@@ -236,23 +238,23 @@ object LobbyModule : Module {
         fun promote(user: TrackedUser) {
             host = user
 
-            sendHostChanged.sendToAll(user.id)
+            sendHostChanged.toAll(user.id)
         }
 
         fun kick(user: TrackedUser) {
             val player = getPlayer(user)!!
             deactivate(player)
-            sendKicked.sendToUser(user, "You got kicked")
+            sendKicked.toUser(user, "You got kicked")
         }
 
         fun selectGame(gameType: GameModule.GameType<*>) {
             gameSelected = gameType
-            sendGameSelected.sendToAll(gameType.id)
+            sendGameSelected.toAll(gameType.id)
         }
 
         fun beginGame() {
             game = gameSelected.instanceClass.createInstance()
-            sendGameStarted.sendToAll("/game/${gameSelected.id}/$id")
+            sendGameStarted.toAll("/game/${gameSelected.id}/$id")
         }
 
         class Player(

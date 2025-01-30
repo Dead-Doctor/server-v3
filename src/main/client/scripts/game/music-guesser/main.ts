@@ -1,7 +1,7 @@
 import { bcs } from '@iota/bcs';
-import { connectChannel } from '../../channel';
+import { connectGameChannel } from '../game';
 
-const channel = connectChannel()
+const channel = connectGameChannel()
 const sendHello = channel.destinationWith(bcs.struct('SomePacket', {
     a: bcs.string(),
     value: bcs.u32()

@@ -6,8 +6,6 @@ import de.deaddoctor.modules.games.MusicGuesserGame
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.server.websocket.*
-import io.ktor.websocket.*
 import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
 
@@ -25,7 +23,6 @@ object GameModule : Module {
         gameTypes.add(type)
     }
 
-    @OptIn(ExperimentalStdlibApi::class)
     override fun Route.route() {
         for (type in gameTypes) {
             route(type.id) {
@@ -44,22 +41,6 @@ object GameModule : Module {
                         if (game::class != type.instanceClass)
                             throw IllegalStateException("Expected game instance of type '${game::class.qualifiedName}' but got '${type.instanceClass.qualifiedName}' ")
                         game.get(call)
-                    }
-
-                    webSocket("ws") {
-                        for (frame in incoming) {
-                            val lobby = call.lobby ?: return@webSocket close(CloseReason(CloseReason.Codes.NORMAL, "No lobby"))
-                            val gameG = lobby.game ?: return@webSocket close(CloseReason(CloseReason.Codes.NORMAL, "No game"))
-                            val game = gameG as MusicGuesserGame
-                            println("game: $game")
-
-                            val data = frame.readBytes()
-                            println("data: ${data.toHexString()}")
-                            val packetType = data[0].toInt()
-                            println("packetType: $packetType")
-                            val packetData = data.copyOfRange(1, data.size)
-                            println("packetData: ${packetData.toHexString()}")
-                        }
                     }
                 }
             }

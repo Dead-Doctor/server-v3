@@ -5,8 +5,11 @@ import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
+import org.slf4j.LoggerFactory
 
 open class ChannelEvents {
+    private val logger = LoggerFactory.getLogger(javaClass)
+
     var handleConnection: suspend (Channel.Context) -> Unit = {}
     val handleDisconnection: suspend (Channel.Context) -> Unit = {}
     val receivers = mutableListOf<suspend (Channel.Context, ByteArray) -> Unit>()
@@ -14,6 +17,10 @@ open class ChannelEvents {
     suspend fun handleReceiver(context: Channel.Context, data: ByteArray) {
         val packetType = data[0].toInt()
         val packetData = data.copyOfRange(1, data.size)
+        if (!receivers.indices.contains(packetType)) {
+            logger.error("Invalid packet type received: $packetType")
+            return
+        }
         receivers[packetType](context, packetData)
     }
 
@@ -52,25 +59,25 @@ class Channel : ChannelEvents() {
         return Destination(this, i, serializer)
     }
 
-    class Destination<T>(val socket: Channel, private val i: UByte, private val serializer: KSerializer<T>) {
-        fun sendToAll(content: T) =
-            sendToAll(socket.connections, content)
+    class Destination<T>(private val channel: Channel, private val i: UByte, private val serializer: KSerializer<T>) {
+        fun toAll(content: T) =
+            toAll(channel.connections, content)
 
-        fun sendToUser(user: User, content: T) =
-            sendToAll(socket.connections.filter { it.user == user }, content)
+        fun toUser(user: User, content: T) =
+            toAll(channel.connections.filter { it.user == user }, content)
 
-        fun encodePacket(content: T): ByteArray {
+        private fun encodePacket(content: T): ByteArray {
             return byteArrayOf(i.toByte()) + Bcs.encodeToBytes(serializer, content)
         }
 
-        fun sendToAll(connections: List<Connection>, content: T) = with(encodePacket(content)) {
-            connections.forEach { sendMessageTo(it, this) }
+        fun toAll(connections: List<Connection>, content: T) = with(encodePacket(content)) {
+            connections.forEach { rawToConnection(it, this) }
         }
 
-        fun sendToConnection(connection: Connection, content: T) =
-            sendMessageTo(connection, encodePacket(content))
+        fun toConnection(connection: Connection, content: T) =
+            rawToConnection(connection, encodePacket(content))
 
-        fun sendMessageTo(connection: Connection, data: ByteArray) {
+        fun rawToConnection(connection: Connection, data: ByteArray) {
             try {
                 val result = connection.session.outgoing.trySend(Frame.Binary(true, data))
                 assert(result.isSuccess) { "Sending message to $connection failed: $result" }

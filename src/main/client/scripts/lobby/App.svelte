@@ -141,7 +141,7 @@
         };
     }
 
-    socket.onDisconnect(e => {
+    socket.disconnection(e => {
         if (e.code === 1001) return;
         popup = {
             message: 'Lost connection',
