@@ -219,7 +219,15 @@ object Bcs {
         }
 
         override fun decodeInt(): Int {
-            TODO("Not yet implemented")
+            if (buffer.remaining < 4) throw SerializationException("Tried to decode int but reached EOF.")
+
+            val bytes = buffer.readBytes(4)
+
+            var value = 0
+            for (i in 0..<4) {
+                value += bytes[i].toInt() shl (i * 8)
+            }
+            return value
         }
 
         override fun decodeLong(): Long {
@@ -243,7 +251,7 @@ object Bcs {
         override fun decodeString(): String {
             val length = decodeULEB128()
             if (buffer.remaining < length) throw SerializationException("Tried to decode string with length '${length}' but reached EOF.")
-            return String(buffer.getBytes(length))
+            return String(buffer.readBytes(length))
         }
 
         // Specials
@@ -331,7 +339,7 @@ object Bcs {
 
             fun readByte() = bytes[i++]
 
-            fun getBytes(count: Int): ByteArray {
+            fun readBytes(count: Int): ByteArray {
                 val bytes = bytes.copyOfRange(i, i + count)
                 i += count
                 return bytes
