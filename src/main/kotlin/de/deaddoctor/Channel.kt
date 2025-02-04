@@ -93,7 +93,7 @@ class Channel : ChannelEvents() {
 
         fun countConnections(user: User = connection.user) = socket.connections.count { it.user == user }
 
-        suspend fun closeConnection(connection: Connection, reason: CloseReason) {
+        suspend fun closeConnection(reason: CloseReason) {
             connection.session.close(reason)
         }
     }

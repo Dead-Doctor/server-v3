@@ -77,9 +77,7 @@ object LobbyModule : Module {
             suspend fun Channel.Context.connect() {
                 val lobby = connection.lobby
                 if (lobby == null || user !is TrackedUser) {
-                    closeConnection(
-                        connection, CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
-                    )
+                    closeConnection(CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered."))
                     return
                 }
                 if (!lobby.active(user)) return
@@ -175,7 +173,7 @@ object LobbyModule : Module {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
         var gameSelected = GameModule.gameTypes[0]
-        var game: Game? = null
+        var game: Game<*>? = null
 
         fun joined(user: TrackedUser) = players.containsKey(user)
         fun active(user: TrackedUser) = players[user]?.state?.active ?: false

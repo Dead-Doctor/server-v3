@@ -6,6 +6,7 @@ import de.deaddoctor.modules.games.MusicGuesserGame
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.websocket.*
 import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
 
@@ -38,6 +39,7 @@ object GameModule : Module {
                         }
 
                         val game = lobby.game ?: return@get call.respondRedirect("/lobby/${call.parameters["id"]}}")
+                        //TODO: this shouldn't crash
                         if (game::class != type.instanceClass)
                             throw IllegalStateException("Expected game instance of type '${game::class.qualifiedName}' but got '${type.instanceClass.qualifiedName}' ")
                         game.get(call)
@@ -52,7 +54,7 @@ object GameModule : Module {
     val gameTypesInfo: List<GameType.Info>
         get() = gameTypes.map { GameType.Info(it) }
 
-    class GameType<T : Game>(val id: String, val name: String, val instanceClass: KClass<T>) {
+    class GameType<T : Game<T>>(val id: String, val name: String, val instanceClass: KClass<T>) {
         @Serializable
         data class Info(val id: String, val name: String) {
             constructor(type: GameType<*>) : this(type.id, type.name)
@@ -60,9 +62,32 @@ object GameModule : Module {
     }
 }
 
-abstract class Game(socketHandlerRegistrant: ChannelEvents.() -> Unit) {
+class GameChannelEvents : ChannelEvents() {
 
-    val channelEvents = ChannelEvents().apply(socketHandlerRegistrant)
+    inline fun <reified T> receiverTyped(crossinline handler: suspend T.(Channel.Context) -> Unit) {
+        receivers.add { ctx, _: ByteArray ->
+            val reasonInternalError = CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
+            val lobby = ctx.connection.lobby ?: return@add ctx.closeConnection(reasonInternalError)
+            val game = lobby.game ?: return@add ctx.closeConnection(reasonInternalError)
+            if (game !is T) return@add ctx.closeConnection(reasonInternalError)
+            game.handler(ctx)
+        }
+    }
+
+    inline fun <reified T, reified U> receiverTyped(crossinline handler: suspend T.(Channel.Context, U) -> Unit) {
+        receivers.add { ctx, data: ByteArray ->
+            val reasonInternalError = CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
+            val lobby = ctx.connection.lobby ?: return@add ctx.closeConnection(reasonInternalError)
+            val game = lobby.game ?: return@add ctx.closeConnection(reasonInternalError)
+            if (game !is T) return@add ctx.closeConnection(reasonInternalError)
+            game.handler(ctx, Bcs.decodeFromBytes<U>(data))
+        }
+    }
+}
+
+abstract class Game<T>(socketHandlerRegistrant: GameChannelEvents.() -> Unit) {
+
+    val channelEvents = GameChannelEvents().apply(socketHandlerRegistrant)
 
     abstract suspend fun get(call: ApplicationCall)
 }
