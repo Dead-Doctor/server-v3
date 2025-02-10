@@ -256,7 +256,7 @@ object LobbyModule : Module {
         fun beginGame() {
             val channel = GameChannel(sendGame)
             //TODO: configurable settings
-            game = gameSelected.factory(channel, players)
+            game = gameSelected.create(channel, players)
             sendGameStarted.toAll("/game/${gameSelected.id}/$id")
         }
 

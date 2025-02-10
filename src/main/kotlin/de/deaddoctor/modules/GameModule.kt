@@ -57,13 +57,23 @@ object GameModule : Module {
     class GameType<T : Game<T>>(
         val id: String,
         val name: String,
-        val factory: (GameChannel, MutableMap<TrackedUser, Player>) -> T
+        private val factory: (GameType<T>, GameChannel, MutableMap<TrackedUser, Player>) -> T
     ) {
         @Serializable
         data class Info(val id: String, val name: String) {
             constructor(type: GameType<*>) : this(type.id, type.name)
         }
+
+        fun create(channel: GameChannel, players: MutableMap<TrackedUser, Player>): T =
+            factory(this, channel, players)
     }
+}
+
+abstract class Game<T>(socketHandlerRegistrant: GameChannelEvents.() -> Unit) {
+
+    val channelEvents = GameChannelEvents().apply(socketHandlerRegistrant)
+
+    abstract suspend fun get(call: ApplicationCall)
 }
 
 class GameChannel(private val send: Destination<ByteArray>) {
@@ -78,7 +88,11 @@ class GameChannel(private val send: Destination<ByteArray>) {
         return GameDestination(this, i) { Bcs.encodeToBytes(serializer, it) }
     }
 
-    class GameDestination<T>(private val channel: GameChannel, private val i: UByte, private val serializer: (T) -> ByteArray) : Destination<T> {
+    class GameDestination<T>(
+        private val channel: GameChannel,
+        private val i: UByte,
+        private val serializer: (T) -> ByteArray
+    ) : Destination<T> {
         private fun encodePacket(content: T): ByteArray {
             return byteArrayOf(i.toByte()) + serializer(content)
         }
@@ -123,11 +137,4 @@ class GameChannelEvents : ChannelEvents() {
             game.handler(ctx, Bcs.decodeFromBytes<U>(data))
         }
     }
-}
-
-abstract class Game<T>(socketHandlerRegistrant: GameChannelEvents.() -> Unit) {
-
-    val channelEvents = GameChannelEvents().apply(socketHandlerRegistrant)
-
-    abstract suspend fun get(call: ApplicationCall)
 }
