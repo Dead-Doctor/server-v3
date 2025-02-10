@@ -1,14 +1,16 @@
 package de.deaddoctor.modules
 
 import de.deaddoctor.*
+import de.deaddoctor.modules.LobbyModule.Lobby.Player
 import de.deaddoctor.modules.LobbyModule.lobby
 import de.deaddoctor.modules.games.MusicGuesserGame
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
-import kotlin.reflect.KClass
+import kotlinx.serialization.serializer
 
 object GameModule : Module {
 
@@ -17,7 +19,7 @@ object GameModule : Module {
     override fun path() = "game"
 
     init {
-        register(GameType("music-guesser", "Music Guesser", MusicGuesserGame::class))
+        register(GameType("music-guesser", "Music Guesser", ::MusicGuesserGame))
     }
 
     private fun register(type: GameType<*>) {
@@ -27,23 +29,21 @@ object GameModule : Module {
     override fun Route.route() {
         for (type in gameTypes) {
             route(type.id) {
-                route("{id}") {
-                    get {
-                        val lobby = call.lobby ?: return@get call.respondRedirect("/games")
-                        val user = call.trackedUser
+                get("{id}") {
+                    val lobby = call.lobby ?: return@get call.respondRedirect("/games")
+                    val user = call.trackedUser
 
-                        if (!lobby.joined(user)) {
-                            return@get call.respondRedirect("/lobby/${call.parameters["id"]}}")
-                        } else if (!lobby.active(user)) {
-                            lobby.activate(lobby.getPlayer(user)!!)
-                        }
-
-                        val game = lobby.game ?: return@get call.respondRedirect("/lobby/${call.parameters["id"]}}")
-                        //TODO: this shouldn't crash
-                        if (game::class != type.instanceClass)
-                            throw IllegalStateException("Expected game instance of type '${game::class.qualifiedName}' but got '${type.instanceClass.qualifiedName}' ")
-                        game.get(call)
+                    if (!lobby.joined(user)) {
+                        return@get call.respondRedirect("/lobby/${call.parameters["id"]}")
+                    } else if (!lobby.active(user)) {
+                        lobby.activate(lobby.getPlayer(user)!!)
                     }
+
+                    if (lobby.gameSelected != type)
+                        return@get call.respondRedirect("/game/${lobby.gameSelected.id}/${call.parameters["id"]}")
+
+                    val game = lobby.game ?: return@get call.respondRedirect("/lobby/${call.parameters["id"]}")
+                    game.get(call)
                 }
             }
         }
@@ -54,11 +54,51 @@ object GameModule : Module {
     val gameTypesInfo: List<GameType.Info>
         get() = gameTypes.map { GameType.Info(it) }
 
-    class GameType<T : Game<T>>(val id: String, val name: String, val instanceClass: KClass<T>) {
+    class GameType<T : Game<T>>(
+        val id: String,
+        val name: String,
+        val factory: (GameChannel, MutableMap<TrackedUser, Player>) -> T
+    ) {
         @Serializable
         data class Info(val id: String, val name: String) {
             constructor(type: GameType<*>) : this(type.id, type.name)
         }
+    }
+}
+
+class GameChannel(private val send: Destination<ByteArray>) {
+    private var destinationCount: UByte = 0u
+
+    inline fun <reified T> destination(): Destination<T> {
+        return destination(serializer<T>())
+    }
+
+    fun <T> destination(serializer: KSerializer<T>): Destination<T> {
+        val i = destinationCount++
+        return GameDestination(this, i) { Bcs.encodeToBytes(serializer, it) }
+    }
+
+    class GameDestination<T>(private val channel: GameChannel, private val i: UByte, private val serializer: (T) -> ByteArray) : Destination<T> {
+        private fun encodePacket(content: T): ByteArray {
+            return byteArrayOf(i.toByte()) + serializer(content)
+        }
+
+        override fun toAll(content: T) {
+            channel.send.toAll(encodePacket(content))
+        }
+
+        override fun toAll(connections: List<Connection>, content: T) {
+            channel.send.toAll(connections, encodePacket(content))
+        }
+
+        override fun toUser(user: User, content: T) {
+            channel.send.toUser(user, encodePacket(content))
+        }
+
+        override fun toConnection(connection: Connection, content: T) {
+            channel.send.toConnection(connection, encodePacket(content))
+        }
+
     }
 }
 

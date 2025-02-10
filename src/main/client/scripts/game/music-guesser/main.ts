@@ -6,6 +6,7 @@ const sendHello = channel.destinationWith(bcs.struct('SomePacket', {
     a: bcs.string(),
     value: bcs.u32()
 }))
+channel.receiverWith(onAnswer, bcs.u32())
 
 setTimeout(() => {
     sendHello({
@@ -13,3 +14,7 @@ setTimeout(() => {
         value: 69
     })
 }, 1000)
+
+function onAnswer(value: number) {
+    console.log(`Received answer: ${value}`)
+}

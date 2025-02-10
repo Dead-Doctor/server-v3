@@ -1,30 +1,37 @@
 package de.deaddoctor.modules.games
 
-import de.deaddoctor.Channel
+import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
 import de.deaddoctor.modules.Game
-import de.deaddoctor.respondPage
+import de.deaddoctor.modules.GameChannel
+import de.deaddoctor.modules.LobbyModule
 import io.ktor.server.application.*
 import kotlinx.html.h2
 import kotlinx.html.section
 import kotlinx.serialization.Serializable
 
-class MusicGuesserGame : Game<MusicGuesserGame>({
+class MusicGuesserGame(channel: GameChannel, val players: MutableMap<TrackedUser, LobbyModule.Lobby.Player>) : Game<MusicGuesserGame>({
     receiverTyped(MusicGuesserGame::helloDestination)
 }) {
+    private val sendAnswer = channel.destination<Int>()
+
+    companion object {
+        const val NAME = "Music Guesser"
+        private val NAME_ID = NAME.lowercase().replace(' ', '-')
+    }
 
     fun helloDestination(ctx: Channel.Context, something: SomePacket) {
-        println(ctx)
-        println(something)
+        println(something.a)
+        sendAnswer.toConnection(ctx.connection, something.value)
     }
 
     @Serializable
     data class SomePacket(val a: String, val value: Int)
 
     override suspend fun get(call: ApplicationCall) {
-        call.respondPage("Music Guesser") {
+        call.respondPage(NAME) {
             head {
-                addScript("game/music-guesser/main")
+                addScript("game/$NAME_ID/main")
             }
             content {
                 section {
@@ -34,22 +41,5 @@ class MusicGuesserGame : Game<MusicGuesserGame>({
                 }
             }
         }
-//        val game = currentGame
-//        if (game == null) {
-//            call.respondRedirect(relative("/start"))
-//            return@get
-//        }
-//        val user = call.trackedUser
-//        if (!game.joined(user) && (user is AccountUser || game.playerById(user.id) != null)) {
-//            game.join(user)
-//        }
-//        call.respondPage(NAME) {
-//            head {
-//                addData("playerInfo", game.playerInfo)
-//                addData("gameInfo", game.gameInfo(user))
-//                addData("round", game.roundInfo)
-//                addScript("$NAME_ID/main")
-//            }
-//        }
     }
 }

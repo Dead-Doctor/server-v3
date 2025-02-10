@@ -45,6 +45,13 @@ open class ChannelEvents {
     }
 }
 
+interface Destination<T> {
+    fun toAll(content: T)
+    fun toAll(connections: List<Connection>, content: T)
+    fun toUser(user: User, content: T)
+    fun toConnection(connection: Connection, content: T)
+}
+
 class Channel : ChannelEvents() {
     val connections = mutableListOf<Connection>()
 
@@ -56,28 +63,33 @@ class Channel : ChannelEvents() {
 
     fun <T> destination(serializer: KSerializer<T>): Destination<T> {
         val i = destinationCount++
-        return Destination(this, i, serializer)
+        return ChannelDestination(this, i) { Bcs.encodeToBytes(serializer, it) }
     }
 
-    class Destination<T>(private val channel: Channel, private val i: UByte, private val serializer: KSerializer<T>) {
-        fun toAll(content: T) =
+    fun destinationRaw(): Destination<ByteArray> {
+        val i = destinationCount++
+        return ChannelDestination(this, i) { it }
+    }
+
+    class ChannelDestination<T>(private val channel: Channel, private val i: UByte, private val serializer: (T) -> ByteArray) : Destination<T> {
+        override fun toAll(content: T) =
             toAll(channel.connections, content)
 
-        fun toUser(user: User, content: T) =
+        override fun toUser(user: User, content: T) =
             toAll(channel.connections.filter { it.user == user }, content)
 
         private fun encodePacket(content: T): ByteArray {
-            return byteArrayOf(i.toByte()) + Bcs.encodeToBytes(serializer, content)
+            return byteArrayOf(i.toByte()) + serializer(content)
         }
 
-        fun toAll(connections: List<Connection>, content: T) = with(encodePacket(content)) {
+        override fun toAll(connections: List<Connection>, content: T) = with(encodePacket(content)) {
             connections.forEach { rawToConnection(it, this) }
         }
 
-        fun toConnection(connection: Connection, content: T) =
+        override fun toConnection(connection: Connection, content: T) =
             rawToConnection(connection, encodePacket(content))
 
-        fun rawToConnection(connection: Connection, data: ByteArray) {
+        private fun rawToConnection(connection: Connection, data: ByteArray) {
             try {
                 val result = connection.session.outgoing.trySend(Frame.Binary(true, data))
                 assert(result.isSuccess) { "Sending message to $connection failed: $result" }

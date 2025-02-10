@@ -11,7 +11,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlin.reflect.full.createInstance
 import kotlin.time.Duration.Companion.seconds
 
 object LobbyModule : Module {
@@ -31,6 +30,7 @@ object LobbyModule : Module {
     private val sendKicked = channel.destination<String>()
     private val sendGameSelected = channel.destination<String>()
     private val sendGameStarted = channel.destination<String>()
+    private val sendGame = channel.destinationRaw()
 
     private val lobbies = mutableMapOf<String, Lobby>()
 
@@ -60,6 +60,9 @@ object LobbyModule : Module {
                 } else if (!lobby.active(user)) {
                     lobby.activate(lobby.getPlayer(user)!!)
                 }
+
+                //TODO: show game running and button to spectate (cant redirect instantly because user might have to join and select name)
+                //TODO: caching errors when navigating back from game to lobby (e.g. new players that have joined will only be shown after refresh)
 
                 call.respondPage("Lobby") {
                     head {
@@ -132,7 +135,7 @@ object LobbyModule : Module {
             fun Channel.Context.gameSelected(gameSelected: String) {
                 val lobby = connection.lobby ?: return
                 val gameType = GameModule.getGameType(gameSelected)
-                if (user !is TrackedUser || !lobby.isOperator(user) || gameType == null) return
+                if (user !is TrackedUser || !lobby.isOperator(user) || gameType == null || lobby.isRunning) return
                 lobby.selectGame(gameType)
             }
             fun Channel.Context.beginGame() {
@@ -169,16 +172,15 @@ object LobbyModule : Module {
         )
     }
 
-    class Lobby(private val id: String) {
+    class Lobby(val id: String) {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
         var gameSelected = GameModule.gameTypes[0]
         var game: Game<*>? = null
-
         fun joined(user: TrackedUser) = players.containsKey(user)
+
         fun active(user: TrackedUser) = players[user]?.state?.active ?: false
         fun getPlayer(user: TrackedUser) = players[user]
-
         fun joinActivate(user: TrackedUser, name: String? = null): Player {
             val player = Player(user, Player.State.ACTIVE, name)
             players[user] = player
@@ -250,10 +252,16 @@ object LobbyModule : Module {
             sendGameSelected.toAll(gameType.id)
         }
 
+        //TODO: game ending
         fun beginGame() {
-            game = gameSelected.instanceClass.createInstance()
+            val channel = GameChannel(sendGame)
+            //TODO: configurable settings
+            game = gameSelected.factory(channel, players)
             sendGameStarted.toAll("/game/${gameSelected.id}/$id")
         }
+
+        val isRunning
+            get() = game != null
 
         class Player(
             val user: TrackedUser,

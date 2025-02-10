@@ -1,7 +1,7 @@
 import { connectChannel, type Channel } from "../channel"
 
-const LOBBY_RECEIVER_COUNT = 8;
 const LOBBY_DESTINATION_COUNT = 6;
+const LOBBY_RECEIVER_COUNT = 8;
 
 export const connectGameChannel = (): Channel => {
     const path = location.pathname.split('/')

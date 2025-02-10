@@ -8,7 +8,7 @@ export interface Channel {
     disconnection(handler: (e: CloseEvent) => void): void
 }
 
-export const connectChannel = (pathname: string = location.pathname, destinationPort: number | null = null, receiverPort: number = 0): Channel => {
+export const connectChannel = (pathname: string = location.pathname, destinationPort: number | null = null, receiverPort: number | null = null): Channel => {
     const socket = new WebSocket((location.protocol === "https:" ? 'wss:' : 'ws:') + '//' + location.host + pathname + '/ws');
 
     let destinationCount = 0;
@@ -28,10 +28,13 @@ export const connectChannel = (pathname: string = location.pathname, destination
 
     socket.addEventListener('message', async (e: MessageEvent<Blob>) => {
         const binaryData = await e.data.bytes()
-        if (destinationPort != null && binaryData[0] != destinationPort)
-            return
-        const offset = destinationPort == null ? 0 : 1
-        const receiver = receivers[binaryData[offset]]
+        if (receiverPort != null && binaryData[0] != receiverPort) return
+
+        const offset = receiverPort == null ? 0 : 1
+        const id = binaryData[offset]
+        if (id < 0 || id >= receivers.length) return
+        const receiver = receivers[id]
+        
         console.log(`[Channel] Received: ${binaryData}`);
         receiver(binaryData.slice(offset + 1))
     })
