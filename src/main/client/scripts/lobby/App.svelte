@@ -2,37 +2,55 @@
     import { getData } from '../routing';
     import { connectChannel } from '../channel';
     import Leaderboard from '../Leaderboard.svelte';
-    import { fade, fly, slide } from 'svelte/transition';
+    import Popup from '../Popup.svelte';
     import { bcs } from '@iota/bcs';
+    import type { PlayerId, Player, You, Lobby } from '../lobby';
+    import type { Component } from 'svelte';
+    type Props<T> = T extends Component<infer P, any, any> ? P : never;
 
-    type PlayerId = string;
-    interface You {
-        id: PlayerId;
-        admin: boolean;
-    }
-    interface Player {
-        id: PlayerId;
-        name: string;
-        verified: boolean;
-        avatar: string | null | undefined;
-        active: boolean;
-        score: number;
-    }
-    interface Lobby {
-        players: Player[];
-        host: PlayerId;
-    }
+    type PopupProps = Props<typeof Popup>
+
     interface GameType {
         id: string;
         name: string;
     }
-    interface Popup {
-        message: string;
-        buttonText: string;
-        buttonDisabled: boolean;
-        buttonAction: () => void;
-        closable: boolean;
-    }
+
+    let you: You = $state(getData('youInfo'));
+    let lobby: Lobby = $state(getData('lobbyInfo'));
+    let gameTypes: GameType[] = getData('gameTypes');
+    let gameSelected: string = $state(getData('gameSelected'));
+
+    let isOperator = $derived(lobby.host === you.id || you.admin);
+
+    let sortedPlayers = $derived(
+        lobby.players
+            .toSorted((a, b) => b.score - a.score)
+            .map((player) => ({
+                id: player.id,
+                name: player.name,
+                verified: player.verified,
+                avatar: player.avatar,
+                inactive: !player.active,
+                value: player.score,
+            }))
+    );
+
+    let popup: PopupProps = $state({
+        visible: false,
+        message: '',
+        closable: false,
+        buttonText: '',
+        buttonDisabled: false,
+        buttonAction() {},
+        input: false,
+        inputPlaceholder: 'Username:',
+        inputValue: '',
+        inputAction() {
+            sendCheckName(popup.inputValue)
+        },
+        inputErrors: [],
+        login: false
+    });
 
     const socket = connectChannel();
     const sendCheckName = socket.destinationWith(bcs.string())
@@ -62,13 +80,12 @@
     socket.receiverWith(onGameStarted, bcs.string())
 
     function onCheckedName(errors: Iterable<string>) {
-        usernameInputErrors = errors as string[];
-        console.log(usernameInputErrors)
-        popup!.buttonDisabled = usernameInputErrors.length != 0;
+        popup.inputErrors = [...errors];
+        popup.buttonDisabled = popup.inputErrors.length != 0;
     }
 
     function onJoin(id: PlayerId) {
-        popup = null;
+        popup.visible = false
         you.id = id;
     }
 
@@ -86,15 +103,16 @@
     }
 
     function onKicked(message: string) {
-        popup = {
-            message,
-            buttonText: 'Close',
-            buttonDisabled: false,
-            buttonAction() {
-                location.pathname = '/';
-            },
-            closable: false,
-        };
+        popup.visible = true
+        popup.message = message
+        popup.closable = false
+        popup.buttonText = 'Close'
+        popup.buttonDisabled = false
+        popup.buttonAction = () => {
+            location.pathname = '/';
+        }
+        popup.input = false,
+        popup.login = false
     }
 
     function onGameSelected(game: string) {
@@ -105,53 +123,32 @@
         location.pathname = pathname;
     }
 
-    let you: You = $state(getData('youInfo'));
-    let lobby: Lobby = $state(getData('lobbyInfo'));
-    let gameTypes: GameType[] = getData('gameTypes');
-    let gameSelected: string = $state(getData('gameSelected'));
-
-    let isOperator = $derived(lobby.host === you.id || you.admin);
-
-    let sortedPlayers = $derived(
-        lobby.players
-            .toSorted((a, b) => b.score - a.score)
-            .map((player) => ({
-                id: player.id,
-                name: player.name,
-                verified: player.verified,
-                avatar: player.avatar,
-                inactive: !player.active,
-                value: player.score,
-            }))
-    );
-
-    let popup: Popup | null = $state(null);
-    let usernameInputValue: string = $state('');
-    let usernameInputErrors: string[] = $state([]);
     const youPlayer = lobby.players.find((p) => p.id === you.id);
     if (youPlayer === undefined) {
-        popup = {
-            message: 'Select a username:',
-            buttonText: 'Join',
-            buttonDisabled: true,
-            buttonAction() {
-                sendJoin(usernameInputValue)
-            },
-            closable: false,
-        };
+        popup.visible = true
+        popup.message = 'Select a username:'
+        popup.closable = false,
+        popup.buttonText = 'Join',
+        popup.buttonDisabled = false,
+        popup.buttonAction = () => {
+            sendJoin(popup.inputValue)
+        }
+        popup.input = true,
+        popup.login = true
     }
 
     socket.disconnection(e => {
         if (e.code === 1001) return;
-        popup = {
-            message: 'Lost connection',
-            buttonText: 'Reload',
-            buttonDisabled: false,
-            buttonAction() {
-                location.reload();
-            },
-            closable: true,
-        };
+        popup.visible = true
+        popup.message = 'Lost connection'
+        popup.closable = true
+        popup.buttonText = 'Reload'
+        popup.buttonDisabled = false
+        popup.buttonAction = () => {
+            location.reload()
+        }
+        popup.input = false,
+        popup.login = false
     })
 </script>
 
@@ -181,45 +178,20 @@
         </select>
         <button disabled={!isOperator} onclick={() => sendBeginGame()}>Begin</button>
     </div>
-    {#if popup !== null}
-        <div class="overlay" in:fade={{ duration: 200 }} out:fade={{ delay: 300, duration: 200 }}>
-            <div class="popup" in:fly={{ delay: 200, duration: 300, y: 200 }} out:fly={{ duration: 300, y: 200 }}>
-                <h3>{popup.message}</h3>
-                {#if popup.message === 'Select a username:'}
-                    <input
-                        class="username"
-                        class:error={usernameInputErrors.length !== 0}
-                        type="text"
-                        name="username"
-                        id="usernameInput"
-                        placeholder="Username"
-                        size="20"
-                        maxlength="20"
-                        bind:value={usernameInputValue}
-                        oninput={() => sendCheckName(usernameInputValue)}
-                    />
-                    <div>
-                        {#each usernameInputErrors as error (error)}
-                            <p class="error" transition:slide>{@html error}</p>
-                        {/each}
-                        <!-- suppress css warning from samp styling -->
-                        <span class="error" style="display: none"><samp></samp></span>
-                    </div>
-                    <span class="login"
-                        >Or <a href={`/login?redirectUrl=${encodeURIComponent(location.pathname)}`}>Login</a></span
-                    >
-                {/if}
-                <div class="actions">
-                    <button onclick={() => popup?.buttonAction()} disabled={popup?.buttonDisabled}
-                        >{popup.buttonText}</button
-                    >
-                    {#if popup.closable}
-                        <button onclick={() => (popup = null)}>Close</button>
-                    {/if}
-                </div>
-            </div>
-        </div>
-    {/if}
+    <Popup
+        bind:visible={popup.visible}
+        message={popup.message}
+        closable={popup.closable}
+        buttonText={popup.buttonText}
+        buttonDisabled={popup.buttonDisabled}
+        buttonAction={popup.buttonAction}
+        input={popup.input}
+        inputPlaceholder={popup.inputPlaceholder}
+        bind:inputValue={popup.inputValue}
+        inputAction={popup.inputAction}
+        inputErrors={popup.inputErrors}
+        login={popup.login}
+    ></Popup>
 </section>
 
 <style>
@@ -230,60 +202,6 @@
 
         button {
             align-self: end;
-        }
-    }
-
-    .overlay {
-        display: flex;
-        position: fixed;
-        inset: 0;
-        justify-content: center;
-        align-items: center;
-        backdrop-filter: brightness(80%) blur(4px);
-        z-index: 9999;
-
-        .popup {
-            display: flex;
-            flex-direction: column;
-            padding: 1.5rem;
-            gap: 1rem;
-            background-color: var(--background);
-            border: var(--border);
-            border-radius: 1rem;
-
-            input.username {
-                width: 35rem;
-                font-size: 1.5em;
-                font-weight: bold;
-                outline: var(--decoration-thickness) solid transparent;
-                transition: 150ms outline-color ease-in-out;
-
-                &.error {
-                    outline-color: var(--primary);
-                }
-            }
-
-            div .error {
-                width: 35rem;
-                padding: 0.4em;
-                background-color: var(--secondary);
-
-                :global(samp) {
-                    color: var(--primary);
-                    font-size: 1.2em;
-                    font-weight: bold;
-                }
-            }
-
-            .login {
-                align-self: center;
-                margin-bottom: -3rem;
-                color: var(--muted);
-            }
-
-            .actions {
-                align-self: end;
-            }
         }
     }
 </style>
