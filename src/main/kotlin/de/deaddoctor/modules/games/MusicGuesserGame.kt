@@ -35,8 +35,8 @@ import kotlin.time.Duration.Companion.milliseconds
 
 class MusicGuesserGame(
     channel: GameChannel,
-    val lobby: Lobby
-) : Game<MusicGuesserGame>({
+    lobby: Lobby
+) : Game<MusicGuesserGame>(channel, lobby, {
     receiverTyped(MusicGuesserGame::onGuess)
     receiverTyped(MusicGuesserGame::onOverride)
     receiverTyped(MusicGuesserGame::onNext)
@@ -203,7 +203,7 @@ class MusicGuesserGame(
 
     fun onFinish(ctx: Channel.Context) {
         if (ctx.user !is TrackedUser || !lobby.isOperator(ctx.user)) return
-        endRound()
+        finish()
     }
 
     private fun guess(user: TrackedUser, year: Int?) {
@@ -252,16 +252,9 @@ class MusicGuesserGame(
             results.replaceAll { _, total -> (total.toFloat() / questionsPerRound).roundToInt() }
             sendRound.toAll(roundInfo)
 
-            //TODO: implement lobby scoring and game ending
-//            val winner = results.maxBy { it.value }.key
-//            val newScore = scores.getOrDefault(winner, 0) + 1
-//            scores[winner] = newScore
-//            sendToAll(Packet("playerScoreChanged", PlayerScoreChanged(winner.id, newScore)))
+            val winner = results.maxBy { it.value }.key
+            lobby.gameWon(winner)
         }
-    }
-
-    private fun endRound() {
-        //TODO: implement game ending
     }
 
     private val question

@@ -60,9 +60,15 @@ interface GameType<T : Game<T>> {
     }
 }
 
-abstract class Game<T>(socketHandlerRegistrant: GameChannelEvents.() -> Unit) {
+abstract class Game<T>(channel: GameChannel, val lobby: LobbyModule.Lobby, socketHandlerRegistrant: GameChannelEvents.() -> Unit) {
+
+    private val sendFinish = channel.destination<String>()
 
     val channelEvents = GameChannelEvents().apply(socketHandlerRegistrant)
+
+    fun finish() {
+        lobby.endGame(sendFinish)
+    }
 
     abstract suspend fun get(call: ApplicationCall)
 }
@@ -110,21 +116,21 @@ class GameChannel(private val send: Destination<ByteArray>) {
 class GameChannelEvents : ChannelEvents() {
 
     inline fun <reified T> receiverTyped(crossinline handler: suspend T.(Channel.Context) -> Unit) {
-        receivers.add { ctx, _: ByteArray ->
+        receivers[receivers.size.toUByte()] = handler@{ ctx, _: ByteArray ->
             val reasonInternalError = CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
-            val lobby = ctx.connection.lobby ?: return@add ctx.closeConnection(reasonInternalError)
-            val game = lobby.game ?: return@add ctx.closeConnection(reasonInternalError)
-            if (game !is T) return@add ctx.closeConnection(reasonInternalError)
+            val lobby = ctx.connection.lobby ?: return@handler ctx.closeConnection(reasonInternalError)
+            val game = lobby.game ?: return@handler ctx.closeConnection(reasonInternalError)
+            if (game !is T) return@handler ctx.closeConnection(reasonInternalError)
             game.handler(ctx)
         }
     }
 
     inline fun <reified T, reified U> receiverTyped(crossinline handler: suspend T.(Channel.Context, U) -> Unit) {
-        receivers.add { ctx, data: ByteArray ->
+        receivers[receivers.size.toUByte()] = handler@{ ctx, data: ByteArray ->
             val reasonInternalError = CloseReason(CloseReason.Codes.INTERNAL_ERROR, "Illegal state encountered.")
-            val lobby = ctx.connection.lobby ?: return@add ctx.closeConnection(reasonInternalError)
-            val game = lobby.game ?: return@add ctx.closeConnection(reasonInternalError)
-            if (game !is T) return@add ctx.closeConnection(reasonInternalError)
+            val lobby = ctx.connection.lobby ?: return@handler ctx.closeConnection(reasonInternalError)
+            val game = lobby.game ?: return@handler ctx.closeConnection(reasonInternalError)
+            if (game !is T) return@handler ctx.closeConnection(reasonInternalError)
             game.handler(ctx, Bcs.decodeFromBytes<U>(data))
         }
     }

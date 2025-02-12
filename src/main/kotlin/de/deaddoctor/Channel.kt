@@ -12,16 +12,18 @@ open class ChannelEvents {
 
     var handleConnection: suspend (Channel.Context) -> Unit = {}
     val handleDisconnection: suspend (Channel.Context) -> Unit = {}
-    val receivers = mutableListOf<suspend (Channel.Context, ByteArray) -> Unit>()
+    val receivers = mutableMapOf<UByte, suspend (Channel.Context, ByteArray) -> Unit>()
 
     suspend fun handleReceiver(context: Channel.Context, data: ByteArray) {
-        val packetType = data[0].toInt()
+        val packetType = data[0].toUByte()
         val packetData = data.copyOfRange(1, data.size)
-        if (!receivers.indices.contains(packetType)) {
+
+        val handler = receivers[packetType]
+        if (handler == null) {
             logger.error("Invalid packet type received: $packetType")
             return
         }
-        receivers[packetType](context, packetData)
+        handler(context, packetData)
     }
 
     fun connection(handler: suspend (Channel.Context) -> Unit) {
@@ -33,15 +35,15 @@ open class ChannelEvents {
     }
 
     fun receiver(handler: suspend (Channel.Context) -> Unit) {
-        receivers.add { context, _: ByteArray -> handler(context) }
+        receivers[receivers.size.toUByte()] = { context, _: ByteArray -> handler(context) }
     }
 
     inline fun <reified U> receiver(crossinline handler: suspend (Channel.Context, U) -> Unit) {
-        receivers.add { context, data: ByteArray -> handler(context, Bcs.decodeFromBytes<U>(data)) }
+        receivers[receivers.size.toUByte()] = { context, data: ByteArray -> handler(context, Bcs.decodeFromBytes<U>(data)) }
     }
 
-    fun rawReceiver(handler: suspend (Channel.Context, ByteArray) -> Unit) {
-        receivers.add(handler)
+    fun rawReceiver(handler: suspend (Channel.Context, ByteArray) -> Unit, id: UByte) {
+        receivers[id] = handler
     }
 }
 
@@ -66,9 +68,8 @@ class Channel : ChannelEvents() {
         return ChannelDestination(this, i) { Bcs.encodeToBytes(serializer, it) }
     }
 
-    fun destinationRaw(): Destination<ByteArray> {
-        val i = destinationCount++
-        return ChannelDestination(this, i) { it }
+    fun destinationRaw(id: UByte): Destination<ByteArray> {
+        return ChannelDestination(this, id) { it }
     }
 
     class ChannelDestination<T>(private val channel: Channel, private val i: UByte, private val serializer: (T) -> ByteArray) : Destination<T> {

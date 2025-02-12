@@ -26,11 +26,12 @@ object LobbyModule : Module {
     private val sendJoin = channel.destination<String>()
     private val sendPlayerJoined = channel.destination<Lobby.Player.Info>()
     private val sendPlayerActiveChanged = channel.destination<Lobby.PlayerActiveChanged>()
+    private val sendPlayerScoreChanged = channel.destination<Pair<String, Int>>()
     private val sendHostChanged = channel.destination<String>()
     private val sendKicked = channel.destination<String>()
     private val sendGameSelected = channel.destination<String>()
     private val sendGameStarted = channel.destination<String>()
-    private val sendGame = channel.destinationRaw()
+    private val sendGame = channel.destinationRaw(100u)
 
     private val lobbies = mutableMapOf<String, Lobby>()
 
@@ -157,7 +158,7 @@ object LobbyModule : Module {
             channel.receiver(Channel.Context::kick)
             channel.receiver(Channel.Context::gameSelected)
             channel.receiver(Channel.Context::beginGame)
-            channel.rawReceiver(Channel.Context::game)
+            channel.rawReceiver(Channel.Context::game, 100u)
         }
     }
 
@@ -255,12 +256,22 @@ object LobbyModule : Module {
             sendGameSelected.toAll(gameType.id())
         }
 
-        //TODO: game ending
         fun beginGame() {
             val channel = GameChannel(sendGame)
             //TODO: configurable settings
             game = gameSelected.create(channel, this)
             sendGameStarted.toAll("/game/${gameSelected.id()}/$id")
+        }
+
+        fun gameWon(winner: TrackedUser) {
+            val player = players[winner]!!
+            player.score++
+            sendPlayerScoreChanged.toAll(winner.id to player.score)
+        }
+
+        fun endGame(sendFinish: Destination<String>) {
+            sendFinish.toAll("/lobby/$id")
+            game = null
         }
 
         val isRunning
@@ -273,7 +284,7 @@ object LobbyModule : Module {
         ) {
             private val name = if (user is AccountUser) user.name else customName!!
             var disconnectJob: Job = Job()
-            val score: Int = 0
+            var score: Int = 0
 
             enum class State(val active: Boolean) {
                 INACTIVE(false),

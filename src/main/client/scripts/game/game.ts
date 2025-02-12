@@ -1,10 +1,16 @@
+import { bcs } from "@iota/bcs";
 import { connectChannel, type Channel } from "../channel"
 
-const LOBBY_DESTINATION_COUNT = 6;
-const LOBBY_RECEIVER_COUNT = 8;
+const GAME_PORT = 100;
+
+const onFinish = (pathname: string) => {
+    location.pathname = pathname;
+}
 
 export const connectGameChannel = (): Channel => {
     const path = location.pathname.split('/')
     const id = path[path.length - 1]
-    return connectChannel(`/lobby/${id}`, LOBBY_DESTINATION_COUNT, LOBBY_RECEIVER_COUNT)
+    const channel = connectChannel(`/lobby/${id}`, GAME_PORT)
+    channel.receiverWith(onFinish, bcs.string())
+    return channel
 }

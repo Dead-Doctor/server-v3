@@ -8,7 +8,7 @@ export interface Channel {
     disconnection(handler: (e: CloseEvent) => void): void
 }
 
-export const connectChannel = (pathname: string = location.pathname, destinationPort: number | null = null, receiverPort: number | null = null): Channel => {
+export const connectChannel = (pathname: string = location.pathname, port: number | null = null): Channel => {
     const socket = new WebSocket((location.protocol === "https:" ? 'wss:' : 'ws:') + '//' + location.host + pathname + '/ws');
 
     let destinationCount = 0;
@@ -28,9 +28,9 @@ export const connectChannel = (pathname: string = location.pathname, destination
 
     socket.addEventListener('message', async (e: MessageEvent<Blob>) => {
         const binaryData = await e.data.bytes()
-        if (receiverPort != null && binaryData[0] != receiverPort) return
+        if (port != null && binaryData[0] != port) return
 
-        const offset = receiverPort == null ? 0 : 1
+        const offset = port == null ? 0 : 1
         const id = binaryData[offset]
         if (id < 0 || id >= receivers.length) return
         const receiver = receivers[id]
@@ -44,10 +44,10 @@ export const connectChannel = (pathname: string = location.pathname, destination
             const i = destinationCount++;
 
             return () => {
-                const offset = destinationPort == null ? 0 : 1
+                const offset = port == null ? 0 : 1
                 const packet = new Uint8Array(offset + 1)
-                if (destinationPort != null)
-                    packet[0] = destinationPort
+                if (port != null)
+                    packet[0] = port
                 packet[offset] = i
 
                 console.log(`[Channel] Sent: ${packet}`);
@@ -60,10 +60,10 @@ export const connectChannel = (pathname: string = location.pathname, destination
             return (data: T) => {
                 const binary = dataType.serialize(data).toBytes()
 
-                const offset = destinationPort == null ? 0 : 1
+                const offset = port == null ? 0 : 1
                 const packet = new Uint8Array(offset + 1 + binary.length)
-                if (destinationPort != null)
-                    packet[0] = destinationPort
+                if (port != null)
+                    packet[0] = port
                 packet[offset] = i
                 packet.set(binary, offset + 1)
 

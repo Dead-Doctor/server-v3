@@ -74,6 +74,7 @@
         player: bcs.string(),
         active: bcs.bool()
     }))
+    channel.receiverWith(onPlayerScoreChanged, bcs.tuple([bcs.string(), bcs.u32()]))
     channel.receiverWith(onHostChanged, bcs.string())
     channel.receiverWith(onKicked, bcs.string())
     channel.receiverWith(onGameSelected, bcs.string())
@@ -96,6 +97,11 @@
     function onPlayerActiveChanged(data: { player: PlayerId; active: boolean }) {
         const player = lobby.players.find((p) => p.id === data.player)!;
         player.active = data.active;
+    }
+
+    function onPlayerScoreChanged(data: readonly [PlayerId, number]) {
+        const player = lobby.players.find((p) => p.id === data[0])!;
+        player.score = data[1];
     }
 
     function onHostChanged(id: PlayerId) {
