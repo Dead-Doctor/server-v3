@@ -69,7 +69,7 @@ object LobbyModule : Module {
                         addData("youInfo", YouInfo(call.trackedUser))
                         addData("lobbyInfo", Lobby.Info(lobby))
                         addData("gameTypes", GameModule.gameTypesInfo)
-                        addData("gameSelected", lobby.gameSelected.id)
+                        addData("gameSelected", lobby.gameSelected.id())
                         addScript("lobby/main")
                     }
                 }
@@ -179,6 +179,9 @@ object LobbyModule : Module {
         var game: Game<*>? = null
         fun joined(user: TrackedUser) = players.containsKey(user)
 
+        val activePlayers
+            get() = players.filter { it.value.state.active }
+
         fun active(user: TrackedUser) = players[user]?.state?.active ?: false
         fun getPlayer(user: TrackedUser) = players[user]
         fun joinActivate(user: TrackedUser, name: String? = null): Player {
@@ -247,17 +250,17 @@ object LobbyModule : Module {
             sendKicked.toUser(user, "You got kicked")
         }
 
-        fun selectGame(gameType: GameModule.GameType<*>) {
+        fun selectGame(gameType: GameType<*>) {
             gameSelected = gameType
-            sendGameSelected.toAll(gameType.id)
+            sendGameSelected.toAll(gameType.id())
         }
 
         //TODO: game ending
         fun beginGame() {
             val channel = GameChannel(sendGame)
             //TODO: configurable settings
-            game = gameSelected.create(channel, players)
-            sendGameStarted.toAll("/game/${gameSelected.id}/$id")
+            game = gameSelected.create(channel, this)
+            sendGameStarted.toAll("/game/${gameSelected.id()}/$id")
         }
 
         val isRunning
@@ -319,9 +322,9 @@ object LobbyModule : Module {
             val players: List<Player.Info>,
             val host: String
         ) {
-            constructor(o: Lobby) : this(
-                o.players.map { Player.Info(it.value) },
-                o.host?.id ?: "null",
+            constructor(lobby: Lobby) : this(
+                lobby.players.map { Player.Info(it.value) },
+                lobby.host?.id ?: "null",
             )
         }
     }

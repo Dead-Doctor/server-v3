@@ -1,5 +1,4 @@
 <script lang="ts">
-    import type {SocketAddressable} from './ws';
     import {slide} from 'svelte/transition'
 
     type PlayerId = string

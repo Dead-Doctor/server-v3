@@ -4,31 +4,31 @@
     interface Props {
         visible: boolean
         message: string;
-        closable: boolean;
-        buttonText: string;
-        buttonDisabled: boolean;
-        buttonAction: () => void;
-        input: boolean
-        inputPlaceholder: string
-        inputValue: string
-        inputAction: () => void
-        inputErrors: string[]
-        login: boolean
+        closable?: boolean;
+        buttonText?: string;
+        buttonDisabled?: boolean;
+        buttonAction?: () => void;
+        input?: boolean
+        inputPlaceholder?: string
+        inputValue?: string
+        inputAction?: () => void
+        inputErrors?: string[]
+        login?: boolean
     }
 
     let {
-        visible = $bindable(false),
+        visible = $bindable(),
         message,
-        closable,
-        buttonText,
-        buttonDisabled,
-        buttonAction,
-        input,
-        inputPlaceholder,
+        closable = true,
+        buttonText = '',
+        buttonDisabled = true,
+        buttonAction = () => {},
+        input = false,
+        inputPlaceholder = '',
         inputValue = $bindable(''),
-        inputAction,
-        inputErrors,
-        login
+        inputAction = () => {},
+        inputErrors = [],
+        login = false
     }: Props = $props()
 </script>
 

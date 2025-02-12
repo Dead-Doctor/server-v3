@@ -29,6 +29,7 @@ import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ContentNegotiationClient
 
 lateinit var httpClient: HttpClient
+lateinit var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>
 
 var envVars: Map<String, String> = mapOf()
 private fun tryGetConfig(name: String) = System.getenv(name) ?: envVars[name]
@@ -40,12 +41,13 @@ fun main() {
     if (envFile.isFile)
         envVars = envFile.readLines().associate { it.substringBefore("=") to it.substringAfter("=") }
 
-    embeddedServer(
+    server = embeddedServer(
         Netty,
         port = tryGetConfig("PORT")?.toInt() ?: 8080,
         host = "0.0.0.0",
         module = Application::module
-    ).start(wait = true)
+    )
+    server.start(wait = true)
 }
 
 fun Application.module() {
@@ -159,7 +161,6 @@ fun Application.module() {
                         }
                         a(href = "/${ChatModule.path()}") { +"Chat" }
                         a(href = "/${SnakeModule.path()}") { +"Snake" }
-                        a(href = "/${MusicGuesserModule.path()}") { +MusicGuesserModule.NAME }
                         a(href = "/${QuizModule.path()}") { +"Quiz" }
                     }
                 }
@@ -191,7 +192,6 @@ fun Application.module() {
         enable(SnakeModule)
         enable(LobbyModule)
         enable(GameModule)
-        enable(MusicGuesserModule)
         enable(QuizModule)
         routeOAuth()
         staticResources("/", "dist")

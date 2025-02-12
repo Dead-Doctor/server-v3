@@ -1,7 +1,6 @@
 package de.deaddoctor.modules
 
 import de.deaddoctor.*
-import de.deaddoctor.modules.LobbyModule.Lobby.Player
 import de.deaddoctor.modules.LobbyModule.lobby
 import de.deaddoctor.modules.games.MusicGuesserGame
 import io.ktor.server.application.*
@@ -14,21 +13,15 @@ import kotlinx.serialization.serializer
 
 object GameModule : Module {
 
-    val gameTypes = mutableListOf<GameType<*>>()
-
     override fun path() = "game"
 
-    init {
-        register(GameType("music-guesser", "Music Guesser", ::MusicGuesserGame))
-    }
-
-    private fun register(type: GameType<*>) {
-        gameTypes.add(type)
-    }
+    val gameTypes = mutableListOf<GameType<*>>(
+        MusicGuesserGame
+    )
 
     override fun Route.route() {
         for (type in gameTypes) {
-            route(type.id) {
+            route(type.id()) {
                 get("{id}") {
                     val lobby = call.lobby ?: return@get call.respondRedirect("/games")
                     val user = call.trackedUser
@@ -40,7 +33,7 @@ object GameModule : Module {
                     }
 
                     if (lobby.gameSelected != type)
-                        return@get call.respondRedirect("/game/${lobby.gameSelected.id}/${call.parameters["id"]}")
+                        return@get call.respondRedirect("/game/${lobby.gameSelected.id()}/${call.parameters["id"]}")
 
                     val game = lobby.game ?: return@get call.respondRedirect("/lobby/${call.parameters["id"]}")
                     game.get(call)
@@ -49,23 +42,21 @@ object GameModule : Module {
         }
     }
 
-    fun getGameType(id: String) = gameTypes.find { it.id == id }
+    fun getGameType(id: String) = gameTypes.find { it.id() == id }
 
     val gameTypesInfo: List<GameType.Info>
         get() = gameTypes.map { GameType.Info(it) }
 
-    class GameType<T : Game<T>>(
-        val id: String,
-        val name: String,
-        private val factory: (GameType<T>, GameChannel, MutableMap<TrackedUser, Player>) -> T
-    ) {
-        @Serializable
-        data class Info(val id: String, val name: String) {
-            constructor(type: GameType<*>) : this(type.id, type.name)
-        }
+}
 
-        fun create(channel: GameChannel, players: MutableMap<TrackedUser, Player>): T =
-            factory(this, channel, players)
+interface GameType<T : Game<T>> {
+    fun id(): String
+    fun name(): String
+    fun create(channel: GameChannel, lobby: LobbyModule.Lobby): T
+
+    @Serializable
+    data class Info(val id: String, val name: String) {
+        constructor(type: GameType<*>) : this(type.id(), type.name())
     }
 }
 

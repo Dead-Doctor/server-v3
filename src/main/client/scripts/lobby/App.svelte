@@ -46,23 +46,23 @@
         inputPlaceholder: 'Username:',
         inputValue: '',
         inputAction() {
-            sendCheckName(popup.inputValue)
+            sendCheckName(popup.inputValue!)
         },
         inputErrors: [],
         login: false
     });
 
-    const socket = connectChannel();
-    const sendCheckName = socket.destinationWith(bcs.string())
-    const sendJoin = socket.destinationWith(bcs.string())
-    const sendPromote = socket.destinationWith(bcs.string())
-    const sendKick = socket.destinationWith(bcs.string())
-    const sendGameSelected = socket.destinationWith(bcs.string())
-    const sendBeginGame = socket.destination()
+    const channel = connectChannel();
+    const sendCheckName = channel.destinationWith(bcs.string())
+    const sendJoin = channel.destinationWith(bcs.string())
+    const sendPromote = channel.destinationWith(bcs.string())
+    const sendKick = channel.destinationWith(bcs.string())
+    const sendGameSelected = channel.destinationWith(bcs.string())
+    const sendBeginGame = channel.destination()
 
-    socket.receiverWith(onCheckedName, bcs.vector(bcs.string()))
-    socket.receiverWith(onJoin, bcs.string())
-    socket.receiverWith(onPlayerJoined, bcs.struct('Player', {
+    channel.receiverWith(onCheckedName, bcs.vector(bcs.string()))
+    channel.receiverWith(onJoin, bcs.string())
+    channel.receiverWith(onPlayerJoined, bcs.struct('Player', {
         id: bcs.string(),
         name: bcs.string(),
         verified: bcs.bool(),
@@ -70,14 +70,14 @@
         active: bcs.bool(),
         score: bcs.u32(),
     }))
-    socket.receiverWith(onPlayerActiveChanged, bcs.struct('PlayerActiveChanged', {
+    channel.receiverWith(onPlayerActiveChanged, bcs.struct('PlayerActiveChanged', {
         player: bcs.string(),
         active: bcs.bool()
     }))
-    socket.receiverWith(onHostChanged, bcs.string())
-    socket.receiverWith(onKicked, bcs.string())
-    socket.receiverWith(onGameSelected, bcs.string())
-    socket.receiverWith(onGameStarted, bcs.string())
+    channel.receiverWith(onHostChanged, bcs.string())
+    channel.receiverWith(onKicked, bcs.string())
+    channel.receiverWith(onGameSelected, bcs.string())
+    channel.receiverWith(onGameStarted, bcs.string())
 
     function onCheckedName(errors: Iterable<string>) {
         popup.inputErrors = [...errors];
@@ -131,13 +131,13 @@
         popup.buttonText = 'Join',
         popup.buttonDisabled = false,
         popup.buttonAction = () => {
-            sendJoin(popup.inputValue)
+            sendJoin(popup.inputValue!)
         }
         popup.input = true,
         popup.login = true
     }
 
-    socket.disconnection(e => {
+    channel.disconnection(e => {
         if (e.code === 1001) return;
         popup.visible = true
         popup.message = 'Lost connection'
@@ -191,7 +191,7 @@
         inputAction={popup.inputAction}
         inputErrors={popup.inputErrors}
         login={popup.login}
-    ></Popup>
+    />
 </section>
 
 <style>
