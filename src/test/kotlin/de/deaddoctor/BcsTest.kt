@@ -48,4 +48,12 @@ class BcsTest {
         assertEquals(s, sDecoded)
         assertEquals(w, wDecoded)
     }
+
+    @Test
+    fun unsignedIntegers() {
+        val value = 1987
+        val encoded = Bcs.encodeToBytes(value)
+        val decoded = Bcs.decodeFromBytes<Int>(encoded)
+        assertEquals(value, decoded)
+    }
 }

@@ -28,6 +28,9 @@ object Bcs {
     const val TOP_BIT = 1 shl 7
     const val OTHER_BITS = TOP_BIT - 1
 
+    const val FALSE: Byte = 0
+    const val TRUE: Byte = 1
+
     class BcsEncoder : Encoder, CompositeEncoder {
         override val serializersModule = EmptySerializersModule()
 
@@ -45,7 +48,7 @@ object Bcs {
 
         // Boolean
         override fun encodeBoolean(value: Boolean) {
-            bytes.append(if (value) 1 else 0)
+            bytes.append(if (value) TRUE else FALSE)
         }
 
         // Integral numbers
@@ -93,12 +96,12 @@ object Bcs {
 
         @ExperimentalSerializationApi
         override fun encodeNull() {
-            bytes.append(0)
+            bytes.append(FALSE)
         }
 
         @ExperimentalSerializationApi
         override fun encodeNotNullMark() {
-            bytes.append(1)
+            bytes.append(TRUE)
         }
 
         // Complicated?
@@ -200,9 +203,9 @@ object Bcs {
         override fun decodeBoolean(): Boolean {
             if (buffer.remaining < 1) throw SerializationException("Tried to decode byte but reached EOF.")
 
-            return when (val byte = buffer.readByte().toInt()) {
-                0 -> false
-                1 -> true
+            return when (val byte = buffer.readByte()) {
+                FALSE -> false
+                TRUE -> true
                 else -> throw SerializationException("Tried to decode boolean but got '${byte}'.")
             }
         }
@@ -218,6 +221,7 @@ object Bcs {
             TODO("Not yet implemented")
         }
 
+        //TODO: currently integers are always unsigned (resulting in big numbers being incorrectly decoded as negative)
         override fun decodeInt(): Int {
             if (buffer.remaining < 4) throw SerializationException("Tried to decode int but reached EOF.")
 
@@ -225,7 +229,7 @@ object Bcs {
 
             var value = 0
             for (i in 0..<4) {
-                value += bytes[i].toInt() shl (i * 8)
+                value += bytes[i].toUByte().toInt() shl (i * 8)
             }
             return value
         }
@@ -261,13 +265,11 @@ object Bcs {
 
         @ExperimentalSerializationApi
         override fun decodeNull(): Nothing? {
-            TODO("Not yet implemented")
+            return null
         }
 
         @ExperimentalSerializationApi
-        override fun decodeNotNullMark(): Boolean {
-            TODO("Not yet implemented")
-        }
+        override fun decodeNotNullMark() = decodeBoolean()
 
         // Complicated?
         override fun decodeInline(descriptor: SerialDescriptor): Decoder {
