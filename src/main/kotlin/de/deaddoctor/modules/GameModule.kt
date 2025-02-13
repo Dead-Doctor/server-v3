@@ -1,6 +1,7 @@
 package de.deaddoctor.modules
 
 import de.deaddoctor.*
+import de.deaddoctor.modules.LobbyModule.Lobby
 import de.deaddoctor.modules.LobbyModule.lobby
 import de.deaddoctor.modules.games.MusicGuesserGame
 import io.ktor.server.application.*
@@ -52,7 +53,7 @@ object GameModule : Module {
 interface GameType<T : Game<T>> {
     fun id(): String
     fun name(): String
-    fun create(channel: GameChannel, lobby: LobbyModule.Lobby): T
+    suspend fun create(channel: GameChannel, lobby: Lobby): T
 
     @Serializable
     data class Info(val id: String, val name: String) {
@@ -60,15 +61,20 @@ interface GameType<T : Game<T>> {
     }
 }
 
-abstract class Game<T>(channel: GameChannel, val lobby: LobbyModule.Lobby, socketHandlerRegistrant: GameChannelEvents.() -> Unit) {
-
-    private val sendFinish = channel.destination<String>()
+abstract class Game<T>(channel: GameChannel, private val lobby: Lobby, socketHandlerRegistrant: GameChannelEvents.() -> Unit) {
 
     val channelEvents = GameChannelEvents().apply(socketHandlerRegistrant)
 
-    fun finish() {
-        lobby.endGame(sendFinish)
-    }
+    private val sendFinish = channel.destination<String>()
+
+    val lobbyInfo
+        get() = Lobby.Info(lobby)
+
+    fun isOperator(user: TrackedUser) = lobby.isOperator(user)
+
+    fun gameWon(winner: TrackedUser) = lobby.gameWon(winner)
+
+    fun finish() = lobby.endGame(sendFinish)
 
     abstract suspend fun get(call: ApplicationCall)
 }

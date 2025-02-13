@@ -139,7 +139,7 @@ object LobbyModule : Module {
                 if (user !is TrackedUser || !lobby.isOperator(user) || gameType == null || lobby.isRunning) return
                 lobby.selectGame(gameType)
             }
-            fun Channel.Context.beginGame() {
+            suspend fun Channel.Context.beginGame() {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return
                 lobby.beginGame()
@@ -256,9 +256,10 @@ object LobbyModule : Module {
             sendGameSelected.toAll(gameType.id())
         }
 
-        fun beginGame() {
-            val channel = GameChannel(sendGame)
+        suspend fun beginGame() {
             //TODO: configurable settings
+            val channel = GameChannel(sendGame)
+            //TODO: loading animation
             game = gameSelected.create(channel, this)
             sendGameStarted.toAll("/game/${gameSelected.id()}/$id")
         }

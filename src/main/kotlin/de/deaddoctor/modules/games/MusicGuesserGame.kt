@@ -8,9 +8,6 @@ import de.deaddoctor.modules.LobbyModule.YouInfo
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.server.application.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDateTime
@@ -47,7 +44,9 @@ class MusicGuesserGame(
     companion object : GameType<MusicGuesserGame> {
         override fun id() = "music-guesser"
         override fun name() = "Music Guesser"
-        override fun create(channel: GameChannel, lobby: Lobby) = MusicGuesserGame(channel, lobby)
+        override suspend fun create(channel: GameChannel, lobby: Lobby) = MusicGuesserGame(channel, lobby).apply {
+            loadQuestion()
+        }
 
         private val logger = LoggerFactory.getLogger(MusicGuesserGame::class.java)
         private val jsonParser = Json { ignoreUnknownKeys = true }
@@ -167,19 +166,13 @@ class MusicGuesserGame(
         val players = lobby.activePlayers.map { it.key }
         currentPlayers = players.toMutableList()
         results = players.associateWith { 0 }.toMutableMap()
-
-        CoroutineScope(Job()).launch {
-            questions.add(fetchRandomQuestion())
-            sendRound.toAll(roundInfo)
-            //TODO: guess timeout
-        }
     }
 
     override suspend fun get(call: ApplicationCall) {
         call.respondPage(name()) {
             head {
                 addData("youInfo", YouInfo(call.trackedUser))
-                addData("lobbyInfo", Lobby.Info(lobby))
+                addData("lobbyInfo", lobbyInfo)
                 addData("round", roundInfo)
                 addScript("game/${id()}/main")
             }
@@ -192,17 +185,17 @@ class MusicGuesserGame(
     }
 
     fun onOverride(ctx: Channel.Context, year: Int) {
-        if (ctx.user !is TrackedUser || !lobby.isOperator(ctx.user)) return
+        if (ctx.user !is TrackedUser || !isOperator(ctx.user)) return
         override(year, ctx.user is AccountUser && ctx.user.admin)
     }
 
     suspend fun onNext(ctx: Channel.Context) {
-        if (ctx.user !is TrackedUser || !lobby.isOperator(ctx.user)) return
+        if (ctx.user !is TrackedUser || !isOperator(ctx.user)) return
         next()
     }
 
     fun onFinish(ctx: Channel.Context) {
-        if (ctx.user !is TrackedUser || !lobby.isOperator(ctx.user)) return
+        if (ctx.user !is TrackedUser || !isOperator(ctx.user)) return
         finish()
     }
 
@@ -244,17 +237,21 @@ class MusicGuesserGame(
             results[user] = results[user]!! + guess.points
         }
 
-        if (questions.size < questionsPerRound) {
-            questions.add(fetchRandomQuestion())
-            sendRound.toAll(roundInfo)
-        } else {
-            showResults = true
-            results.replaceAll { _, total -> (total.toFloat() / questionsPerRound).roundToInt() }
-            sendRound.toAll(roundInfo)
+        if (questions.size < questionsPerRound)
+            return loadQuestion()
 
-            val winner = results.maxBy { it.value }.key
-            lobby.gameWon(winner)
-        }
+        showResults = true
+        results.replaceAll { _, total -> (total.toFloat() / questionsPerRound).roundToInt() }
+        sendRound.toAll(roundInfo)
+
+        val winner = results.maxBy { it.value }.key
+        gameWon(winner)
+    }
+
+    private suspend fun loadQuestion() {
+        questions.add(fetchRandomQuestion())
+        sendRound.toAll(roundInfo)
+        //TODO: guess timeout
     }
 
     private val question
