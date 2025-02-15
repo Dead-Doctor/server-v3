@@ -1,14 +1,15 @@
 <script lang="ts">
     import { bcs } from '@iota/bcs';
-    import { connectGameChannel } from '../game';
+    import { connectGameChannel, isOperator, playerById, you } from '../game.svelte';
     import { getData } from '../../routing';
-    import type { Lobby, PlayerId, You } from '../../lobby';
+    import type { PlayerId, } from '../../lobby';
     import Popup from '../../Popup.svelte';
     import { sineInOut } from 'svelte/easing';
     import { fade, fly } from 'svelte/transition';
     import Leaderboard from '../../Leaderboard.svelte';
     import Timeline from './Timeline.svelte';
     import Pin from './Pin.svelte';
+    import PlayerIcon from '../../lobby/PlayerIcon.svelte';
 
     interface Round {
         players: PlayerId[]
@@ -33,11 +34,7 @@
         points: number
     }
     
-    let you: You = $state(getData('youInfo'));
-    let lobby: Lobby = $state(getData('lobbyInfo'));
     let round: Round = $state(getData('round'))
-
-    let isOperator = $derived(you.id === lobby.host || you.admin)
 
     let currentQuestion = $derived(
         round.questions.length == 0
@@ -46,18 +43,17 @@
     )
     let guesses = $derived(Array.from(currentQuestion?.guesses ?? new Map<PlayerId, Guess>()))
 
-    let sortedGuesses = $derived(guesses.toSorted((a, b) => b[1].points - a[1].points).map(([id, guess]) => {
-        const player = lobby.players.find(p => p.id === id)!
-        return {
-            id: player.id,
-            name: player.name,
-            verified: player.verified,
-            avatar: player.avatar,
-            inactive: false,
-            value: guess.points
-        }
-    }))
-    let sortedResults = $derived(Array.from(round.results ?? new Map<PlayerId, number>()).toSorted((a, b) => b[1] - a[1]))
+    let sortedGuesses = $derived(
+        guesses.toSorted((a, b) => b[1].points - a[1].points).map(([id, guess]) =>
+            Object.assign({ value: guess.points }, playerById(id))
+        )
+    )
+    let resultsLeaderBoard = $derived(
+        Array.from(round.results ?? new Map<PlayerId, number>())
+        .toSorted((a, b) => b[1] - a[1]).map(([id, points]) =>
+            Object.assign({ value: points }, playerById(id))
+        )
+    )
     
     let popup = $state({
         visible: false,
@@ -138,7 +134,7 @@
             return
         }
         popup.visible = true
-        popup.message = 'Are you sure you want to skip?'
+        popup.message = 'Confirm skip?'
         popup.buttonText = 'Yes'
         popup.buttonAction = () => {
             sendNext()
@@ -224,32 +220,17 @@
                 </div>
                 <Timeline {yearMin} {yearMax}>
                     {#if canMakeGuess || overriding}
-                        <Pin
-                            bind:year={yearInputValue}
-                            interactive={true}
-                            disabled={!overriding && guessLocked}
-                        >{yearInputValue}</Pin>
+                        <Pin bind:year={yearInputValue} interactive disabled={!overriding && guessLocked}>{yearInputValue}</Pin>
                     {/if}
-
                     {#if currentQuestion?.showResult}
                         {#each guesses as [id, guess], i (id)}
-                            {@const player = lobby.players.find(p => p.id === id)}
-                            <Pin
-                                year={guess.year}
-                                delay={3000 + i * 1000}
-                            >
-                                {#if player?.verified}
-                                    <img src={player.avatar} alt={player.name}>
-                                {:else}
-                                    {player?.name}
-                                {/if}
+                            {@const player = playerById(id)}
+                            <Pin year={guess.year} delay={3000 + i * 1000}>
+                                <PlayerIcon {player} size={'3rem'}/>
                             </Pin>
                         {/each}
-                        <Pin
-                            year={currentQuestion?.song.releaseYear ?? 0}
-                            delay={3000 + guesses.length * 1000}
-                            above={true}
-                        >{currentQuestion?.song.releaseYear}</Pin>
+                        {@const year = currentQuestion?.song.releaseYear ?? 0}
+                        <Pin {year} delay={3000 + guesses.length * 1000} above>{year}</Pin>
                     {/if}
                 </Timeline>
                 <div>
@@ -263,7 +244,7 @@
                     {:else if !currentQuestion?.showResult && !isOperator}
                         <button disabled>Spectating</button>
                     {/if}
-                    {#if isOperator}
+                    {#if isOperator()}
                         {#if currentQuestion?.showResult}
                             <button onclick={override}>{overriding ? 'Save' : 'Override'}</button>
                         {/if}
@@ -280,23 +261,12 @@
                         >{i + 1}</Pin>
                     {/each}
                 </Timeline>
-                <Leaderboard players={sortedResults.map(([id, points]) => {
-                    const player = lobby.players.find(p => p.id === id)
-                    if (player === undefined) throw new Error()
-                    return {
-                        id: player.id,
-                        name: player.name,
-                        verified: player.verified,
-                        avatar: player.avatar,
-                        inactive: false,
-                        value: points
-                    }
-                })} transition={{
-                    delay: i => 1000 + (round?.questions.length ?? 0) * 500 + (sortedResults.length - 1 - i) * 500,
+                <Leaderboard players={resultsLeaderBoard} transition={{
+                    delay: i => 1000 + (round?.questions.length ?? 0) * 500 + (resultsLeaderBoard.length - 1 - i) * 500,
                     duration: () => 500
                 }}/>
                 <div class="actions">
-                    {#if isOperator}
+                    {#if isOperator()}
                         <button onclick={() => sendFinish()}>Finish</button>
                     {/if}
                 </div>
@@ -306,9 +276,8 @@
     <Popup
         bind:visible={popup.visible}
         message={popup.message}
-        closable={true}
+        closable
         buttonText={popup.buttonText}
-        buttonDisabled={false}
         buttonAction={popup.buttonAction}
     />
 </section>
@@ -405,21 +374,6 @@
 
                     audio {
                         border-top: var(--border);
-                    }
-                }
-            }
-
-            :global(.timeline) {
-                position: relative;
-                display: flex;
-                margin: 3.5rem 0 4.5rem 0;
-                justify-content: space-between;
-                border-bottom: var(--border);
-
-                :global(.pin) {
-                    img {
-                        height: 3rem;
-                        border-radius: 50%;
                     }
                 }
             }

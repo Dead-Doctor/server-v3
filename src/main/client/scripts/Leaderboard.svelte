@@ -8,7 +8,7 @@
         name: string
         verified: boolean
         avatar: string | null | undefined
-        inactive: boolean
+        inactive?: boolean
         value: number
     }
 
@@ -36,7 +36,7 @@
     {#each players as player, i}
         <div class="row" transition:slide|global={Object.fromEntries(Object.entries(transition).map(entry => [entry[0], entry[1](i)]))}>
             <div class="rank">#{i + 1}</div>
-            <div class="player" class:inactive={player.inactive}>
+            <div class="player" class:inactive={player.inactive ?? false}>
                 {#if player.verified}
                     <img src={player.avatar} alt="Profile">
                 {/if}

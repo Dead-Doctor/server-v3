@@ -21,7 +21,7 @@
         message,
         closable = true,
         buttonText = '',
-        buttonDisabled = true,
+        buttonDisabled = false,
         buttonAction = () => {},
         input = false,
         inputPlaceholder = '',
@@ -75,6 +75,10 @@
 {/if}
 
 <style>
+    :global(body:has(.overlay)) {
+        overflow: hidden;
+    }
+
     .overlay {
         display: flex;
         position: fixed;

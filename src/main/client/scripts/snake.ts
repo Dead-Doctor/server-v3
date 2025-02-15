@@ -58,12 +58,12 @@ const headSizeIncrease = 1.6
 const deadColor = "#676767"
 const countDownTimeout = 1000
 
-export let currentState = GameState.LOBBY
-export let you: PlayerId | null = null
-export let playing: boolean | null = null
-export let players: PlayerInfo[]
+let currentState = GameState.LOBBY
+let you: PlayerId | null = null
+let playing: boolean | null = null
+let players: PlayerInfo[]
 
-export let profileImages: {
+let profileImages: {
     [id: string]: HTMLImageElement
 }
 
@@ -71,8 +71,8 @@ let size: number
 let canvasRect: DOMRect
 
 let lastTime: DOMHighResTimeStamp | null = null
-export let ownSnake: Snake | null = null
-export let otherSnakes: Snake[] = []
+let ownSnake: Snake | null = null
+let otherSnakes: Snake[] = []
 
 let snakeLength: number
 let aimPos: Vec = [0.5, 999]

@@ -169,9 +169,15 @@ class AccountUser(private val info: DiscordInfo) : TrackedUser(info.id.toHexStri
     }
 }
 
+fun ApplicationCall.trackUser(): TrackedUser {
+    val session = sessions.getOrSet { UserSession.generate() }
+    val info = session.info ?: return TrackedUser(session.id!!)
+    return AccountUser(info)
+}
+
 val ApplicationCall.trackedUser: TrackedUser
     get() {
-        val session = sessions.getOrSet { UserSession.generate() }
+        val session = sessions.get<UserSession>() ?: throw IllegalStateException("Tried to get id of untracked user!")
         val info = session.info ?: return TrackedUser(session.id!!)
         return AccountUser(info)
     }

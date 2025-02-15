@@ -53,7 +53,7 @@ object LobbyModule : Module {
         route("{id}") {
             get {
                 val lobby = call.lobby ?: return@get call.respondRedirect("/games")
-                val user = call.trackedUser
+                val user = call.trackUser()
 
                 if (!lobby.joined(user)) {
                     if (user is AccountUser)
@@ -62,7 +62,8 @@ object LobbyModule : Module {
                     lobby.activate(lobby.getPlayer(user)!!)
                 }
 
-                //TODO: show game running and button to spectate (cant redirect instantly because user might have to join and select name)
+                //          (might be problematic because games would need to include entire state in get response)
+                //TODO: show game running and button to spectate (^) (cant redirect instantly because user might have to join and select name)
                 //TODO: caching errors when navigating back from game to lobby (e.g. new players that have joined will only be shown after refresh)
 
                 call.respondPage("Lobby") {

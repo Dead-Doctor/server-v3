@@ -157,16 +157,10 @@ class MusicGuesserGame(
 
     private val sendRound = channel.destination<RoundInfo>()
 
-    private val currentPlayers: MutableList<TrackedUser>
+    private val currentPlayers = lobby.activePlayers.map { it.key }
     private val questions = mutableListOf<Question>()
     private var showResults: Boolean = false
-    private val results: MutableMap<TrackedUser, Int>
-
-    init {
-        val players = lobby.activePlayers.map { it.key }
-        currentPlayers = players.toMutableList()
-        results = players.associateWith { 0 }.toMutableMap()
-    }
+    private val results = currentPlayers.associateWith { 0 }.toMutableMap()
 
     override suspend fun get(call: ApplicationCall) {
         call.respondPage(name()) {
