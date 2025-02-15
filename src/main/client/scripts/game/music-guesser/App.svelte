@@ -1,8 +1,8 @@
 <script lang="ts">
     import { bcs } from '@iota/bcs';
-    import { connectGameChannel, isOperator, playerById, you } from '../game.svelte';
+    import { connectGameChannel } from '../game.svelte';
     import { getData } from '../../routing';
-    import type { PlayerId, } from '../../lobby';
+    import { isOperator, playerById, you, type PlayerId } from '../../lobby.svelte';
     import Popup from '../../Popup.svelte';
     import { sineInOut } from 'svelte/easing';
     import { fade, fly } from 'svelte/transition';
@@ -241,7 +241,7 @@
                 <div class="actions">
                     {#if canMakeGuess}
                         <button onclick={guess}>{guessLocked ? 'Edit' : 'Guess'}</button>
-                    {:else if !currentQuestion?.showResult && !isOperator}
+                    {:else if !currentQuestion?.showResult && !isOperator()}
                         <button disabled>Spectating</button>
                     {/if}
                     {#if isOperator()}

@@ -1,12 +1,7 @@
 import { bcs } from "@iota/bcs";
 import { connectChannel, type Channel } from "../channel"
-import type { You, Lobby, PlayerId } from "../lobby";
-import { getData } from "../routing";
 
 const GAME_PORT = 100;
-
-export let you: You = $state(getData('youInfo'));
-export let lobby: Lobby = $state(getData('lobbyInfo'));
 
 export const connectGameChannel = (): Channel => {
     const path = location.pathname.split('/')
@@ -19,6 +14,3 @@ export const connectGameChannel = (): Channel => {
 const onFinish = (pathname: string) => {
     location.pathname = pathname;
 }
-
-export let isOperator = () => you.id === lobby.host || you.admin
-export const playerById = (id: PlayerId) => lobby.players.find(p => p.id === id)!

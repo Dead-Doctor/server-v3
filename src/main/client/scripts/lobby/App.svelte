@@ -4,7 +4,7 @@
     import Leaderboard from '../Leaderboard.svelte';
     import Popup from '../Popup.svelte';
     import { bcs } from '@iota/bcs';
-    import type { PlayerId, Player, You, Lobby } from '../lobby';
+    import { type PlayerId, type Player, lobby, you, isOperator, playerById } from '../lobby.svelte';
     import type { Component } from 'svelte';
     type Props<T> = T extends Component<infer P, any, any> ? P : never;
 
@@ -15,12 +15,8 @@
         name: string;
     }
 
-    let you: You = $state(getData('youInfo'));
-    let lobby: Lobby = $state(getData('lobbyInfo'));
     let gameTypes: GameType[] = getData('gameTypes');
     let gameSelected: string = $state(getData('gameSelected'));
-
-    let isOperator = $derived(lobby.host === you.id || you.admin);
 
     let sortedPlayers = $derived(
         lobby.players
@@ -95,12 +91,12 @@
     }
 
     function onPlayerActiveChanged(data: { player: PlayerId; active: boolean }) {
-        const player = lobby.players.find((p) => p.id === data.player)!;
+        const player = playerById(data.player)!;
         player.active = data.active;
     }
 
     function onPlayerScoreChanged(data: readonly [PlayerId, number]) {
-        const player = lobby.players.find((p) => p.id === data[0])!;
+        const player = playerById(data[0])!;
         player.score = data[1];
     }
 
@@ -129,7 +125,7 @@
         location.pathname = pathname;
     }
 
-    const youPlayer = lobby.players.find((p) => p.id === you.id);
+    const youPlayer = playerById(you.id);
     if (youPlayer === undefined) {
         popup.visible = true
         popup.message = 'Select a username:'
@@ -174,7 +170,7 @@
         <select
             name="gameSelect"
             id="gameSelect"
-            disabled={!isOperator}
+            disabled={!isOperator()}
             bind:value={gameSelected}
             onchange={() => sendGameSelected(gameSelected)}
         >
@@ -182,7 +178,7 @@
                 <option value={type.id}>{type.name}</option>
             {/each}
         </select>
-        <button disabled={!isOperator} onclick={() => sendBeginGame()}>Begin</button>
+        <button disabled={!isOperator()} onclick={() => sendBeginGame()}>Begin</button>
     </div>
     <Popup
         bind:visible={popup.visible}

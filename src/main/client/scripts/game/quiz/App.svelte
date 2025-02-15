@@ -1,8 +1,9 @@
 <script lang="ts">
     import { bcs } from "@iota/bcs";
     import { getData } from "../../routing";
-    import { connectGameChannel, isOperator, playerById } from "../game.svelte";
+    import { connectGameChannel } from "../game.svelte";
     import PlayerIcon from "../../lobby/PlayerIcon.svelte";
+    import { isOperator, playerById } from "../../lobby.svelte";
 
     interface Question {
         text: string

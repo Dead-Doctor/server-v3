@@ -99,6 +99,10 @@ class QuizGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<QuizGame>(
         if (guesses.size < players.size) return
 
         showResults = true
+        for ((player, guess) in guesses) {
+            if (question!!.answers[guess].correct)
+                gameWon(player)
+        }
         sendResults.toAll(guessesPerAnswer)
     }
 
