@@ -161,7 +161,6 @@ fun Application.module() {
                         }
                         a(href = "/${ChatModule.path()}") { +"Chat" }
                         a(href = "/${SnakeModule.path()}") { +"Snake" }
-                        a(href = "/${QuizModule.path()}") { +"Quiz" }
                     }
                 }
             }
@@ -192,7 +191,6 @@ fun Application.module() {
         enable(SnakeModule)
         enable(LobbyModule)
         enable(GameModule)
-        enable(QuizModule)
         routeOAuth()
         staticResources("/", "dist")
     }

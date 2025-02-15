@@ -4,6 +4,7 @@ import de.deaddoctor.*
 import de.deaddoctor.modules.LobbyModule.Lobby
 import de.deaddoctor.modules.LobbyModule.lobby
 import de.deaddoctor.modules.games.MusicGuesserGame
+import de.deaddoctor.modules.games.QuizGame
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -17,7 +18,9 @@ object GameModule : Module {
     override fun path() = "game"
 
     val gameTypes = mutableListOf<GameType<*>>(
-        MusicGuesserGame
+        MusicGuesserGame,
+        QuizGame
+
     )
 
     override fun Route.route() {
