@@ -37,6 +37,7 @@
         <div class="popup" in:fly={{ delay: 200, duration: 300, y: 200 }} out:fly={{ duration: 300, y: 200 }}>
             <h3>{message}</h3>
             {#if input}
+                <!-- svelte-ignore a11y_autofocus -->
                 <input
                     class="textInput"
                     class:error={inputErrors.length !== 0}
@@ -48,6 +49,8 @@
                     maxlength="20"
                     bind:value={inputValue}
                     oninput={() => inputAction()}
+                    onkeydown={e => e.key === 'Enter' && buttonAction()}
+                    autofocus
                 />
                 <div>
                     {#each inputErrors as error (error)}

@@ -9,6 +9,7 @@ import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
+import kotlinx.html.*
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.serializer
@@ -20,10 +21,32 @@ object GameModule : Module {
     val gameTypes = mutableListOf<GameType<*>>(
         MusicGuesserGame,
         QuizGame
-
     )
 
     override fun Route.route() {
+        get {
+            call.respondPage("Games") {
+                content {
+                    h1 { +"Games" }
+                    section(classes = "grid") {
+                        for (type in gameTypes) {
+                            div {
+                                h3 { +type.name() }
+                                p { +type.description() }
+                                a(href = "/lobby/new?game=${type.id()}") { +"Create Lobby" }
+                            }
+                        }
+
+                        a(href = "/${ChatModule.path()}") { +"Chat" }
+                        a(href = "/${SnakeModule.path()}") { +"Snake" }
+                        if ((call.user as? AccountUser)?.admin == true) {
+                            a(href = "/${TestModule.path()}") { +"Test" }
+                            a(href = "/${WebsocketModule.path()}") { +"Websockets" }
+                        }
+                    }
+                }
+            }
+        }
         for (type in gameTypes) {
             route(type.id()) {
                 get("{id}") {
@@ -56,11 +79,12 @@ object GameModule : Module {
 interface GameType<T : Game<T>> {
     fun id(): String
     fun name(): String
+    fun description(): String
     suspend fun create(channel: GameChannel, lobby: Lobby): T
 
     @Serializable
-    data class Info(val id: String, val name: String) {
-        constructor(type: GameType<*>) : this(type.id(), type.name())
+    data class Info(val id: String, val name: String, val description: String) {
+        constructor(type: GameType<*>) : this(type.id(), type.name(), type.description())
     }
 }
 

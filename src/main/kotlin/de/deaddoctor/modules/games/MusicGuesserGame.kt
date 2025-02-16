@@ -44,6 +44,7 @@ class MusicGuesserGame(
     companion object : GameType<MusicGuesserGame> {
         override fun id() = "music-guesser"
         override fun name() = "Music Guesser"
+        override fun description() = "Have a listen to a randomly chosen song and see if you can guess when it was made."
         override suspend fun create(channel: GameChannel, lobby: Lobby) = MusicGuesserGame(channel, lobby).apply {
             loadQuestion()
         }

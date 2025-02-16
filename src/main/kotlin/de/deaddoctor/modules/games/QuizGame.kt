@@ -30,6 +30,7 @@ class QuizGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<QuizGame>(
     companion object : GameType<QuizGame> {
         override fun id() = "quiz"
         override fun name() = "Quiz"
+        override fun description() = "It's a quiz. What is there more to know?"
         override suspend fun create(channel: GameChannel, lobby: LobbyModule.Lobby) = QuizGame(channel, lobby)
 
         private val logger = LoggerFactory.getLogger(QuizGame::class.java)

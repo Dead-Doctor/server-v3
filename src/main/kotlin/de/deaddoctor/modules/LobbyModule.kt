@@ -47,7 +47,8 @@ object LobbyModule : Module {
             while (lobbies.containsKey(id)) {
                 id = generateId()
             }
-            lobbies[id] = Lobby(id)
+            val gameType = call.parameters["game"]?.let(GameModule::getGameType)
+            lobbies[id] = Lobby(id, gameType ?: GameModule.gameTypes[0])
             call.respondRedirect("/${path()}/$id")
         }
 
@@ -63,8 +64,8 @@ object LobbyModule : Module {
                     lobby.activate(lobby.getPlayer(user)!!)
                 }
 
-                //          (might be problematic because games would need to include entire state in get response)
-                //TODO: show game running and button to spectate (^) (cant redirect instantly because user might have to join and select name)
+                // (might be problematic because games would need to include entire state in get response)
+                //TODO: spectating? (^)
                 //TODO: caching errors when navigating back from game to lobby (e.g. new players that have joined will only be shown after refresh)
 
                 call.respondPage("Lobby") {
@@ -176,10 +177,9 @@ object LobbyModule : Module {
         )
     }
 
-    class Lobby(val id: String) {
+    class Lobby(val id: String, var gameSelected: GameType<*>) {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
-        var gameSelected = GameModule.gameTypes[0]
         var game: Game<*>? = null
         fun joined(user: TrackedUser) = players.containsKey(user)
 

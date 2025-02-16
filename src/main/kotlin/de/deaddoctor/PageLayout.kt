@@ -105,7 +105,7 @@ class PageLayout(private val user: User?, private val uri: String, private val t
 
     private val links: FlowContent.() -> Unit = {
         ul("links") {
-            li { a(classes = "action chip", href = "/games") { +"Games" } }
+            li { a(classes = "action chip", href = "/game") { +"Games" } }
             li { a(classes = "action chip", href = "/maps") { +"Maps" } }
             li { a(classes = "action chip", href = "/about") { +"About" } }
         }

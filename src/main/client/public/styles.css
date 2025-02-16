@@ -347,8 +347,8 @@ main {
     flex-direction: column;
     width: 75%;
     max-width: 72rem;
-    margin: 3rem auto;
-    gap: 5rem;
+    margin: 3.5rem auto 5rem auto;
+    gap: 3.5rem;
 }
 
 footer {
@@ -428,9 +428,20 @@ footer {
     gap: 1.5rem;
 
     > * {
+        display: flex;
+        flex-direction: column;
+        padding: 1.5rem;
         border-radius: 1.5rem;
         border: var(--border);
-        padding: 1.5rem;
+
+        p {
+            flex-grow: 1;
+            padding-bottom: 1.8rem;
+        }
+
+        a {
+            align-self: start;
+        }
     }
 }
 

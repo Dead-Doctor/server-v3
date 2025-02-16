@@ -13,6 +13,7 @@
     interface GameType {
         id: string;
         name: string;
+        description: string;
     }
 
     let gameTypes: GameType[] = getData('gameTypes');

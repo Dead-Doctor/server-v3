@@ -139,28 +139,13 @@ fun Application.module() {
                         div {
                             h3 { +"Play Games" }
                             p { +"Enjoy all the games I have made." }
-                            a(href = "/games") { +"All Games" }
+                            a(href = "/game") { +"All Games" }
                         }
                         div {
                             h3 { +"View Maps" }
                             p { +"Maps showing interesting things." }
                             a(href = "/maps") { +"All Maps" }
                         }
-                    }
-                }
-            }
-        }
-        get("/games") {
-            call.respondPage("Games") {
-                content {
-                    h1 { +"Games" }
-                    section(classes = "grid") {
-                        if ((call.user as? AccountUser)?.admin == true) {
-                            a(href = "/${TestModule.path()}") { +"Test" }
-                            a(href = "/${WebsocketModule.path()}") { +"Websockets" }
-                        }
-                        a(href = "/${ChatModule.path()}") { +"Chat" }
-                        a(href = "/${SnakeModule.path()}") { +"Snake" }
                     }
                 }
             }
