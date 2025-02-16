@@ -17,6 +17,7 @@
 
     let gameTypes: GameType[] = getData('gameTypes');
     let gameSelected: string = $state(getData('gameSelected'));
+    let gameRunning: boolean = $state(getData('gameRunning'))
 
     let sortedPlayers = $derived(
         lobby.players
@@ -75,6 +76,7 @@
     channel.receiverWith(onKicked, bcs.string())
     channel.receiverWith(onGameSelected, bcs.string())
     channel.receiverWith(onGameStarted, bcs.string())
+    channel.receiver(onGameEnded)
 
     function onCheckedName(errors: Iterable<string>) {
         popup.inputErrors = [...errors];
@@ -125,6 +127,10 @@
         location.pathname = pathname;
     }
 
+    function onGameEnded() {
+        gameRunning = false
+    }
+
     const youPlayer = playerById(you.id);
     if (youPlayer === undefined) {
         popup.visible = true
@@ -170,7 +176,7 @@
         <select
             name="gameSelect"
             id="gameSelect"
-            disabled={!isOperator()}
+            disabled={!isOperator() || gameRunning}
             bind:value={gameSelected}
             onchange={() => sendGameSelected(gameSelected)}
         >
@@ -178,7 +184,7 @@
                 <option value={type.id}>{type.name}</option>
             {/each}
         </select>
-        <button disabled={!isOperator()} onclick={() => sendBeginGame()}>Begin</button>
+        <button disabled={!isOperator() || gameRunning} onclick={() => sendBeginGame()}>{gameRunning ? 'Running' : 'Begin'}</button>
     </div>
     <Popup
         bind:visible={popup.visible}

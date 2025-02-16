@@ -11,7 +11,7 @@ open class ChannelEvents {
     private val logger = LoggerFactory.getLogger(javaClass)
 
     var handleConnection: suspend (Channel.Context) -> Unit = {}
-    val handleDisconnection: suspend (Channel.Context) -> Unit = {}
+    var handleDisconnection: suspend (Channel.Context) -> Unit = {}
     val receivers = mutableMapOf<UByte, suspend (Channel.Context, ByteArray) -> Unit>()
 
     suspend fun handleReceiver(context: Channel.Context, data: ByteArray) {
@@ -31,7 +31,7 @@ open class ChannelEvents {
     }
 
     fun disconnection(handler: suspend (Channel.Context) -> Unit) {
-        handleConnection = handler
+        handleDisconnection = handler
     }
 
     fun receiver(handler: suspend (Channel.Context) -> Unit) {

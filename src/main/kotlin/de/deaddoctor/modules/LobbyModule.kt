@@ -31,6 +31,7 @@ object LobbyModule : Module {
     private val sendKicked = channel.destination<String>()
     private val sendGameSelected = channel.destination<String>()
     private val sendGameStarted = channel.destination<String>()
+    private val sendGameEnded = channel.destination<Unit>()
     private val sendGame = channel.destinationRaw(100u)
 
     private val lobbies = mutableMapOf<String, Lobby>()
@@ -72,6 +73,7 @@ object LobbyModule : Module {
                         addData("lobbyInfo", Lobby.Info(lobby))
                         addData("gameTypes", GameModule.gameTypesInfo)
                         addData("gameSelected", lobby.gameSelected.id())
+                        addData("gameRunning", lobby.game != null)
                         addScript("lobby/main")
                     }
                 }
@@ -272,6 +274,7 @@ object LobbyModule : Module {
         }
 
         fun endGame(sendFinish: Destination<String>) {
+            sendGameEnded.toAll(Unit)
             sendFinish.toAll("/lobby/$id")
             game = null
         }
