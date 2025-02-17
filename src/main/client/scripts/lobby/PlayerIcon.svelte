@@ -1,5 +1,5 @@
 <script lang="ts">
-    import type { Player } from "../lobby";
+    import type { Player } from "../lobby.svelte";
 
     interface Params {
         player: Player
@@ -10,14 +10,29 @@
 </script>
 
 {#if player?.verified}
-    <img src={player.avatar} alt={player.name} style={`--size: ${size};`}>
+    <img class="icon" src={player.avatar} alt={player.name} style={`--size: ${size};`}>
 {:else}
-    <span>{player?.name}</span>
+    <div class="icon" style={`--size: ${size};`}>
+        <span>{player?.name}</span>
+    </div>
 {/if}
 
 <style>
-    img {
+    .icon {
         height: var(--size);
-        border-radius: 50%;
+        border: var(--border);
+        border-radius: calc(var(--size) / 2);
+    }
+
+    div {
+        display: inline-flex;
+        align-items: center;
+        padding: 0 0.6rem;
+        font-size: var(--size);
+        background-color: var(--decoration);
+
+        span {
+            font-size: 0.6em;
+        }
     }
 </style>

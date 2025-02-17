@@ -62,7 +62,7 @@
                 {answer.text}
                 {#if showResults}
                     {#each results![i] as id}
-                        <PlayerIcon player={playerById(id)}/>
+                        <PlayerIcon player={playerById(id)!} size={'1.3rem'}/>
                     {/each}
                 {/if}
             </button>
@@ -78,12 +78,6 @@
 </section>
 
 <style>
-    .answers {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1%;
-    }
-
     .question {
         border-radius: 50px;
         text-align: center;
@@ -91,8 +85,19 @@
         border: 2px solid #244242;
     }
 
+    .answers {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1%;
+    }
+
     .answer {
-        border: 2px solid #244242;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 0.7rem;
+        font-size: 1.3rem;
+        border: 2px solid #244242
     }
 
     .selected {

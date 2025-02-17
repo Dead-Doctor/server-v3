@@ -52,6 +52,17 @@ object LobbyModule : Module {
             call.respondRedirect("/${path()}/$id")
         }
 
+        get("admin") {
+            val user = call.user
+            if (user !is AccountUser || !user.admin) return@get call.respondRedirect("/game")
+            call.respondPage("Lobby Admin") {
+                head {
+                    addData("lobbies", lobbies.map { Lobby.Info(it.value) })
+                    addScript("${path()}/admin")
+                }
+            }
+        }
+
         route("{id}") {
             get {
                 val lobby = call.lobby ?: return@get call.respondRedirect("/game")
@@ -339,10 +350,12 @@ object LobbyModule : Module {
 
         @Serializable
         data class Info(
+            val id: String,
             val players: List<Player.Info>,
             val host: String
         ) {
             constructor(lobby: Lobby) : this(
+                lobby.id,
                 lobby.players.map { Player.Info(it.value) },
                 lobby.host?.id ?: "null",
             )
