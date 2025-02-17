@@ -54,7 +54,7 @@ object LobbyModule : Module {
 
         route("{id}") {
             get {
-                val lobby = call.lobby ?: return@get call.respondRedirect("/games")
+                val lobby = call.lobby ?: return@get call.respondRedirect("/game")
                 val user = call.trackUser()
 
                 if (!lobby.joined(user)) {
@@ -75,7 +75,7 @@ object LobbyModule : Module {
                         addData("gameTypes", GameModule.gameTypesInfo)
                         addData("gameSelected", lobby.gameSelected.id())
                         addData("gameRunning", lobby.game != null)
-                        addScript("lobby/main")
+                        addScript("${path()}/main")
                     }
                 }
             }
@@ -166,6 +166,10 @@ object LobbyModule : Module {
         }
     }
 
+    private fun destroyLobby(lobby: Lobby) {
+        lobbies.remove(lobby.id)
+    }
+
     @Serializable
     data class YouInfo(
         val id: String,
@@ -219,7 +223,7 @@ object LobbyModule : Module {
             sendPlayerActiveChanged.toAll(PlayerActiveChanged(player))
             val firstRemainingPlayer = players.values.firstOrNull { it.state.active }
             if (firstRemainingPlayer == null) {
-//                destroyLobby()
+                destroyLobby(this)
                 return
             }
             if (player.user == host) promote(firstRemainingPlayer.user)
