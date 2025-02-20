@@ -1,12 +1,16 @@
 package de.deaddoctor.modules
 
 import de.deaddoctor.*
+import de.deaddoctor.ViteBuild.addScript
 import de.deaddoctor.modules.LobbyModule.Lobby
 import de.deaddoctor.modules.LobbyModule.lobby
 import de.deaddoctor.modules.games.MusicGuesserGame
 import de.deaddoctor.modules.games.QuizGame
 import de.deaddoctor.modules.games.ScotlandYardGame
+import io.ktor.http.*
 import io.ktor.server.application.*
+import io.ktor.server.html.*
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
@@ -106,6 +110,15 @@ abstract class Game<T>(channel: GameChannel, private val lobby: Lobby, socketHan
     fun finish() = lobby.endGame(sendFinish)
 
     abstract suspend fun get(call: ApplicationCall)
+}
+
+suspend fun ApplicationCall.respondGame(game: GameType<*>, encodedData: FlowOrMetaDataOrPhrasingContent.() -> Unit) {
+    respondHtmlTemplate(PageLayout(user, request.uri, game.name()), HttpStatusCode.OK) {
+        head {
+            encodedData()
+            addScript("game/${game.id()}/main")
+        }
+    }
 }
 
 class GameChannel(private val send: Destination<ByteArray>) {

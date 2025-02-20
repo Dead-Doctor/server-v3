@@ -1,7 +1,6 @@
 package de.deaddoctor.modules.games
 
 import de.deaddoctor.*
-import de.deaddoctor.ViteBuild.addScript
 import de.deaddoctor.modules.*
 import de.deaddoctor.modules.LobbyModule.Lobby
 import de.deaddoctor.modules.LobbyModule.YouInfo
@@ -165,13 +164,10 @@ class MusicGuesserGame(
     private val results = currentPlayers.associateWith { 0 }.toMutableMap()
 
     override suspend fun get(call: ApplicationCall) {
-        call.respondPage(name()) {
-            head {
-                addData("youInfo", YouInfo(call.trackedUser))
-                addData("lobbyInfo", lobbyInfo)
-                addData("round", roundInfo)
-                addScript("game/${id()}/main")
-            }
+        call.respondGame(MusicGuesserGame) {
+            addData("youInfo", YouInfo(call.trackedUser))
+            addData("lobbyInfo", lobbyInfo)
+            addData("round", roundInfo)
         }
     }
 

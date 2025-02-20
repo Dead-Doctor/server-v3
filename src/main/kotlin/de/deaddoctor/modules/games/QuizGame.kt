@@ -1,7 +1,6 @@
 package de.deaddoctor.modules.games
 
 import de.deaddoctor.*
-import de.deaddoctor.ViteBuild.addScript
 import de.deaddoctor.modules.*
 import de.deaddoctor.modules.LobbyModule.YouInfo
 import io.ktor.server.application.*
@@ -66,22 +65,17 @@ class QuizGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<QuizGame>(
         }
 
     override suspend fun get(call: ApplicationCall) {
-
         if (questions == null) return call.respondPage(name()) {
             content {
                 h1 { +"Error" }
                 h2 { +(errorMsg ?: "???") }
             }
         }
-
-        call.respondPage(name()) {
-            head {
-                addData("youInfo", YouInfo(call.trackedUser))
-                addData("lobbyInfo", lobbyInfo)
-                addData("question", question)
-                addData("results", if (showResults) guessesPerAnswer else null)
-                addScript("game/${id()}/main")
-            }
+        call.respondGame(QuizGame) {
+            addData("youInfo", YouInfo(call.trackedUser))
+            addData("lobbyInfo", lobbyInfo)
+            addData("question", question)
+            addData("results", if (showResults) guessesPerAnswer else null)
         }
     }
 

@@ -224,7 +224,7 @@
                     {/if}
                     {#if currentQuestion?.showResult}
                         {#each guesses as [id, guess], i (id)}
-                            {@const player = playerById(id)}
+                            {@const player = playerById(id)!}
                             <Pin year={guess.year} delay={3000 + i * 1000}>
                                 <PlayerIcon {player} size={'3rem'}/>
                             </Pin>
