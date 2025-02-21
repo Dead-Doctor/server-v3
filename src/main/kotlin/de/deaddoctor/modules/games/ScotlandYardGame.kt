@@ -1,9 +1,6 @@
 package de.deaddoctor.modules.games
 
-import de.deaddoctor.modules.Game
-import de.deaddoctor.modules.GameChannel
-import de.deaddoctor.modules.GameType
-import de.deaddoctor.modules.LobbyModule
+import de.deaddoctor.modules.*
 import io.ktor.server.application.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
@@ -38,19 +35,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
             if (!mapsFolder.isDirectory) mapsFolder.mkdir()
             for (file in mapsFolder.listFiles()) {
                 val version = file.nameWithoutExtension.toInt()
-                val oldMap = jsonParser.decodeFromStream<OldMap>(file.inputStream())
-                val map = Map(
-                    oldMap.intersections.map { Intersection(it.id, Point(it.lat, it.lng)) },
-                    oldMap.connections.map {
-                        Connection(
-                            it.id,
-                            it.from,
-                            it.to,
-                            it.type,
-                            Connection.Shape(Point(it.controls[0][0], it.controls[0][1]), Point(it.controls[1][0], it.controls[1][1]))
-                        )
-                    })
-                jsonParser.encodeToStream(map, file.outputStream())
+                val map = jsonParser.decodeFromStream<Map>(file.inputStream())
                 maps[version] = map
             }
             logger.info("Successfully loaded ${maps.size} map versions!")
@@ -58,23 +43,10 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
     }
 
     override suspend fun get(call: ApplicationCall) {
-        TODO("Not yet implemented")
+        call.respondGame(ScotlandYardGame) {
+            //TODO
+        }
     }
-
-    @Serializable
-    data class OldMap(val intersections: List<OldIntersection>, val connections: List<OldConnection>)
-
-    @Serializable
-    data class OldIntersection(val id: Int, val lat: Double, val lng: Double)
-
-    @Serializable
-    data class OldConnection(
-        val id: Int,
-        val from: Int,
-        val to: Int,
-        val type: Transport,
-        val controls: List<List<Double>>
-    )
 
     @Serializable
     data class Map(val intersections: List<Intersection>, val connections: List<Connection>)

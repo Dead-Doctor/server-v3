@@ -253,7 +253,7 @@ header {
     position: sticky;
     top: 0;
     width: 100%;
-    z-index: 999;
+    z-index: 5000;
 }
 
 nav {
