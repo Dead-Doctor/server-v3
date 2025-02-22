@@ -19,10 +19,16 @@
         }
     }
 
-    let { id } = $props()
+    interface Props {
+        id: string
+        size?: string
+    }
+
+    let { id, size = '1rem' }: Props = $props()
 
     let icon = $derived(icons[id])
 </script>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {icon.width} {icon.height}">
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {icon.width} {icon.height}" style="width: {size};">
     {@html icon.content}
 </svg>

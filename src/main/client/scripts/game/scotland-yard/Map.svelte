@@ -32,10 +32,10 @@
 
 </script>
 
-<div class="map" use:initializeMap></div>
+<div class="map" use:initializeMap onresize={() => ctx.map?.invalidateSize()}></div>
 
 <style>
     .map {
-        height: 80vh;
+        height: 100%;
     }
 </style>

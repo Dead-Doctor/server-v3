@@ -124,7 +124,6 @@ a {
 svg {
     fill: currentColor;
     width: 1em;
-    height: 1em;
 }
 
 button {
@@ -381,6 +380,12 @@ footer {
 
                 &:hover {
                     color: var(--text);
+                }
+
+                svg {
+                    fill: currentColor;
+                    width: 1em;
+                    height: 1em;
                 }
             }
         }

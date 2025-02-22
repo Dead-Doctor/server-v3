@@ -56,7 +56,7 @@ object GameModule : Module {
         for (type in gameTypes) {
             route(type.id()) {
                 get("{id}") {
-                    val lobby = call.lobby ?: return@get call.respondRedirect("/games")
+                    val lobby = call.lobby ?: return@get call.respondRedirect("/game")
                     val user = call.trackUser()
 
                     if (!lobby.joined(user)) {
