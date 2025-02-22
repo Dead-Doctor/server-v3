@@ -29,46 +29,53 @@ object GameModule : Module {
         ScotlandYardGame
     )
 
+    private val channel = Channel()
+    private val sendInvalid = channel.destination<Unit>()
+    private val sendSuccess = channel.destination<Unit>()
+
     override fun Route.route() {
         get {
             call.respondPage("Games") {
-                content {
-                    h1 { +"Games" }
-                    section(classes = "grid") {
-                        for (type in gameTypes) {
-                            div {
-                                h3 { +type.name() }
-                                p { +type.description() }
-                                a(href = "/lobby/new?game=${type.id()}") { +"Create Lobby" }
-                            }
-                        }
-
-                        a(href = "/${ChatModule.path()}") { +"Chat" }
-                        a(href = "/${SnakeModule.path()}") { +"Snake" }
-                        if ((call.user as? AccountUser)?.admin == true) {
-                            a(href = "/${TestModule.path()}") { +"Test" }
-                            a(href = "/${WebsocketModule.path()}") { +"Websockets" }
-                        }
+                head {
+                    val other = mutableMapOf<String, String>()
+                    other["Chat"] = "/${ChatModule.path()}"
+                    other["Snake"] = "/${SnakeModule.path()}"
+                    if ((call.user as? AccountUser)?.admin == true) {
+                        other["Test"] = "/${TestModule.path()}"
+                        other["Websockets"] = "/${WebsocketModule.path()}"
+                        other["Lobby Admin"] = "/${LobbyModule.path()}/admin"
                     }
+                    addData("gameTypes", gameTypesInfo)
+                    addData("otherGames", other)
+                    addScript("${path()}/main")
                 }
             }
         }
+        //TODO: should really be "channel"
+        openChannel("ws", channel)
+
+        fun Channel.Context.onCode(code: String) {
+            if (LobbyModule.lobbyExists(code)) sendSuccess.toConnection(connection, Unit)
+            else sendInvalid.toConnection(connection, Unit)
+        }
+        channel.receiver(Channel.Context::onCode)
+
         for (type in gameTypes) {
             route(type.id()) {
                 get("{id}") {
-                    val lobby = call.lobby ?: return@get call.respondRedirect("/game")
+                    val lobby = call.lobby ?: return@get call.respondRedirect("/${path()}")
                     val user = call.trackUser()
 
                     if (!lobby.joined(user)) {
-                        return@get call.respondRedirect("/lobby/${call.parameters["id"]}")
+                        return@get call.respondRedirect("/${LobbyModule.path()}/${call.parameters["id"]}")
                     } else if (!lobby.active(user)) {
                         lobby.activate(lobby.getPlayer(user)!!)
                     }
 
                     if (lobby.gameSelected != type)
-                        return@get call.respondRedirect("/game/${lobby.gameSelected.id()}/${call.parameters["id"]}")
+                        return@get call.respondRedirect("/${path()}/${lobby.gameSelected.id()}/${call.parameters["id"]}")
 
-                    val game = lobby.game ?: return@get call.respondRedirect("/lobby/${call.parameters["id"]}")
+                    val game = lobby.game ?: return@get call.respondRedirect("/${LobbyModule.path()}/${call.parameters["id"]}")
                     game.get(call)
                 }
             }

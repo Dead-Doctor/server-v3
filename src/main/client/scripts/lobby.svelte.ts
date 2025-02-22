@@ -22,6 +22,12 @@ export interface Lobby {
     host: PlayerId;
 }
 
+export interface GameType {
+    id: string;
+    name: string;
+    description: string;
+}
+
 export let you: You = $state(getData('youInfo'));
 export let lobby: Lobby = $state(getData('lobbyInfo'));
 

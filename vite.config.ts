@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import { svelte } from '@sveltejs/vite-plugin-svelte'
 
-const entries = ['wsTest', 'chat', 'snake', 'lobby/main', 'lobby/admin', 'game/music-guesser/main', 'game/quiz/main', 'game/scotland-yard/main']
+const entries = ['game/main', 'lobby/main', 'lobby/admin', 'game/music-guesser/main', 'game/quiz/main', 'game/scotland-yard/main', 'wsTest', 'chat', 'snake']
 
 // https://vite.dev/config/
 export default defineConfig({

@@ -40,7 +40,6 @@
                 <!-- svelte-ignore a11y_autofocus -->
                 <input
                     class="textInput"
-                    class:error={inputErrors.length !== 0}
                     type="text"
                     name="textInput"
                     id="textInput"
@@ -104,12 +103,6 @@
                 width: 35rem;
                 font-size: 1.5em;
                 font-weight: bold;
-                outline: var(--decoration-thickness) solid transparent;
-                transition: 150ms outline-color ease-in-out;
-
-                &.error {
-                    outline-color: var(--primary);
-                }
             }
 
             div .error {

@@ -4,17 +4,13 @@
     import Leaderboard from '../Leaderboard.svelte';
     import Popup from '../Popup.svelte';
     import { bcs } from '@iota/bcs';
-    import { type PlayerId, type Player, lobby, you, isOperator, playerById } from '../lobby.svelte';
+    import { type PlayerId, type Player, type GameType, lobby, you, isOperator, playerById } from '../lobby.svelte';
     import type { Component } from 'svelte';
     type Props<T> = T extends Component<infer P, any, any> ? P : never;
 
     type PopupProps = Props<typeof Popup>
 
-    interface GameType {
-        id: string;
-        name: string;
-        description: string;
-    }
+    //TODO: popup with invite instructions
 
     let gameTypes: GameType[] = getData('gameTypes');
     let gameSelected: string = $state(getData('gameSelected'));
@@ -161,50 +157,58 @@
     })
 </script>
 
-<section>
-    <div class="lobby">
-        <h2>Lobby</h2>
-        <Leaderboard
-            players={sortedPlayers}
-            lobby={{
-                you: you.id,
-                host: lobby.host,
-                admin: you.admin,
-                onPromote(id) { sendPromote(id) },
-                onKick(id) { sendKick(id) }
-            }}
-        />
-        <select
-            name="gameSelect"
-            id="gameSelect"
-            disabled={!isOperator() || gameRunning}
-            bind:value={gameSelected}
-            onchange={() => sendGameSelected(gameSelected)}
-        >
-            {#each gameTypes as type}
-                <option value={type.id}>{type.name}</option>
-            {/each}
-        </select>
-        <button disabled={!isOperator() || gameRunning} onclick={() => sendBeginGame()}>{gameRunning ? 'Running' : 'Begin'}</button>
-    </div>
-    <Popup
-        bind:visible={popup.visible}
-        message={popup.message}
-        closable={popup.closable}
-        buttonText={popup.buttonText}
-        buttonDisabled={popup.buttonDisabled}
-        buttonAction={popup.buttonAction}
-        input={popup.input}
-        inputPlaceholder={popup.inputPlaceholder}
-        bind:inputValue={popup.inputValue}
-        inputAction={popup.inputAction}
-        inputErrors={popup.inputErrors}
-        login={popup.login}
-    />
+<section class="title">
+    <h2>Lobby</h2>
+    <h3><b>{lobby.id}</b></h3>
 </section>
+<section class="content">
+    <Leaderboard
+        players={sortedPlayers}
+        lobby={{
+            you: you.id,
+            host: lobby.host,
+            admin: you.admin,
+            onPromote(id) { sendPromote(id) },
+            onKick(id) { sendKick(id) }
+        }}
+    />
+    <select
+        name="gameSelect"
+        id="gameSelect"
+        disabled={!isOperator() || gameRunning}
+        bind:value={gameSelected}
+        onchange={() => sendGameSelected(gameSelected)}
+    >
+        {#each gameTypes as type}
+            <option value={type.id}>{type.name}</option>
+        {/each}
+    </select>
+    <button disabled={!isOperator() || gameRunning} onclick={() => sendBeginGame()}>{gameRunning ? 'Running' : 'Begin'}</button>
+</section>
+<Popup
+    bind:visible={popup.visible}
+    message={popup.message}
+    closable={popup.closable}
+    buttonText={popup.buttonText}
+    buttonDisabled={popup.buttonDisabled}
+    buttonAction={popup.buttonAction}
+    input={popup.input}
+    inputPlaceholder={popup.inputPlaceholder}
+    bind:inputValue={popup.inputValue}
+    inputAction={popup.inputAction}
+    inputErrors={popup.inputErrors}
+    login={popup.login}
+/>
 
 <style>
-    .lobby {
+    .title {
+        display: flex;
+        align-items: end;
+        gap: 1rem;
+        border-bottom: var(--border);
+    }
+
+    .content {
         display: flex;
         flex-direction: column;
         gap: 3rem;

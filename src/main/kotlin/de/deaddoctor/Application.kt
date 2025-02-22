@@ -139,7 +139,7 @@ fun Application.module() {
                         div {
                             h3 { +"Play Games" }
                             p { +"Enjoy all the games I have made." }
-                            a(href = "/game") { +"All Games" }
+                            a(href = "/${GameModule.path()}") { +"All Games" }
                         }
                         div {
                             h3 { +"View Maps" }

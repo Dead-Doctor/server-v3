@@ -16,7 +16,7 @@ import kotlin.time.Duration.Companion.seconds
 object LobbyModule : Module {
     override fun path() = "lobby"
 
-    private val idCharacters = ('A'..'Z') + ('0'..'9')
+    private val idCharacters = 'A'..'Z'
     private fun generateId() = buildString {
         for (i in 0 until 4) append(idCharacters.random())
     }
@@ -41,6 +41,8 @@ object LobbyModule : Module {
     val Connection.lobby: Lobby?
         get() = session.call.lobby
 
+    fun lobbyExists(id: String) = lobbies.containsKey(id)
+
     override fun Route.route() {
         get("new") {
             var id = generateId()
@@ -54,7 +56,7 @@ object LobbyModule : Module {
 
         get("admin") {
             val user = call.user
-            if (user !is AccountUser || !user.admin) return@get call.respondRedirect("/game")
+            if (user !is AccountUser || !user.admin) return@get call.respondRedirect("/${GameModule.path()}")
             call.respondPage("Lobby Admin") {
                 head {
                     addData("lobbies", lobbies.map { Lobby.Info(it.value) })
@@ -65,7 +67,13 @@ object LobbyModule : Module {
 
         route("{id}") {
             get {
-                val lobby = call.lobby ?: return@get call.respondRedirect("/game")
+                val lobby = call.lobby
+                if (lobby == null) {
+                    val corrected = call.parameters["id"]?.uppercase()
+                    if (lobbies.containsKey(corrected))
+                        return@get call.respondRedirect("/${path()}/$corrected")
+                    return@get call.respondRedirect("/${GameModule.path()}?invalid-code")
+                }
                 val user = call.trackUser()
 
                 if (!lobby.joined(user)) {
@@ -279,7 +287,7 @@ object LobbyModule : Module {
             val channel = GameChannel(sendGame)
             //TODO: loading animation
             game = gameSelected.create(channel, this)
-            sendGameStarted.toAll("/game/${gameSelected.id()}/$id")
+            sendGameStarted.toAll("/${GameModule.path()}/${gameSelected.id()}/$id")
         }
 
         fun gameWon(winner: TrackedUser) {
@@ -290,7 +298,7 @@ object LobbyModule : Module {
 
         fun endGame(sendFinish: Destination<String>) {
             sendGameEnded.toAll(Unit)
-            sendFinish.toAll("/lobby/$id")
+            sendFinish.toAll("/${path()}/$id")
             game = null
         }
 

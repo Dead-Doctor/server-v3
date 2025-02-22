@@ -29,7 +29,7 @@
         align-items: center;
         padding: 0 0.6rem;
         font-size: var(--size);
-        background-color: var(--decoration);
+        background-color: var(--secondary);
 
         span {
             font-size: 0.6em;

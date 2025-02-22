@@ -1,6 +1,7 @@
 package de.deaddoctor
 
 import de.deaddoctor.CSSResource.Companion.addStyles
+import de.deaddoctor.modules.GameModule
 import io.ktor.http.*
 import io.ktor.server.html.*
 import kotlinx.datetime.*
@@ -105,7 +106,7 @@ class PageLayout(private val user: User?, private val uri: String, private val t
 
     private val links: FlowContent.() -> Unit = {
         ul("links") {
-            li { a(classes = "action chip", href = "/game") { +"Games" } }
+            li { a(classes = "action chip", href = "/${GameModule.path()}") { +"Games" } }
             li { a(classes = "action chip", href = "/maps") { +"Maps" } }
             li { a(classes = "action chip", href = "/about") { +"About" } }
         }
