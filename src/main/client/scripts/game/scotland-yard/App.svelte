@@ -1,6 +1,7 @@
 <script lang="ts">
+    import L from "leaflet";
     import Icon from "../../Icon.svelte";
-import Map from "./Map.svelte";
+    import Map from "./Map.svelte";
 
     let gameContainer: HTMLElement
     let isFullscreen = $state(false)
@@ -12,11 +13,18 @@ import Map from "./Map.svelte";
             document.exitFullscreen();
         }
     }
+
+    const topLeft: L.LatLngTuple = [51.2396, 6.7635];
+    const bottomRight: L.LatLngTuple = [51.1997, 6.8212];
+    const mapBoundary = L.latLngBounds(topLeft, bottomRight);
+
+    const minZoom = 14
+    const scale = 1000
 </script>
 
 <section bind:this={gameContainer} onfullscreenchange={() => isFullscreen = document.fullscreenElement != null}>
     <div class="map">
-        <Map></Map>
+        <Map {minZoom} boundary={mapBoundary} {scale}></Map>
     </div>
     <div class="actions">
         <button>XYZ</button>
