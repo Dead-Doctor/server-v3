@@ -1,5 +1,6 @@
 package de.deaddoctor.modules.games
 
+import de.deaddoctor.addData
 import de.deaddoctor.modules.*
 import io.ktor.server.application.*
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -43,7 +44,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
 
     override suspend fun get(call: ApplicationCall) {
         call.respondGame(ScotlandYardGame) {
-            //TODO
+            addData("map", maps[62])
         }
     }
 

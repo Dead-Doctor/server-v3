@@ -3,15 +3,23 @@
     import 'leaflet/dist/leaflet.css';
     import { setContext } from 'svelte';
 
+    export interface MapContext {
+        map: L.Map | undefined
+        boundary: L.LatLngBounds
+        width: number
+        height: number
+    }
+
     interface Props {
         minZoom: number
         boundary: L.LatLngBounds
-        scale: number
+        children: any
     }
 
-    let { minZoom, boundary, scale }: Props = $props()
+    let { minZoom, boundary, children }: Props = $props()
+    const scale = 1000
 
-    let ctx: { map: L.Map | undefined, width: number, height: number } = $state({ map: undefined, width: 100, height: 100 })
+    let ctx: MapContext = $state({ map: undefined, boundary, width: 100, height: 100 })
     setContext('map', ctx)
 
     let svgElement: SVGElement
@@ -35,15 +43,7 @@
         ctx.width = scale
         ctx.height = size.y / size.x * scale
 
-        const overlay = L.svgOverlay(svgElement, boundary, {
-            interactive: true
-        }).addTo(ctx.map)
-        overlay.on('click', (e) => {
-            const source = e.originalEvent.target as Element
-            const target = source.closest('.target')
-            if (target === null) return
-            console.log(`Clicked: ${target}`)
-        })
+        addOverlay()
 
         return {
             destroy() {
@@ -53,90 +53,34 @@
         };
     }
 
-    const size = 0.6
+    const addOverlay = () => {
+        const svgOverlay = L.svgOverlay(svgElement, boundary, {
+            interactive: true
+        }).addTo(ctx.map!)
 
-    const points = [
-        {x: 500, y: 500, bus: false, tram: false},
-        {x: 550, y: 500, bus: true, tram: false},
-        {x: 100, y: 500, bus: false, tram: true},
-        {x: 300, y: 300, bus: true, tram: true},
-    ]
+        svgOverlay.on('click', (e) => {
+            const source = e.originalEvent.target as Element
+            const target = source.closest<HTMLElement>('.target')
+            if (target === null) return
+            console.log(`Clicked Intersection: ${target.dataset.intersection}`)
+        })
+    }
 </script>
 
-<template>
+<div style="display: none;">
     <svg width={ctx.width} height={ctx.height} viewBox="0 0 {ctx.width} {ctx.height}" bind:this={svgElement}>
         <rect x="0" y="0" width={ctx.width} height={ctx.height} stroke="black" stroke-width="10" fill="none" />
-        {#each points as point}
-            <g class="intersection target" class:bus={point.bus} class:tram={point.tram} transform="translate({point.x} {point.y}) scale({size}) translate(-40 -40)" >
-                <path d="M 10 40 A 30 30 0 0 1 70 40" stroke="black" stroke-width="3" />
-                <path d="M 10 40 A 30 30 0 0 0 70 40" stroke="black" stroke-width="3" />
-                <path d="M 10 40 H 70" stroke="black" stroke-width="3" />
-                <rect x="20" y="25" width="40" height="30" stroke="black" stroke-width="3" fill="white" />
-                <text
-                    class="number"
-                    x="40"
-                    y="40"
-                    text-anchor="middle"
-                    dominant-baseline="central"
-                    font-family="Arial Narrow"
-                    font-weight="700"
-                    font-size="23"
-                    fill="black"
-                >
-                    142
-                </text>
-            </g>
-        {/each}
+        {@render children?.()}
     </svg>
-</template>
+</div>
 <div class="map" use:initializeMap onresize={() => ctx.map?.invalidateSize()}></div>
 
 <style>
-    :root {
-        --taxi-color: #ffd000;
-        --bus-color: #008e59;
-        --tram-color: #ff3900;
-    }
-
     .map {
         height: 100%;
     }
 
     svg {
         cursor: grab;
-
-        .target {
-            cursor: pointer;
-
-            &:hover {
-                fill: red;
-            }
-        }
-    }
-
-    .intersection > path,
-    .intersection.bus > path + path {
-        fill: var(--taxi-color);
-    }
-
-    .intersection.bus > path + path {
-        fill: var(--bus-color);
-    }
-
-    .intersection.tram > * + rect {
-        fill: var(--tram-color);
-    }
-
-    .intersection.tram > * + text {
-        fill: white;
-    }
-
-    .selected path,
-    .selected rect {
-        stroke: #002da8;
-    }
-
-    .selected text {
-        fill: #002da8 !important;
     }
 </style>
