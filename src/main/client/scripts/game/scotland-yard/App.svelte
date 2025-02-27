@@ -4,6 +4,8 @@
     import Map from "./Map.svelte";
     import Intersection from "./Intersection.svelte";
     import { getData } from "../../routing";
+    import type { MapData, Point } from "./scotland-yard";
+    import Connection from "./Connection.svelte";
 
     let gameContainer: HTMLElement
     let isFullscreen = $state(false)
@@ -22,32 +24,20 @@
     const mapBoundary = L.latLngBounds(topLeft, bottomRight);
     const minZoom = 14
 
-    interface MapData {
-        intersections: IntersectionData[],
-        connections: any,
-    }
-
-    interface IntersectionData {
-        id: number
-        pos: { lat: number, lon: number }
-    }
-
     const map: MapData = getData('map')
 
-    interface Point {
+    interface IntersectionPoint {
         id: number,
-        lat: number,
-        lon: number,
+        position: Point,
         bus: boolean,
         tram: boolean,
         selected: boolean
     }
 
-    const points: Point[] = $state(map.intersections.map((i) => {
+    const points: IntersectionPoint[] = $state(map.intersections.map((i) => {
         return {
             id: i.id,
-            lat: i.pos.lat,
-            lon: i.pos.lon,
+            position: i.pos,
             bus: true,
             tram: true,
             selected: false
@@ -58,24 +48,28 @@
     const addIntersection = (e: L.LeafletMouseEvent) => {
         points.push({
             id: 0,
-            lat: e.latlng.lat,
-            lon: e.latlng.lng,
+            position: { lat: e.latlng.lat, lon: e.latlng.lng },
             bus: false,
             tram: false,
             selected: false
         })
     }
 
-    const selectIntersection = (point: Point) => {
+    const selectIntersection = (point: IntersectionPoint) => {
         point.selected = !point.selected
     }
+
+    const findIntersectionById = (id: number) => map.intersections.find(i => i.id === id)
 </script>
 
 <section bind:this={gameContainer} onfullscreenchange={() => isFullscreen = document.fullscreenElement != null}>
     <div class="map">
         <Map {minZoom} boundary={mapBoundary} onclick={addIntersection}>
+            {#each map.connections as c}
+                <Connection id={c.id} from={findIntersectionById(c.from)!.pos} to={findIntersectionById(c.to)!.pos} width={1} shape={c.shape} type={c.type} selected={false}></Connection>
+            {/each}
             {#each points as point}
-                <Intersection id={point.id} lat={point.lat} lon={point.lon} {radius} bus={point.bus} tram={point.tram} selected={point.selected} onclick={() => selectIntersection(point)}></Intersection>
+                <Intersection id={point.id} position={point.position} {radius} bus={point.bus} tram={point.tram} selected={point.selected} onclick={() => selectIntersection(point)}></Intersection>
             {/each}
         </Map>
     </div>
@@ -87,6 +81,13 @@
 </section>
 
 <style>
+    :root {
+        --taxi-color: #ffd000;
+        --bus-color: #008e59;
+        --tram-color: #ff3900;
+        --train-color: #000000;
+    }
+
     section {
         display: flex;
         flex-direction: column;

@@ -2,12 +2,14 @@
     import L from 'leaflet';
     import 'leaflet/dist/leaflet.css';
     import { setContext } from 'svelte';
+    import type { Point } from './scotland-yard';
 
     export interface MapContext {
         map: L.Map | undefined
         boundary: L.LatLngBounds
         width: number
         height: number
+        projectPoint(point: Point): { x: number, y: number }
         featureEventHandlers: ((target: string, event: L.LeafletMouseEvent) => void)[]
     }
 
@@ -21,7 +23,16 @@
     let { minZoom, boundary, onclick = null, children }: Props = $props()
     const scale = 1000
 
-    let ctx: MapContext = $state({ map: undefined, boundary, width: 100, height: 100, featureEventHandlers: [] })
+    let ctx: MapContext = $state({
+        map: undefined,
+        boundary,
+        width: 100, height: 100,
+        projectPoint: (point) => ({
+            x: ((point.lon - ctx.boundary.getWest()) / (ctx.boundary.getEast() - ctx.boundary.getWest())) * ctx.width,
+            y: ((ctx.boundary.getNorth() - point.lat) / (ctx.boundary.getNorth() - ctx.boundary.getSouth())) * ctx.height
+        }),
+        featureEventHandlers: []
+    })
     setContext('map', ctx)
 
     let svgElement: SVGElement

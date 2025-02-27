@@ -1,11 +1,11 @@
 <script lang="ts">
     import { getContext } from 'svelte';
     import type { MapContext } from './Map.svelte';
+    import type { Point } from './scotland-yard';
 
     interface Props {
         id: number;
-        lat: number;
-        lon: number;
+        position: Point;
         radius: number;
         bus: boolean;
         tram: boolean;
@@ -15,17 +15,14 @@
 
     const halfSize = 30;
 
-    let { id, lat, lon, radius, bus, tram, selected, onclick = null }: Props = $props();
+    let { id, position, radius, bus, tram, selected, onclick = null }: Props = $props();
     let ctx: MapContext = getContext('map');
 
     let targetId = $derived(`i${id}`);
 
     let scale = $derived(radius / halfSize);
     
-    let x = $derived(((lon - ctx.boundary.getWest()) / (ctx.boundary.getEast() - ctx.boundary.getWest())) * ctx.width);
-    let y = $derived(
-        ((ctx.boundary.getNorth() - lat) / (ctx.boundary.getNorth() - ctx.boundary.getSouth())) * ctx.height
-    );
+    let { x, y } = $derived(ctx.projectPoint(position))
 
     ctx.featureEventHandlers.push((target, e) => {
         if (target !== targetId) return;
@@ -35,7 +32,7 @@
 
 <g
     data-target={targetId}
-    class="intersection target"
+    class:target={onclick !== null}
     class:bus
     class:tram
     class:selected
@@ -61,13 +58,7 @@
 </g>
 
 <style>
-    :root {
-        --taxi-color: #ffd000;
-        --bus-color: #008e59;
-        --tram-color: #ff3900;
-    }
-
-    .intersection {
+    g {
         cursor: pointer;
 
         .half {
