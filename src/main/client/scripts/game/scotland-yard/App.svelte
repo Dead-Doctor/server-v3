@@ -4,7 +4,7 @@
     import Map from "./Map.svelte";
     import Intersection from "./Intersection.svelte";
     import { getData } from "../../routing";
-    import type { MapData, Point } from "./scotland-yard";
+    import { transport, type MapData, type Point } from "./scotland-yard";
     import Connection from "./Connection.svelte";
 
     let gameContainer: HTMLElement
@@ -18,12 +18,6 @@
         }
     }
 
-    const topLeft: L.LatLngTuple = [51.2396, 6.7635];
-    const bottomRight: L.LatLngTuple = [51.1997, 6.8212];
-    
-    const mapBoundary = L.latLngBounds(topLeft, bottomRight);
-    const minZoom = 14
-
     const map: MapData = getData('map')
 
     interface IntersectionPoint {
@@ -31,45 +25,45 @@
         position: Point,
         bus: boolean,
         tram: boolean,
-        selected: boolean
     }
 
-    const points: IntersectionPoint[] = $state(map.intersections.map((i) => {
+    const intersections: IntersectionPoint[] = map.intersections.map((i) => {
         return {
             id: i.id,
             position: i.pos,
-            bus: true,
-            tram: true,
-            selected: false
-        }
-    }))
-    const radius = 5
-
-    const addIntersection = (e: L.LeafletMouseEvent) => {
-        points.push({
-            id: 0,
-            position: { lat: e.latlng.lat, lon: e.latlng.lng },
             bus: false,
             tram: false,
-            selected: false
-        })
-    }
+        }
+    })
 
-    const selectIntersection = (point: IntersectionPoint) => {
-        point.selected = !point.selected
-    }
+    const findIntersectionById = (id: number) => intersections.find(i => i.id === id)
 
-    const findIntersectionById = (id: number) => map.intersections.find(i => i.id === id)
+    const connections = map.connections.map((c) => {
+        const i1 = findIntersectionById(c.from)!
+        const i2 = findIntersectionById(c.to)!
+        if (c.type === transport.BUS) {
+            i1.bus = true; i2.bus = true
+        } else if (c.type === transport.TRAM) {
+            i1.tram = true; i2.tram = true
+        }
+        return {
+            id: c.id,
+            from: i1.position,
+            to: i2.position,
+            type: c.type,
+            shape: c.shape
+        }
+    })
 </script>
 
 <section bind:this={gameContainer} onfullscreenchange={() => isFullscreen = document.fullscreenElement != null}>
     <div class="map">
-        <Map {minZoom} boundary={mapBoundary} onclick={addIntersection}>
-            {#each map.connections as c}
-                <Connection id={c.id} from={findIntersectionById(c.from)!.pos} to={findIntersectionById(c.to)!.pos} width={1} shape={c.shape} type={c.type} selected={false}></Connection>
+        <Map minZoom={map.minZoom} boundary={map.boundary}>
+            {#each connections as c}
+                <Connection id={c.id} from={c.from} to={c.to} width={map.connectionWidth} shape={c.shape} type={c.type}></Connection>
             {/each}
-            {#each points as point}
-                <Intersection id={point.id} position={point.position} {radius} bus={point.bus} tram={point.tram} selected={point.selected} onclick={() => selectIntersection(point)}></Intersection>
+            {#each intersections as i}
+                <Intersection id={i.id} position={i.position} radius={map.intersectionRadius} bus={i.bus} tram={i.tram}></Intersection>
             {/each}
         </Map>
     </div>

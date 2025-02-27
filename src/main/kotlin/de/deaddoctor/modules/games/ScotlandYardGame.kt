@@ -1,8 +1,10 @@
 package de.deaddoctor.modules.games
 
-import de.deaddoctor.addData
+import de.deaddoctor.*
 import de.deaddoctor.modules.*
 import io.ktor.server.application.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -49,16 +51,20 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
     }
 
     @Serializable
-    data class Map(val intersections: List<Intersection>, val connections: List<Connection>)
+    data class Map(
+        val boundary: Shape,
+        val minZoom: Int,
+        val intersectionRadius: Double,
+        val connectionWidth: Double,
+        val intersections: List<Intersection>,
+        val connections: List<Connection>
+    )
 
     @Serializable
     data class Intersection(val id: Int, @SerialName("pos") val position: Point)
 
     @Serializable
-    data class Connection(val id: Int, val from: Int, val to: Int, val type: Transport, val shape: Shape) {
-        @Serializable
-        data class Shape(val from: Point, val to: Point)
-    }
+    data class Connection(val id: Int, val from: Int, val to: Int, val type: Transport, val shape: Shape)
 
     @Serializable
     enum class Transport {
@@ -74,6 +80,9 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         @SerialName("train")
         TRAIN
     }
+
+    @Serializable
+    data class Shape(val from: Point, val to: Point)
 
     @Serializable
     data class Point(val lat: Double, val lon: Double)

@@ -1,4 +1,8 @@
 export interface MapData {
+    boundary: Shape
+    minZoom: number
+    intersectionRadius: number
+    connectionWidth: number
     intersections: IntersectionData[],
     connections: ConnectionData[],
 }

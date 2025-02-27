@@ -9,13 +9,13 @@
         radius: number;
         bus: boolean;
         tram: boolean;
-        selected: boolean;
+        selected?: boolean;
         onclick?: L.LeafletMouseEventHandlerFn | null
     }
 
     const halfSize = 30;
 
-    let { id, position, radius, bus, tram, selected, onclick = null }: Props = $props();
+    let { id, position, radius, bus, tram, selected = false, onclick = null }: Props = $props();
     let ctx: MapContext = getContext('map');
 
     let targetId = $derived(`i${id}`);

@@ -2,7 +2,7 @@
     import L from 'leaflet';
     import 'leaflet/dist/leaflet.css';
     import { setContext } from 'svelte';
-    import type { Point } from './scotland-yard';
+    import type { Point, Shape } from './scotland-yard';
 
     export interface MapContext {
         map: L.Map | undefined
@@ -15,12 +15,13 @@
 
     interface Props {
         minZoom: number
-        boundary: L.LatLngBounds
+        boundary: Shape
         onclick?: L.LeafletMouseEventHandlerFn | null
         children: any
     }
 
-    let { minZoom, boundary, onclick = null, children }: Props = $props()
+    let { minZoom, boundary: corners, onclick = null, children }: Props = $props()
+    const boundary = L.latLngBounds([corners.from.lat, corners.from.lon], [corners.to.lat, corners.to.lon])
     const scale = 1000
 
     let ctx: MapContext = $state({

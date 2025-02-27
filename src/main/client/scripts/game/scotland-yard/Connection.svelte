@@ -10,11 +10,11 @@
         width: number;
         type: Transport;
         shape: Shape
-        selected: boolean;
+        selected?: boolean;
         onclick?: L.LeafletMouseEventHandlerFn | null
     }
 
-    let { id, from, to, width, type, shape, selected, onclick = null }: Props = $props();
+    let { id, from, to, width, type, shape, selected = false, onclick = null }: Props = $props();
     let ctx: MapContext = getContext('map');
 
     let targetId = $derived(`c${id}`)
