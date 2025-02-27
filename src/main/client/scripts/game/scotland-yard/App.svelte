@@ -34,23 +34,48 @@
 
     const map: MapData = getData('map')
 
-    const points = $state(map.intersections.map((i) => {
+    interface Point {
+        id: number,
+        lat: number,
+        lon: number,
+        bus: boolean,
+        tram: boolean,
+        selected: boolean
+    }
+
+    const points: Point[] = $state(map.intersections.map((i) => {
         return {
             id: i.id,
             lat: i.pos.lat,
             lon: i.pos.lon,
             bus: true,
-            tram: true
+            tram: true,
+            selected: false
         }
     }))
     const radius = 5
+
+    const addIntersection = (e: L.LeafletMouseEvent) => {
+        points.push({
+            id: 0,
+            lat: e.latlng.lat,
+            lon: e.latlng.lng,
+            bus: false,
+            tram: false,
+            selected: false
+        })
+    }
+
+    const selectIntersection = (point: Point) => {
+        point.selected = !point.selected
+    }
 </script>
 
 <section bind:this={gameContainer} onfullscreenchange={() => isFullscreen = document.fullscreenElement != null}>
     <div class="map">
-        <Map {minZoom} boundary={mapBoundary}>
+        <Map {minZoom} boundary={mapBoundary} onclick={addIntersection}>
             {#each points as point}
-                <Intersection id={point.id} lat={point.lat} lon={point.lon} {radius} bus={point.bus} tram={point.tram}></Intersection>
+                <Intersection id={point.id} lat={point.lat} lon={point.lon} {radius} bus={point.bus} tram={point.tram} selected={point.selected} onclick={() => selectIntersection(point)}></Intersection>
             {/each}
         </Map>
     </div>

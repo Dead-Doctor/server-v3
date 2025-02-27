@@ -1,27 +1,46 @@
 <script lang="ts">
-    import { getContext } from "svelte";
-    import type { MapContext } from "./Map.svelte";
+    import { getContext } from 'svelte';
+    import type { MapContext } from './Map.svelte';
 
     interface Props {
-        id: number
-        lat: number
-        lon: number
-        radius: number
-        bus: boolean
-        tram: boolean
+        id: number;
+        lat: number;
+        lon: number;
+        radius: number;
+        bus: boolean;
+        tram: boolean;
+        selected: boolean;
+        onclick?: L.LeafletMouseEventHandlerFn | null
     }
 
-    const halfSize = 30
+    const halfSize = 30;
 
-    let { id, lat, lon, radius, bus, tram }: Props = $props()
-    let ctx: MapContext = getContext('map')
+    let { id, lat, lon, radius, bus, tram, selected, onclick = null }: Props = $props();
+    let ctx: MapContext = getContext('map');
 
-    let scale = $derived(radius / halfSize)
-    let x = $derived((lon - ctx.boundary.getWest()) / (ctx.boundary.getEast() - ctx.boundary.getWest()) * ctx.width)
-    let y = $derived((ctx.boundary.getNorth() - lat) / (ctx.boundary.getNorth() - ctx.boundary.getSouth()) * ctx.height)
+    let targetId = $derived(`i${id}`);
+
+    let scale = $derived(radius / halfSize);
+    
+    let x = $derived(((lon - ctx.boundary.getWest()) / (ctx.boundary.getEast() - ctx.boundary.getWest())) * ctx.width);
+    let y = $derived(
+        ((ctx.boundary.getNorth() - lat) / (ctx.boundary.getNorth() - ctx.boundary.getSouth())) * ctx.height
+    );
+
+    ctx.featureEventHandlers.push((target, e) => {
+        if (target !== targetId) return;
+        onclick?.(e)
+    });
 </script>
 
-<g data-intersection={id} class="intersection target" class:bus class:tram transform="translate({x} {y}) scale({scale}) translate(-{halfSize} -{halfSize})" >
+<g
+    data-target={targetId}
+    class="intersection target"
+    class:bus
+    class:tram
+    class:selected
+    transform="translate({x} {y}) scale({scale}) translate(-{halfSize} -{halfSize})"
+>
     <path class="half" d="M 0 30 A 30 30 0 0 1 60 30" stroke="black" stroke-width="3" />
     <path class="half bottom" d="M 0 30 A 30 30 0 0 0 60 30" stroke="black" stroke-width="3" />
     <path d="M 0 30 H 60" stroke="black" stroke-width="3" />
@@ -72,14 +91,16 @@
         &:hover {
             fill: red;
         }
-    }
 
-    /* .selected path,
-    .selected rect {
-        stroke: #002da8;
-    }
+        &.selected {
+            path,
+            rect {
+                stroke: #002da8;
+            }
 
-    .selected text {
-        fill: #002da8 !important;
-    } */
+            text {
+                fill: #002da8 !important;
+            }
+        }
+    }
 </style>
