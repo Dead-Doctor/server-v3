@@ -6,17 +6,9 @@
     import { getData } from "../../routing";
     import { transport, type MapData, type Point } from "./scotland-yard";
     import Connection from "./Connection.svelte";
+    import Fullscreen from "./Fullscreen.svelte";
 
-    let gameContainer: HTMLElement
     let isFullscreen = $state(false)
-
-    const toggleFullscreen = () => {
-        if (!isFullscreen) {
-            gameContainer.requestFullscreen();
-        } else if (document.exitFullscreen) {
-            document.exitFullscreen();
-        }
-    }
 
     const map: MapData = getData('map')
 
@@ -56,7 +48,7 @@
     })
 </script>
 
-<section bind:this={gameContainer} onfullscreenchange={() => isFullscreen = document.fullscreenElement != null}>
+<Fullscreen {isFullscreen}>
     <div class="map">
         <Map minZoom={map.minZoom} boundary={map.boundary}>
             {#each connections as c}
@@ -68,11 +60,16 @@
         </Map>
     </div>
     <div class="actions">
-        <button>XYZ</button>
+        <div>Mister X</div>
         <div class="spacing"></div>
-        <button onclick={toggleFullscreen}><Icon id={!isFullscreen ? 'fullscreen' : 'fullscreen-exit'}/></button>
+        <button>TEST</button>
+        <button>123</button>
+        <button>ABC</button>
+        <div class="spacing"></div>
+        <button><Icon id="gear"/></button>
+        <button onclick={() => isFullscreen = !isFullscreen}><Icon id={!isFullscreen ? 'fullscreen' : 'fullscreen-exit'}/></button>
     </div>
-</section>
+</Fullscreen>
 
 <style>
     :root {
@@ -80,21 +77,6 @@
         --bus-color: #008e59;
         --tram-color: #ff3900;
         --train-color: #000000;
-    }
-
-    section {
-        display: flex;
-        flex-direction: column;
-        height: 80vh;
-        background-color: var(--secondary);
-        border: var(--border);
-        border-radius: 1rem;
-        overflow: hidden;
-
-        &:fullscreen {
-            border: none;
-            border-radius: 0;
-        }
     }
 
     .map {
@@ -105,8 +87,14 @@
         display: flex;
         height: 3rem;
 
+        > * {
+            display: flex;
+            align-items: center;
+            padding: 0 1rem;
+        }
+
         :not(:first-child) {
-                border-left: var(--border);
+            border-left: var(--border);
         }
 
         .spacing {
@@ -115,7 +103,6 @@
 
         button {
             margin: 0;
-            padding: 0 1rem;
             border: none;
             border-radius: 0;
 
