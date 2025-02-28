@@ -45,7 +45,7 @@ object GameModule : Module {
                         other["Websockets"] = "/${WebsocketModule.path()}"
                         other["Lobby Admin"] = "/${LobbyModule.path()}/admin"
                     }
-                    addData("gameTypes", gameTypesInfo)
+                    addData("gameTypes", gameTypesInfo(call))
                     addData("otherGames", other)
                     addScript("${path()}/main")
                 }
@@ -78,14 +78,20 @@ object GameModule : Module {
                     val game = lobby.game ?: return@get call.respondRedirect("/${LobbyModule.path()}/${call.parameters["id"]}")
                     game.get(call)
                 }
+
+                also {
+                    with(type) {
+                        it.staticRoutes()
+                    }
+                }
             }
         }
     }
 
     fun getGameType(id: String) = gameTypes.find { it.id() == id }
 
-    val gameTypesInfo: List<GameType.Info>
-        get() = gameTypes.map { GameType.Info(it) }
+    fun gameTypesInfo(call: ApplicationCall): List<GameType.Info>
+        = gameTypes.map { GameType.Info(it, call) }
 
 }
 
@@ -95,9 +101,15 @@ interface GameType<T : Game<T>> {
     fun description(): String
     suspend fun create(channel: GameChannel, lobby: Lobby): T
 
+    fun links(call: ApplicationCall): MutableMap<String, String>? = null
+    /**
+     * **Warning!** - Should never define routes that clash with lobby ids.
+     */
+    fun Route.staticRoutes() {}
+
     @Serializable
-    data class Info(val id: String, val name: String, val description: String) {
-        constructor(type: GameType<*>) : this(type.id(), type.name(), type.description())
+    data class Info(val id: String, val name: String, val description: String, val links: MutableMap<String, String>?) {
+        constructor(type: GameType<*>, call: ApplicationCall) : this(type.id(), type.name(), type.description(), type.links(call))
     }
 }
 

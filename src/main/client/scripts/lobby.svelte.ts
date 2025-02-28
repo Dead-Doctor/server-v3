@@ -26,6 +26,7 @@ export interface GameType {
     id: string;
     name: string;
     description: string;
+    links: { [name: string]: string } | null
 }
 
 export let you: You = $state(getData('youInfo'));

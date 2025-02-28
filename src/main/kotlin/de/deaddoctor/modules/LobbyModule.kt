@@ -91,7 +91,7 @@ object LobbyModule : Module {
                     head {
                         addData("youInfo", YouInfo(call.trackedUser))
                         addData("lobbyInfo", Lobby.Info(lobby))
-                        addData("gameTypes", GameModule.gameTypesInfo)
+                        addData("gameTypes", GameModule.gameTypesInfo(call))
                         addData("gameSelected", lobby.gameSelected.id())
                         addData("gameRunning", lobby.game != null)
                         addScript("${path()}/main")
@@ -284,6 +284,9 @@ object LobbyModule : Module {
 
         suspend fun beginGame() {
             //TODO: configurable settings
+            // - dropdowns
+            // - sliders
+            // - player-dropdowns (exclusive)
             val channel = GameChannel(sendGame)
             //TODO: loading animation
             game = gameSelected.create(channel, this)

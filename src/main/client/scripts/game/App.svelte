@@ -37,22 +37,22 @@
         }
     };
 
-    const onKeyUp = (e: KeyboardEvent & { currentTarget: EventTarget & HTMLInputElement; }) => {
+    const onKeyUp = (e: KeyboardEvent & { currentTarget: EventTarget & HTMLInputElement }) => {
         if (e.code === 'Backspace') {
             const previous = e.currentTarget.previousElementSibling as HTMLInputElement | null;
             previous?.focus();
         }
     };
-    
-    const onPaste = (i: number) => (e: ClipboardEvent & { currentTarget: EventTarget & HTMLInputElement; }) => {
-        const text = e.clipboardData?.getData('text')
-        if (text === undefined) return
-        const filtered = text.toUpperCase().replace(/[^A-Z]/g, '')
-        if (filtered.length !== codeLength) return
 
-        e.preventDefault()
-        codeChars = filtered.split('')
-    }
+    const onPaste = (i: number) => (e: ClipboardEvent & { currentTarget: EventTarget & HTMLInputElement }) => {
+        const text = e.clipboardData?.getData('text');
+        if (text === undefined) return;
+        const filtered = text.toUpperCase().replace(/[^A-Z]/g, '');
+        if (filtered.length !== codeLength) return;
+
+        e.preventDefault();
+        codeChars = filtered.split('');
+    };
 
     $effect(() => {
         if (code.length === codeLength) {
@@ -117,7 +117,14 @@
         <div>
             <h3>{type.name}</h3>
             <p>{type.description}</p>
-            <a href="/lobby/new?game={type.id}">Create Lobby</a>
+            <div class="actions">
+                <a href="/lobby/new?game={type.id}">Create Lobby</a>
+                {#if type.links !== null}
+                    {#each Object.entries(type.links) as [name, href]}
+                        <a {href}>{name}</a>
+                    {/each}
+                {/if}
+            </div>
         </div>
     {/each}
 </section>
@@ -157,5 +164,10 @@
                 }
             }
         }
+    }
+
+    .actions {
+        display: flex;
+        gap: 1rem;
     }
 </style>
