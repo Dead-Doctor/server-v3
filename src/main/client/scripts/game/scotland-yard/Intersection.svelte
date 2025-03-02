@@ -4,7 +4,7 @@
     import type { Point } from './scotland-yard';
 
     interface Props {
-        id: number;
+        id: string;
         position: Point;
         radius: number;
         bus: boolean;

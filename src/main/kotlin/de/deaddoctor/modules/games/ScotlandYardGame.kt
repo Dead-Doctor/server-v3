@@ -41,7 +41,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                 if (!mapFolder.isDirectory) continue
                 loadMap(mapFolder)
             }
-            logger.info("Successfully loaded ${maps.size} map versions!")
+            logger.info("Successfully loaded ${maps.size} maps!")
         }
 
         private fun loadMap(folder: File) {
@@ -78,11 +78,17 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
 
                 get("{id}") {
                     val user = call.user
-                    if (user !is AccountUser || !user.admin) return@get call.respondRedirect("/${GameModule.path()}")
+                    val id = call.parameters["id"]
+                    if (user !is AccountUser || !user.admin || id == null) return@get call.respondRedirect("/${GameModule.path()}")
 
+                    val map = maps.find { it.id == id }
+                    if (map == null) return@get call.respondRedirect("/${GameModule.path()}")
+
+                    val version = map.versions.keys.max()
                     //TODO
                     call.respondPage("Scotland Yard Editor") {
                         head {
+                            addData("map", map.versions[version])
                             addScript("game/${id()}/editor/main")
                         }
                     }

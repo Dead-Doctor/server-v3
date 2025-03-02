@@ -9,7 +9,9 @@
     let container: HTMLElement
 
     $effect(() => {
-        if (!isFullscreen) {
+        if (isFullscreen == (document.fullscreenElement !== null)) return
+
+        if (isFullscreen) {
             container.requestFullscreen();
         } else if (document.exitFullscreen) {
             document.exitFullscreen();
@@ -17,7 +19,7 @@
     })
 </script>
 
-<section bind:this={container} onfullscreenchange={() => isFullscreen = document.fullscreenElement != null}>
+<section bind:this={container} onfullscreenchange={() => isFullscreen = document.fullscreenElement !== null}>
     {@render children?.()}
 </section>
 

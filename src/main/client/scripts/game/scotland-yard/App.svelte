@@ -1,5 +1,4 @@
 <script lang="ts">
-    import L from "leaflet";
     import Icon from "../../Icon.svelte";
     import Map from "./Map.svelte";
     import Intersection from "./Intersection.svelte";
@@ -48,14 +47,14 @@
     })
 </script>
 
-<Fullscreen {isFullscreen}>
+<Fullscreen bind:isFullscreen>
     <div class="map">
         <Map minZoom={map.minZoom} boundary={map.boundary}>
             {#each connections as c}
-                <Connection id={c.id} from={c.from} to={c.to} width={map.connectionWidth} shape={c.shape} type={c.type}></Connection>
+                <Connection id={c.id.toString()} from={c.from} to={c.to} width={map.connectionWidth} shape={c.shape} type={c.type}></Connection>
             {/each}
             {#each intersections as i}
-                <Intersection id={i.id} position={i.position} radius={map.intersectionRadius} bus={i.bus} tram={i.tram}></Intersection>
+                <Intersection id={i.id.toString()} position={i.position} radius={map.intersectionRadius} bus={i.bus} tram={i.tram}></Intersection>
             {/each}
         </Map>
     </div>

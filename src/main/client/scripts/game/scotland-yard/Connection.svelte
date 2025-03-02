@@ -4,7 +4,7 @@
     import { Points, transport, type Point, type Shape, type Transport } from './scotland-yard';
 
     interface Props {
-        id: number;
+        id: string;
         from: Point;
         to: Point;
         width: number;

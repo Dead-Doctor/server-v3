@@ -1,6 +1,6 @@
 import {mount} from 'svelte'
-import Main from './Main.svelte'
+import App from './App.svelte'
 
-mount(Main, {
+mount(App, {
     target: document.querySelector('main')!,
 })
