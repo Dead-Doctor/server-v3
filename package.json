@@ -22,7 +22,6 @@
     "vite": "^5.4.10"
   },
   "dependencies": {
-    "@iota/bcs": "^0.2.1",
     "leaflet": "^1.9.4"
   }
 }

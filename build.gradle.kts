@@ -44,7 +44,6 @@ dependencies {
     implementation(libs.kotlin.css)
 
     implementation(libs.logback.classic)
-    implementation(libs.bcs)
 
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.kotlin.test.junit)
