@@ -10,23 +10,33 @@
         bus: boolean;
         tram: boolean;
         selected?: boolean;
-        onclick?: L.LeafletMouseEventHandlerFn | null
+        onclick?: L.LeafletMouseEventHandlerFn | null;
+        cursor?: string;
     }
 
     const halfSize = 30;
 
-    let { id, position, radius, bus, tram, selected = false, onclick = null }: Props = $props();
+    let {
+        id,
+        position,
+        radius,
+        bus,
+        tram,
+        selected = false,
+        onclick = null,
+        cursor = onclick !== null ? 'pointer' : 'grab',
+    }: Props = $props();
     let ctx: MapContext = getContext('map');
 
     let targetId = $derived(`i${id}`);
 
     let scale = $derived(radius / halfSize);
-    
-    let { x, y } = $derived(ctx.projectPoint(position))
+
+    let { x, y } = $derived(ctx.projectPoint(position));
 
     ctx.featureEventHandlers.push((target, e) => {
         if (target !== targetId) return;
-        onclick?.(e)
+        onclick?.(e);
     });
 </script>
 
@@ -36,6 +46,7 @@
     class:bus
     class:tram
     class:selected
+    style="cursor: {cursor};"
     transform="translate({x} {y}) scale({scale}) translate(-{halfSize} -{halfSize})"
 >
     <path class="half" d="M 0 30 A 30 30 0 0 1 60 30" stroke="black" stroke-width="3" />
@@ -59,8 +70,6 @@
 
 <style>
     g {
-        cursor: pointer;
-
         .half {
             fill: var(--taxi-color);
         }

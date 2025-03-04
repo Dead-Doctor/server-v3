@@ -9,24 +9,35 @@
         to: Point;
         width: number;
         type: Transport;
-        shape: Shape
+        shape: Shape;
         selected?: boolean;
-        onclick?: L.LeafletMouseEventHandlerFn | null
+        onclick?: L.LeafletMouseEventHandlerFn | null;
+        cursor?: string;
     }
 
-    let { id, from, to, width, type, shape, selected = false, onclick = null }: Props = $props();
+    let {
+        id,
+        from,
+        to,
+        width,
+        type,
+        shape,
+        selected = false,
+        onclick = null,
+        cursor = onclick !== null ? 'pointer' : 'grab',
+    }: Props = $props();
     let ctx: MapContext = getContext('map');
 
-    let targetId = $derived(`c${id}`)
+    let targetId = $derived(`c${id}`);
 
-    let start = $derived(ctx.projectPoint(from))
-    let end = $derived(ctx.projectPoint(to))
-    let controlStart = $derived(ctx.projectPoint(Points.add(from, shape.from)))
-    let controlEndInverse = $derived(ctx.projectPoint(Points.add(to, shape.to)))
+    let start = $derived(ctx.projectPoint(from));
+    let end = $derived(ctx.projectPoint(to));
+    let controlStart = $derived(ctx.projectPoint(Points.add(from, shape.from)));
+    let controlEndInverse = $derived(ctx.projectPoint(Points.add(to, shape.to)));
 
     ctx.featureEventHandlers.push((target, e) => {
         if (target !== targetId) return;
-        onclick?.(e)
+        onclick?.(e);
     });
 </script>
 
@@ -36,6 +47,7 @@
     class:bus={type === transport.BUS}
     class:tram={type === transport.TRAM}
     class:train={type === transport.TRAIN}
+    style="cursor: {cursor};"
     d="M {start.x} {start.y} C {controlStart.x} {controlStart.y} {controlEndInverse.x} {controlEndInverse.y} {end.x} {end.y}"
     fill="none"
     stroke-width={width}

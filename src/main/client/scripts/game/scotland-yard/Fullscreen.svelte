@@ -25,6 +25,7 @@
 
 <style>
     section {
+        position: relative;
         display: flex;
         flex-direction: column;
         height: 80vh;

@@ -27,16 +27,17 @@ export const connectChannel = (pathname: string = location.pathname, port: numbe
     });
 
     socket.addEventListener('message', async (e: MessageEvent<Blob>) => {
-        const binaryData = await e.data.bytes()
-        if (port != null && binaryData[0] != port) return
+        const binaryData = await e.data.arrayBuffer()
+        const array = new Uint8Array(binaryData)
+        if (port != null && array[0] != port) return
 
         const offset = port == null ? 0 : 1
-        const id = binaryData[offset]
+        const id = array[offset]
         if (id < 0 || id >= receivers.length) return
         const receiver = receivers[id]
         
-        console.log(`[Channel] Received: ${binaryData}`);
-        receiver(binaryData.slice(offset + 1))
+        console.log(`[Channel] Received: ${array}`);
+        receiver(array.slice(offset + 1))
     })
 
     return {
