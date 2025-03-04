@@ -11,7 +11,7 @@ export interface Player {
     id: PlayerId;
     name: string;
     verified: boolean;
-    avatar: string | null | undefined;
+    avatar: string | null;
     active: boolean;
     score: number;
 }

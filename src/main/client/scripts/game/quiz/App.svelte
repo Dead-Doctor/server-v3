@@ -1,9 +1,9 @@
 <script lang="ts">
-    import { bcs } from "@iota/bcs";
     import { getData } from "../../routing";
     import { connectGameChannel } from "../game.svelte";
     import PlayerIcon from "../../lobby/PlayerIcon.svelte";
     import { isOperator, playerById } from "../../lobby.svelte";
+    import { bcs } from "../../bcs";
 
     interface Question {
         text: string
@@ -25,9 +25,9 @@
     let showResults = $derived(results != null)
 
     const channel = connectGameChannel()
-    const sendGuess = channel.destinationWith(bcs.option(bcs.u32()))
+    const sendGuess = channel.destinationWith(bcs.nullable(bcs.int))
     const sendFinish = channel.destination()
-    channel.receiverWith(onResults, bcs.vector(bcs.vector(bcs.string())))
+    channel.receiverWith(onResults, bcs.list(bcs.list(bcs.string)))
 
     function confirm() {
         if (!guessLocked) {
@@ -39,8 +39,8 @@
         }
     }
 
-    function onResults(data: Iterable<Iterable<string>> | null) {
-        results = data as string[][]
+    function onResults(data: string[][]) {
+        results = data
     }
 </script>
 

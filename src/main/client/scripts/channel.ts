@@ -1,15 +1,15 @@
-import type { BcsType } from "@iota/bcs";
+import type { Bcs } from "./bcs"
 
 export interface Channel {
     destination(): () => void
-    destinationWith<T>(dataType: BcsType<T>): (data: T) => void
+    destinationWith<T>(dataType: Bcs<T>): (data: T) => void
     receiver(handler: () => void): void
-    receiverWith<T>(handler: (data: T) => void, dataType: BcsType<T>): void
+    receiverWith<T>(handler: (data: T) => void, dataType: Bcs<T>): void
     disconnection(handler: (e: CloseEvent) => void): void
 }
 
 export const connectChannel = (pathname: string = location.pathname, port: number | null = null): Channel => {
-    const socket = new WebSocket((location.protocol === "https:" ? 'wss:' : 'ws:') + '//' + location.host + pathname + '/ws');
+    const socket = new WebSocket((location.protocol === "https:" ? 'wss:' : 'ws:') + '//' + location.host + pathname + '/channel');
 
     let destinationCount = 0;
     let receivers: ((data: Uint8Array) => void)[] = []
@@ -54,18 +54,19 @@ export const connectChannel = (pathname: string = location.pathname, port: numbe
                 socket.send(packet)
             }
         },
-        destinationWith<T>(dataType: BcsType<T>) {
+        destinationWith<T>(dataType: Bcs<T>) {
             const i = destinationCount++;
 
             return (data: T) => {
-                const binary = dataType.serialize(data).toBytes()
+                const binary = dataType.serialize(data)
 
                 const offset = port == null ? 0 : 1
-                const packet = new Uint8Array(offset + 1 + binary.length)
+
+                const packet = new Uint8Array(offset + 1 + binary.byteLength);
                 if (port != null)
                     packet[0] = port
                 packet[offset] = i
-                packet.set(binary, offset + 1)
+                packet.set(new Uint8Array(binary), offset + 1)
 
                 console.log(`[Channel] Sent: ${packet}`);
                 socket.send(packet)
@@ -74,9 +75,9 @@ export const connectChannel = (pathname: string = location.pathname, port: numbe
         receiver(handler: () => void) {
             receivers.push(handler)
         },
-        receiverWith<T>(handler: (data: T) => void, dataType: BcsType<T>) {
+        receiverWith<T>(handler: (data: T) => void, dataType: Bcs<T>) {
             receivers.push((data: Uint8Array) => {
-                handler(dataType.parse(data))
+                handler(dataType.deserialize(data.buffer))
             })
         },
         disconnection(handler: (e: CloseEvent) => void) {

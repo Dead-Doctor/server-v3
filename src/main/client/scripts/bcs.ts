@@ -12,20 +12,29 @@ export interface Bcs<T> extends BcsType<T> {
 const bcsType = <T>(type: BcsType<T>): Bcs<T> => ({
     ...type,
     serialize(value) {
-        const size = type.size(value)
+        const size = type.size(value);
         const buffer = new ArrayBuffer(size);
         const view = new DataView(buffer);
         const length = type.put(view, 0, value);
-        if (length != size) throw Error('Serialized byte array was not as long as expected.')
+        if (length != size)
+            throw Error(`Serialized byte array was only ${length} bytes long, but calculated size was ${size}.`);
         return buffer;
     },
     deserialize(buffer) {
         const view = new DataView(buffer);
         const [length, value] = type.take(view, 0);
-        if (length != buffer.byteLength) throw Error('Deserialization did not use the expected number of bytes.')
+        if (length != buffer.byteLength)
+            throw Error(
+                `Deserialization only used ${length} bytes, but expected ${buffer.byteLength} number of bytes.`
+            );
         return value;
     },
 });
+
+const print = <T>(label: string, value: T): T => {
+    console.log(label, value);
+    return value;
+};
 
 /**
  * Unsigned-LEB128 encoded number ([Wiki](https://en.wikipedia.org/wiki/LEB128))
@@ -49,13 +58,13 @@ const uleb128 = bcsType<number>({
         return i;
     },
     take: (view, start) => {
-        let i = 0
+        let i = 0;
         let value = 0;
         let shift = 0;
         while (true) {
             let byte = view.getUint8(start + i++);
             value |= (byte & 127) << shift;
-            if (byte & 128) break;
+            if ((byte & 128) === 0) break;
             shift += 7;
         }
         return [i, value];
@@ -71,7 +80,7 @@ const boolean = bcsType<boolean>({
         view.setUint8(i, value ? TRUE : FALSE);
         return 1;
     },
-    take: (view, i) => [1, view.getUint8(i) === TRUE],
+    take: (view, i) => [1, view.getUint8(print('boolean', i)) === TRUE],
 });
 
 const int = bcsType<number>({
@@ -80,7 +89,7 @@ const int = bcsType<number>({
         view.setInt32(i, value, true);
         return 4;
     },
-    take: (view, i) => [4, view.getInt32(i, true)],
+    take: (view, i) => [4, view.getInt32(print('int', i), true)],
 });
 
 const long = bcsType<bigint>({
@@ -122,7 +131,7 @@ const string = bcsType<string>({
         return i + encodeded.length;
     },
     take: (view, start) => {
-        const [i, length] = uleb128.take(view, start);
+        const [i, length] = uleb128.take(view, print('string', start));
         const array = new Uint8Array(view.buffer, start + i, length);
         return [i + length, textDecoder.decode(array)];
     },
@@ -133,59 +142,89 @@ const nullable = <T>(type: BcsType<T>) =>
         size: (value) => (value !== null ? 1 + type.size(value) : 1),
         put: (view, i, value) =>
             value !== null ? boolean.put(view, i, true) + type.put(view, i + 1, value) : boolean.put(view, i, false),
-        take: (view, i) => boolean.take(view, i) ? (() => {
-            const [length, value] = type.take(view, i + 1)
-            return [1 + length, value]
-        })() : [1, null],
+        take: (view, i) =>
+            boolean.take(view, print('nullable', i))[1]
+                ? (() => {
+                      const [length, value] = type.take(view, i + 1);
+                      return [1 + length, value];
+                  })()
+                : [1, null],
     });
 
 const list = <T>(type: BcsType<T>) =>
     bcsType<T[]>({
-        size: (values) => values.reduce((n, value) => n + type.size(value), 0),
+        size: (values) => uleb128.size(values.length) + values.reduce((n, value) => n + type.size(value), 0),
         put: (view, start, values) =>
             uleb128.put(view, start, values.length) +
             values.reduce((i, value) => i + type.put(view, start + 1 + i, value), 0),
         take: (view, start) => {
-            let [i, count] = uleb128.take(view, start)
+            let [i, count] = uleb128.take(view, start);
             const array = Array.from(Array(count), () => {
-                const [length, value] = type.take(view, start + i)
-                i += length
-                return value
-            })
-            return [i, array]
+                const [length, value] = type.take(view, start + i);
+                i += length;
+                return value;
+            });
+            return [i, array];
         },
     });
 
-const map = null
+const map = <K, V>(keyType: BcsType<K>, valueType: BcsType<V>) =>
+    bcsType<Map<K, V>>({
+        size: (map) =>
+            uleb128.size(map.size) +
+            map.entries().reduce((n, [key, value]) => n + keyType.size(key) + valueType.size(value), 0),
+        put: (view, start, map) =>
+            uleb128.put(view, start, map.size) +
+            map.entries().reduce((i, [key, value]) => {
+                i += keyType.put(view, start + i, key);
+                i += valueType.put(view, start + i, value);
+                return i;
+            }, 0),
+        take: (view, start) => {
+            let [i, count] = uleb128.take(view, start);
+            const map = new Map(
+                Array.from(Array(count), () => {
+                    const [keyLength, key] = keyType.take(view, start + i);
+                    i += keyLength;
+                    const [valueLength, value] = valueType.take(view, start + i);
+                    i += valueLength;
+                    return [key, value];
+                })
+            );
+            return [i, map];
+        },
+    });
 
-type Result<T extends BcsType<any>> = T extends BcsType<infer U> ? U : never
+type Result<T extends BcsType<any>> = T extends BcsType<infer U> ? U : never;
 
-const tuple = <T extends BcsType<any>[]>(types: T) => bcsType<{[I in keyof T]: Result<T[I]>}>({
-    size: (values) => types.reduce((n, type, i) => n + type.size(values[i]), 0),
-    put: (view, start, values) => types.reduce((n, type, i) => n + type.put(view, start + n, values[i]), 0),
-    take: (view, start) => {
-        let i = 0
-        const values = types.map((type, i) => {
-            const [n, value] = type.take(view, start + i)
-            i += n
-            return value
-        }) as {[I in keyof T]: Result<T[I]>}
-        return [i, values]
-    }
-})
+const tuple = <T extends BcsType<any>[]>(types: T) =>
+    bcsType<{ [I in keyof T]: Result<T[I]> }>({
+        size: (values) => types.reduce((n, type, i) => n + type.size(values[i]), 0),
+        put: (view, start, values) => types.reduce((n, type, i) => n + type.put(view, start + n, values[i]), 0),
+        take: (view, start) => {
+            let i = 0;
+            const values = types.map((type) => {
+                const [n, value] = type.take(view, start + i);
+                i += n;
+                return value;
+            }) as { [I in keyof T]: Result<T[I]> };
+            return [i, values];
+        },
+    });
 
 const struct = <T extends { [name: string]: BcsType<any> }>(object: T) =>
-    bcsType<{ [K in keyof T]: Result<T[K]>}>({
+    bcsType<{ [K in keyof T]: Result<T[K]> }>({
         size: (value) => Object.entries(object).reduce((total, [key, element]) => total + element.size(value[key]), 0),
         put: (view, start, value) =>
             Object.entries(object).reduce((i, [key, element]) => i + element.put(view, start + i, value[key]), 0),
-        take: (view, i) => {
+        take: (view, start) => {
+            let i = 0;
             const entries = Object.entries(object).map(([key, element]) => {
-                const value = element.take(view, i);
-                i += element.size(value);
+                const [length, value] = element.take(view, start + i);
+                i += length;
                 return [key, value];
             });
-            return Object.fromEntries(entries);
+            return [i, Object.fromEntries(entries)];
         },
     });
 

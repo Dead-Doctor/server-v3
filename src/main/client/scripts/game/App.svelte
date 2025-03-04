@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { bcs } from '@iota/bcs';
+    import { bcs } from '../bcs';
     import { connectChannel } from '../channel';
     import type { GameType } from '../lobby.svelte';
     import { getData } from '../routing';
@@ -8,7 +8,7 @@
     const otherGames: { [name: string]: string } = getData('otherGames');
 
     const channel = connectChannel();
-    const sendCode = channel.destinationWith(bcs.string());
+    const sendCode = channel.destinationWith(bcs.string);
 
     channel.receiver(onInvalid);
     channel.receiver(onSuccess);

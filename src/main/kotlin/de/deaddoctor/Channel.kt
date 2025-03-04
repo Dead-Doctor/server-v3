@@ -104,6 +104,7 @@ class Channel : ChannelEvents() {
     class Context(private val socket: Channel, val connection: Connection) {
         val user = connection.user
 
+        //TODO: maybe error when modified while executed?
         fun countConnections(user: User = connection.user) = socket.connections.count { it.user == user }
 
         suspend fun closeConnection(reason: CloseReason) {

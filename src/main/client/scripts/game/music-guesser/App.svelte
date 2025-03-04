@@ -1,5 +1,4 @@
 <script lang="ts">
-    import { bcs } from '@iota/bcs';
     import { connectGameChannel } from '../game.svelte';
     import { getData } from '../../routing';
     import { isOperator, playerById, you, type PlayerId } from '../../lobby.svelte';
@@ -10,23 +9,24 @@
     import Timeline from './Timeline.svelte';
     import Pin from './Pin.svelte';
     import PlayerIcon from '../../lobby/PlayerIcon.svelte';
+    import { bcs } from '../../bcs';
 
     interface Round {
         players: PlayerId[]
         questions: Question[]
-        results: Map<string, number> | null | undefined
+        results: Map<string, number> | null
     }
 
     interface Question {
         song: {
             previewUrl: string
-            trackName: string | null | undefined
-            artistName: string | null | undefined
-            artworkUrl: string | null | undefined
-            releaseYear: number | null | undefined
+            trackName: string | null
+            artistName: string | null
+            artworkUrl: string | null
+            releaseYear: number | null
         }
         showResult: boolean
-        guesses: Map<PlayerId, Guess> | null | undefined
+        guesses: Map<PlayerId, Guess> | null
     }
 
     interface Guess {
@@ -74,32 +74,35 @@
     let overriding = $state(false)
 
     const channel = connectGameChannel()
-    const sendGuess = channel.destinationWith(bcs.option(bcs.u32()))
-    const sendOverride = channel.destinationWith(bcs.u32())
+    const sendGuess = channel.destinationWith(bcs.nullable(bcs.int))
+    const sendOverride = channel.destinationWith(bcs.int)
     const sendNext = channel.destination()
     const sendFinish = channel.destination()
-    channel.receiverWith(onRound, bcs.struct('Round', {
-        players: bcs.vector(bcs.string()),
-        questions: bcs.vector(bcs.struct('Question', {
-            song: bcs.struct('Song', {
-                previewUrl: bcs.string(),
-                trackName: bcs.option(bcs.string()),
-                artistName: bcs.option(bcs.string()),
-                artworkUrl: bcs.option(bcs.string()),
-                releaseYear: bcs.option(bcs.u32())
-            }),
-            showResult: bcs.bool(),
-            guesses: bcs.option(bcs.map(bcs.string(), bcs.struct('Guess', {
-                year: bcs.u32(),
-                points: bcs.u32()
-            })))
-        })),
-        results: bcs.option(bcs.map(bcs.string(), bcs.u32()))
-    }))
+    const bcsSong = bcs.struct({
+        previewUrl: bcs.string,
+        trackName: bcs.nullable(bcs.string),
+        artistName: bcs.nullable(bcs.string),
+        artworkUrl: bcs.nullable(bcs.string),
+        releaseYear: bcs.nullable(bcs.int)
+    })
+    const bcsGuess = bcs.struct({
+        year: bcs.int,
+        points: bcs.int
+    })
+    const bcsQuestion = bcs.struct({
+        song: bcsSong,
+        showResult: bcs.boolean,
+        guesses: bcs.nullable(bcs.map(bcs.string, bcsGuess))
+    })
+    const bcsRound = bcs.struct({
+        players: bcs.list(bcs.string),
+        questions: bcs.list(bcsQuestion),
+        results: bcs.nullable(bcs.map(bcs.string, bcs.int))
+    })
+    channel.receiverWith(onRound, bcsRound)
     //TODO: use s32 in case of negative score
 
-    function onRound(data: any) {
-        const update = data as Round
+    function onRound(update: Round) {
         if (update.questions.length > round.questions.length) {
             guessLocked = false
             overriding = false

@@ -3,9 +3,9 @@
     import { connectChannel } from '../channel';
     import Leaderboard from '../Leaderboard.svelte';
     import Popup from '../Popup.svelte';
-    import { bcs } from '@iota/bcs';
     import { type PlayerId, type Player, type GameType, lobby, you, isOperator, playerById } from '../lobby.svelte';
     import type { Component } from 'svelte';
+    import { bcs, type BcsType } from '../bcs';
     type Props<T> = T extends Component<infer P, any, any> ? P : never;
 
     type PopupProps = Props<typeof Popup>
@@ -47,36 +47,37 @@
     });
 
     const channel = connectChannel();
-    const sendCheckName = channel.destinationWith(bcs.string())
-    const sendJoin = channel.destinationWith(bcs.string())
-    const sendPromote = channel.destinationWith(bcs.string())
-    const sendKick = channel.destinationWith(bcs.string())
-    const sendGameSelected = channel.destinationWith(bcs.string())
+    const sendCheckName = channel.destinationWith(bcs.string)
+    const sendJoin = channel.destinationWith(bcs.string)
+    const sendPromote = channel.destinationWith(bcs.string)
+    const sendKick = channel.destinationWith(bcs.string)
+    const sendGameSelected = channel.destinationWith(bcs.string)
     const sendBeginGame = channel.destination()
 
-    channel.receiverWith(onCheckedName, bcs.vector(bcs.string()))
-    channel.receiverWith(onJoin, bcs.string())
-    channel.receiverWith(onPlayerJoined, bcs.struct('Player', {
-        id: bcs.string(),
-        name: bcs.string(),
-        verified: bcs.bool(),
-        avatar: bcs.option(bcs.string()),
-        active: bcs.bool(),
-        score: bcs.u32(),
+    const bcsPlayer = bcs.struct({
+        id: bcs.string,
+        name: bcs.string,
+        verified: bcs.boolean,
+        avatar: bcs.nullable(bcs.string),
+        active: bcs.boolean,
+        score: bcs.int,
+    })
+    channel.receiverWith(onCheckedName, bcs.list(bcs.string))
+    channel.receiverWith(onJoin, bcs.string)
+    channel.receiverWith(onPlayerJoined, bcsPlayer)
+    channel.receiverWith(onPlayerActiveChanged, bcs.struct({
+        player: bcs.string,
+        active: bcs.boolean
     }))
-    channel.receiverWith(onPlayerActiveChanged, bcs.struct('PlayerActiveChanged', {
-        player: bcs.string(),
-        active: bcs.bool()
-    }))
-    channel.receiverWith(onPlayerScoreChanged, bcs.tuple([bcs.string(), bcs.u32()]))
-    channel.receiverWith(onHostChanged, bcs.string())
-    channel.receiverWith(onKicked, bcs.string())
-    channel.receiverWith(onGameSelected, bcs.string())
-    channel.receiverWith(onGameStarted, bcs.string())
+    channel.receiverWith(onPlayerScoreChanged, bcs.tuple<[BcsType<string>, BcsType<number>]>([bcs.string, bcs.int]))
+    channel.receiverWith(onHostChanged, bcs.string)
+    channel.receiverWith(onKicked, bcs.string)
+    channel.receiverWith(onGameSelected, bcs.string)
+    channel.receiverWith(onGameStarted, bcs.string)
     channel.receiver(onGameEnded)
 
-    function onCheckedName(errors: Iterable<string>) {
-        popup.inputErrors = [...errors];
+    function onCheckedName(errors: string[]) {
+        popup.inputErrors = errors;
         popup.buttonDisabled = popup.inputErrors.length != 0;
     }
 
@@ -94,7 +95,7 @@
         player.active = data.active;
     }
 
-    function onPlayerScoreChanged(data: readonly [PlayerId, number]) {
+    function onPlayerScoreChanged(data: [PlayerId, number]) {
         const player = playerById(data[0])!;
         player.score = data[1];
     }

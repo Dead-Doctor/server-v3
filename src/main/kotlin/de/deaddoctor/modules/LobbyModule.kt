@@ -99,7 +99,7 @@ object LobbyModule : Module {
                 }
             }
 
-            openChannel("ws", channel)
+            openChannel("channel", channel)
 
             suspend fun Channel.Context.connect() {
                 val lobby = connection.lobby

@@ -9,6 +9,11 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.modules.EmptySerializersModule
 
+/**
+ * Implementation of Binary Canonical Serialization (BCS)
+ * Additionally there is support for IEE754 floating point values.
+ * https://github.com/diem/bcs
+ */
 object Bcs {
     inline fun <reified T> encodeToBytes(value: T) = encodeToBytes(serializer(), value)
 
@@ -61,22 +66,24 @@ object Bcs {
         }
 
         override fun encodeInt(value: Int) {
-            for (i in 0..<4) {
+            for (i in 0..<Int.SIZE_BYTES) {
                 bytes.append((value ushr (i * 8)).toByte())
             }
         }
 
         override fun encodeLong(value: Long) {
-            TODO("Not yet implemented")
+            for (i in 0..<Long.SIZE_BYTES) {
+                bytes.append((value ushr (i * 8)).toByte())
+            }
         }
 
         // Floating-point numbers
         override fun encodeFloat(value: Float) {
-            TODO("Not yet implemented")
+            encodeInt(value.toRawBits())
         }
 
         override fun encodeDouble(value: Double) {
-            TODO("Not yet implemented")
+            encodeLong(value.toRawBits())
         }
 
         // Text

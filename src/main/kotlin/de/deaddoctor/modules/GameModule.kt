@@ -51,8 +51,7 @@ object GameModule : Module {
                 }
             }
         }
-        //TODO: should really be "channel"
-        openChannel("ws", channel)
+        openChannel("channel", channel)
 
         fun Channel.Context.onCode(code: String) {
             if (LobbyModule.lobbyExists(code)) sendSuccess.toConnection(connection, Unit)
