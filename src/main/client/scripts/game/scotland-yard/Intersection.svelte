@@ -27,14 +27,15 @@
         cursor = onclick !== null ? 'pointer' : 'grab',
     }: Props = $props();
     let ctx: MapContext = getContext('map');
+    let info = ctx()
 
     let targetId = $derived(`i${id}`);
 
     let scale = $derived(radius / halfSize);
 
-    let { x, y } = $derived(ctx.projectPoint(position));
+    let { x, y } = $derived(info.projectPoint(position));
 
-    ctx.featureEventHandlers.push((target, e) => {
+    info.featureEventHandlers.push((target, e) => {
         if (target !== targetId) return;
         onclick?.(e);
     });

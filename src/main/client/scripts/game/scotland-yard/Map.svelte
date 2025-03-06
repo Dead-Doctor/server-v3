@@ -4,14 +4,16 @@
     import { setContext } from 'svelte';
     import type { Point, Shape } from './scotland-yard';
 
-    export interface MapContext {
-        map: L.Map | undefined;
+    export interface MapInfo {
+        map: L.Map | null;
         boundary: L.LatLngBounds;
         width: number;
         height: number;
         projectPoint(point: Point): { x: number; y: number };
         featureEventHandlers: ((target: string, event: L.LeafletMouseEvent) => void)[];
     }
+
+    export type MapContext = () => MapInfo
 
     interface Props {
         minZoom: number;
@@ -22,64 +24,56 @@
     }
 
     let { minZoom, boundary: corners, onclick = null, cursor = 'grab', children }: Props = $props();
-    const boundary = L.latLngBounds([corners.from.lat, corners.from.lon], [corners.to.lat, corners.to.lon]);
     const scale = 1000;
 
-    let ctx: MapContext = $state({
-        map: undefined,
+    let map: L.Map | null = $state(null)
+    let boundary = $derived(L.latLngBounds([corners.from.lat, corners.from.lon], [corners.to.lat, corners.to.lon]))
+    
+    let size: L.Point = $derived.by(() => {
+        return map !== null ? L.bounds(
+            map.project(boundary.getNorthWest(), minZoom),
+            map.project(boundary.getSouthEast(), minZoom)
+        ).getSize() : L.point(10, 10)
+    })
+    let featureEventHandlers: ((target: string, event: L.LeafletMouseEvent) => void)[] = $state([])
+
+    let info: MapInfo = $derived({
+        map,
         boundary,
-        width: 100,
-        height: 100,
+        width: scale,
+        height: (size.y / size.x) * scale,
         projectPoint: (point) => ({
-            x: ((point.lon - ctx.boundary.getWest()) / (ctx.boundary.getEast() - ctx.boundary.getWest())) * ctx.width,
+            x: ((point.lon - info.boundary.getWest()) / (info.boundary.getEast() - info.boundary.getWest())) * info.width,
             y:
-                ((ctx.boundary.getNorth() - point.lat) / (ctx.boundary.getNorth() - ctx.boundary.getSouth())) *
-                ctx.height,
+                ((info.boundary.getNorth() - point.lat) / (info.boundary.getNorth() - info.boundary.getSouth())) *
+                info.height,
         }),
-        featureEventHandlers: [],
+        featureEventHandlers,
     });
-    setContext('map', ctx);
+    setContext('map', () => info);
 
     let svgElement: SVGElement;
+    let svgOverlay: L.SVGOverlay;
 
     const initializeMap = (node: HTMLElement) => {
-        ctx.map = L.map(node, {
+        map = L.map(node, {
             center: boundary.getCenter(),
             minZoom: minZoom,
             zoom: minZoom,
             maxBounds: boundary.pad(0.2),
         });
 
-        ctx.map.on('click', (e) => {
+        map.on('click', (e) => {
             onclick?.(e);
         });
 
         L.tileLayer('https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=6a53e8b25d114a5e9216df5bf9b5e9c8', {
             maxZoom: 19,
-        }).addTo(ctx.map);
+        }).addTo(map);
 
-        const topLeft = ctx.map.project(boundary.getNorthWest(), minZoom);
-        const bottomRight = ctx.map.project(boundary.getSouthEast(), minZoom);
-
-        const size = L.bounds(topLeft, bottomRight).getSize();
-
-        ctx.width = scale;
-        ctx.height = (size.y / size.x) * scale;
-
-        addOverlay();
-
-        return {
-            destroy() {
-                ctx.map?.remove();
-                ctx.map = undefined;
-            },
-        };
-    };
-
-    const addOverlay = () => {
-        const svgOverlay = L.svgOverlay(svgElement, boundary, {
+        svgOverlay = L.svgOverlay(svgElement, boundary, {
             interactive: true,
-        }).addTo(ctx.map!);
+        }).addTo(map);
 
         svgOverlay.on('click', (e) => {
             const source = e.originalEvent.target as Element;
@@ -87,22 +81,34 @@
             if (target === null) return;
 
             L.DomEvent.stopPropagation(e);
-            ctx.featureEventHandlers.forEach((handler) => handler(target.dataset.target!, e));
+            featureEventHandlers.forEach((handler) => handler(target.dataset.target!, e));
         });
+
+        return {
+            destroy() {
+                map?.remove();
+                map = null;
+            },
+        };
     };
 
     $effect(() => {
         svgElement.style.cursor = cursor;
     });
+
+    $effect(() => {
+        map?.setMaxBounds(boundary.pad(0.2))
+        svgOverlay.setBounds(boundary)
+    });
 </script>
 
 <template>
-    <svg width={ctx.width} height={ctx.height} viewBox="0 0 {ctx.width} {ctx.height}" bind:this={svgElement}>
-        <rect x="0" y="0" width={ctx.width} height={ctx.height} stroke="black" stroke-width="10" fill="none" />
+    <svg width={info.width} height={info.height} viewBox="0 0 {info.width} {info.height}" bind:this={svgElement}>
         {@render children?.()}
+        <rect x="0" y="0" width={info.width} height={info.height} stroke="black" stroke-width="10" fill="none" />
     </svg>
 </template>
-<div class="map" use:initializeMap onresize={() => ctx.map?.invalidateSize()}></div>
+<div class="map" use:initializeMap onresize={() => map?.invalidateSize()}></div>
 
 <style>
     .map {

@@ -100,7 +100,6 @@
         results: bcs.nullable(bcs.map(bcs.string, bcs.int))
     })
     channel.receiverWith(onRound, bcsRound)
-    //TODO: use s32 in case of negative score
 
     function onRound(update: Round) {
         if (update.questions.length > round.questions.length) {
@@ -108,7 +107,6 @@
             overriding = false
         }
         round = update
-        console.log(round)
     }
 
     channel.disconnection(e => {

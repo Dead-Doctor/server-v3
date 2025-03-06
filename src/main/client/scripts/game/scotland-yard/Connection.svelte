@@ -27,15 +27,16 @@
         cursor = onclick !== null ? 'pointer' : 'grab',
     }: Props = $props();
     let ctx: MapContext = getContext('map');
+    let info = ctx()
 
     let targetId = $derived(`c${id}`);
 
-    let start = $derived(ctx.projectPoint(from));
-    let end = $derived(ctx.projectPoint(to));
-    let controlStart = $derived(ctx.projectPoint(Points.add(from, shape.from)));
-    let controlEndInverse = $derived(ctx.projectPoint(Points.add(to, shape.to)));
+    let start = $derived(info.projectPoint(from));
+    let end = $derived(info.projectPoint(to));
+    let controlStart = $derived(info.projectPoint(Points.add(from, shape.from)));
+    let controlEndInverse = $derived(info.projectPoint(Points.add(to, shape.to)));
 
-    ctx.featureEventHandlers.push((target, e) => {
+    info.featureEventHandlers.push((target, e) => {
         if (target !== targetId) return;
         onclick?.(e);
     });

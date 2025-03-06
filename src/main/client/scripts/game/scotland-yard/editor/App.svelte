@@ -8,10 +8,11 @@
     import { transport, type MapData, type Point, type Shape, type Transport } from '../scotland-yard';
     import { connectChannel } from '../../../channel';
     import { bcs } from '../../../bcs';
+    import Marker from '../Marker.svelte';
 
     let isFullscreen = $state(false);
 
-    const map: MapData = getData('map');
+    let map: MapData = $state(getData('map'));
 
     const tools = {
         SELECT: 'select',
@@ -58,6 +59,7 @@
     const sendChangeConnection = channel.destinationWith(bcsConnection);
     const sendSave = channel.destination();
     const sendReset = channel.destination();
+    channel.receiverWith(onUpdateBoundary, bcsShape)
 
     interface IntersectionData {
         position: Point;
@@ -106,6 +108,8 @@
 
     const swapTool = (next: Tool) => {
         tool = tool === next ? null : next;
+
+        if (tool !== 'select') selection = null
     };
 
     const editBoundary = () => {
@@ -113,6 +117,26 @@
         tool = 'select';
         selection = { type: 'boundary' };
     };
+
+    type Side = 'from' | 'to'
+    const corners: [Side, Side][] = [
+        ['from', 'from'],
+        ['to', 'from'],
+        ['to', 'to'],
+        ['from', 'to']
+    ]
+    const moveBoundary = (latIdentifier: Side, lonIdentifier: Side) => ({ lat, lon }: Point) => {
+        map.boundary[latIdentifier].lat = lat
+        map.boundary[lonIdentifier].lon = lon
+        sendChangeBoundary(map.boundary)
+    }
+
+    function onUpdateBoundary(boundary: Shape) {
+        map.boundary = boundary
+    }
+
+    //TODO: make versioning system clear (loading, saving)
+    //TODO: show playericons of currently editing (connected) users
 </script>
 
 <Fullscreen bind:isFullscreen>
@@ -127,7 +151,7 @@
                     shape={c.shape}
                     type={c.type}
                     cursor={tool === 'select' ? 'pointer' : 'grab'}
-                ></Connection>
+                />
             {/each}
             {#each Object.entries(intersections) as [id, i] (id)}
                 <Intersection
@@ -137,8 +161,13 @@
                     bus={i.bus}
                     tram={i.tram}
                     cursor={tool !== null ? 'pointer' : 'grab'}
-                ></Intersection>
+                />
             {/each}
+            {#if selection?.type === 'boundary'}
+                {#each corners as corner}
+                    <Marker position={{ lat: map.boundary[corner[0]].lat, lon: map.boundary[corner[1]].lon }} ondrag={moveBoundary(...corner)} />
+                {/each}
+            {/if}
         </Map>
     </div>
     <div class="tools">

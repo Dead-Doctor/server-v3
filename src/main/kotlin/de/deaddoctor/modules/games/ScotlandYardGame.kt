@@ -65,6 +65,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
 
         private val currentChanges = mutableMapOf<String, EditorMap>()
         private val editorChannel = Channel()
+        private val sendUpdateBoundary = editorChannel.destination<Shape>()
 
         private val ApplicationCall.id: String?
             get() {
@@ -124,6 +125,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                     suspend fun Channel.Context.changeBoundary(boundary: Shape) {
                         val changes = changes ?: return closeConnection(reason)
                         changes.boundary = boundary
+                        sendUpdateBoundary.toAll(editorChannel.connections.filter { it != connection }, boundary)
                         //TODO: send updates
                     }
 

@@ -8,6 +8,8 @@ import kotlinx.serialization.encoding.CompositeEncoder
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.modules.EmptySerializersModule
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 /**
  * Implementation of Binary Canonical Serialization (BCS)
@@ -131,19 +133,19 @@ object Bcs {
         }
 
         override fun encodeByteElement(descriptor: SerialDescriptor, index: Int, value: Byte) {
-            TODO("Not yet implemented")
+            encodeByte(value)
         }
 
         override fun encodeCharElement(descriptor: SerialDescriptor, index: Int, value: Char) {
-            TODO("Not yet implemented")
+            encodeChar(value)
         }
 
         override fun encodeDoubleElement(descriptor: SerialDescriptor, index: Int, value: Double) {
-            TODO("Not yet implemented")
+            encodeDouble(value)
         }
 
         override fun encodeFloatElement(descriptor: SerialDescriptor, index: Int, value: Float) {
-            TODO("Not yet implemented")
+            encodeFloat(value)
         }
 
         override fun encodeInlineElement(descriptor: SerialDescriptor, index: Int): Encoder {
@@ -155,7 +157,7 @@ object Bcs {
         }
 
         override fun encodeLongElement(descriptor: SerialDescriptor, index: Int, value: Long) {
-            TODO("Not yet implemented")
+            encodeLong(value)
         }
 
         override fun <T> encodeSerializableElement(
@@ -247,11 +249,15 @@ object Bcs {
 
         // Floating-point numbers
         override fun decodeFloat(): Float {
-            TODO("Not yet implemented")
+            val result = buffer.view.getFloat(buffer.i)
+            buffer.i += Float.SIZE_BYTES
+            return result
         }
 
         override fun decodeDouble(): Double {
-            TODO("Not yet implemented")
+            val result = buffer.view.getDouble(buffer.i)
+            buffer.i += Double.SIZE_BYTES
+            return result
         }
 
         // Text
@@ -341,6 +347,7 @@ object Bcs {
         }
 
         class InputBuffer(private val bytes: ByteArray) {
+            val view: ByteBuffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
             var i = 0
 
             val remaining
