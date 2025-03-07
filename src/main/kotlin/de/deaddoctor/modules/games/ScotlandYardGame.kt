@@ -66,6 +66,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         private val currentChanges = mutableMapOf<String, EditorMap>()
         private val editorChannel = Channel()
         private val sendUpdateBoundary = editorChannel.destination<Shape>()
+        private val sendUpdateMinZoom = editorChannel.destination<Int>()
 
         private val ApplicationCall.id: String?
             get() {
@@ -126,13 +127,12 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                         val changes = changes ?: return closeConnection(reason)
                         changes.boundary = boundary
                         sendUpdateBoundary.toAll(editorChannel.connections.filter { it != connection }, boundary)
-                        //TODO: send updates
                     }
 
                     suspend fun Channel.Context.changeMinZoom(minZoom: Int) {
                         val changes = changes ?: return closeConnection(reason)
                         changes.minZoom = minZoom
-                        //TODO: send updates
+                        sendUpdateMinZoom.toAll(editorChannel.connections.filter { it != connection }, minZoom)
                     }
 
                     suspend fun Channel.Context.changeIntersectionRadius(radius: Double) {

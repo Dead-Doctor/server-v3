@@ -107,6 +107,7 @@ data class DiscordInfo(
 //    @SerialName("avatar_decoration")
     @SerialName("avatar_decoration_data")
     val avatarDecoration: String?,
+    val collectibles: String? = null
 )
 
 @Serializable

@@ -29,7 +29,7 @@
 
     //Settings
     let showSettings = $state(false);
-    let changeMinZoom = $state(map.minZoom);
+    let nextMinZoom = $state(map.minZoom);
 
     const channel = connectChannel();
     const bcsPoint = bcs.struct({
@@ -60,6 +60,7 @@
     const sendSave = channel.destination();
     const sendReset = channel.destination();
     channel.receiverWith(onUpdateBoundary, bcsShape)
+    channel.receiverWith(onUpdateMinZoom, bcs.int)
 
     interface IntersectionData {
         position: Point;
@@ -135,6 +136,15 @@
         map.boundary = boundary
     }
 
+    const changeMinZoom = () => {
+        sendChangeMinZoom(nextMinZoom)
+        onUpdateMinZoom(nextMinZoom)
+    }
+
+    function onUpdateMinZoom(minZoom: number) {
+        map.minZoom = minZoom;
+    }
+
     //TODO: make versioning system clear (loading, saving)
     //TODO: show playericons of currently editing (connected) users
 </script>
@@ -192,7 +202,8 @@
                     id="changeMinZoom"
                     min="0"
                     max="19"
-                    bind:value={changeMinZoom}
+                    bind:value={nextMinZoom}
+                    onchange={changeMinZoom}
                 />
             </div>
             <div class="actions">

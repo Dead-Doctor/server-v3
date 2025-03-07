@@ -100,6 +100,10 @@
         map?.setMaxBounds(boundary.pad(0.2))
         svgOverlay.setBounds(boundary)
     });
+
+    $effect(() => {
+        map?.setMinZoom(minZoom)
+    });
 </script>
 
 <template>
