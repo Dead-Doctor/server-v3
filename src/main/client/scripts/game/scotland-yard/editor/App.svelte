@@ -9,6 +9,7 @@
     import { connectChannel } from '../../../channel';
     import { bcs } from '../../../bcs';
     import Marker from '../Marker.svelte';
+    import Popup from '../../../Popup.svelte';
 
     let isFullscreen = $state(false);
 
@@ -30,6 +31,16 @@
     //Settings
     let showSettings = $state(false);
     let nextMinZoom = $state(map.minZoom);
+    let nextIntersectionRadius = $state(map.intersectionRadius);
+    let nextConnectionWidth = $state(map.connectionWidth);
+    
+    let popup = $state({
+        visible: false,
+        message: '',
+        closable: false,
+        buttonText: '',
+        buttonAction() {}
+    })
 
     const channel = connectChannel();
     const bcsPoint = bcs.struct({
@@ -42,7 +53,7 @@
     });
     const bcsIntersection = bcs.struct({
         id: bcs.int,
-        position: bcsPoint,
+        pos: bcsPoint,
     });
     const bcsConnection = bcs.struct({
         id: bcs.int,
@@ -51,6 +62,14 @@
         type: bcs.int,
         shape: bcsShape,
     });
+    const bcsMap = bcs.struct({
+        boundary: bcsShape,
+        minZoom: bcs.int,
+        intersectionRadius: bcs.double,
+        connectionWidth: bcs.double,
+        intersections: bcs.list(bcsIntersection),
+        connections: bcs.list(bcsConnection)
+    })
     const sendChangeBoundary = channel.destinationWith(bcsShape);
     const sendChangeMinZoom = channel.destinationWith(bcs.int);
     const sendChangeIntersectionRadius = channel.destinationWith(bcs.double);
@@ -61,6 +80,10 @@
     const sendReset = channel.destination();
     channel.receiverWith(onUpdateBoundary, bcsShape)
     channel.receiverWith(onUpdateMinZoom, bcs.int)
+    channel.receiverWith(onUpdateIntersectionRadius, bcs.double)
+    channel.receiverWith(onUpdateConnectionWidth, bcs.double)
+    channel.receiverWith(onSave, bcs.int)
+    // channel.receiverWith(onReset, bcsMap)
 
     interface IntersectionData {
         position: Point;
@@ -145,8 +168,60 @@
         map.minZoom = minZoom;
     }
 
+    const changeIntersectionRadius = () => {
+        sendChangeIntersectionRadius(nextIntersectionRadius)
+        onUpdateIntersectionRadius(nextIntersectionRadius)
+    }
+    
+    function onUpdateIntersectionRadius(intersectionRadius: number) {
+        map.intersectionRadius = intersectionRadius
+    }
+
+    const changeConnectionWidth = () => {
+        sendChangeConnectionWidth(nextConnectionWidth)
+        onUpdateConnectionWidth(nextConnectionWidth)
+    }
+
+    function onUpdateConnectionWidth(connectionWidth: number) {
+        map.connectionWidth = connectionWidth
+    }
+
     //TODO: make versioning system clear (loading, saving)
     //TODO: show playericons of currently editing (connected) users
+
+    const save = () => {
+        sendSave()
+    }
+
+    function onSave(version: number) {
+        popup = {
+            visible: true,
+            message: `Saved changes as version ${version}.`,
+            closable: false,
+            buttonText: 'Ok',
+            buttonAction() {
+                popup.visible = false
+            }
+        }
+    }
+
+    const reset = () => {
+        popup = {
+            visible: true,
+            message: 'Are you sure you want to discard all changes?',
+            closable: true,
+            buttonText: 'Reset',
+            buttonAction() {
+                sendReset()
+            }
+        }
+    }
+
+    //TODO: implement enum for bcs encoding
+    function onReset(data: MapData) {
+        // map = data
+        popup.visible = false
+    }
 </script>
 
 <Fullscreen bind:isFullscreen>
@@ -205,14 +280,41 @@
                     bind:value={nextMinZoom}
                     onchange={changeMinZoom}
                 />
+                <label for="changeIntersectionRadius">Intersection Radius:</label><input
+                    type="range"
+                    name="changeIntersectionRadius"
+                    id="changeIntersectionRadius"
+                    min="1"
+                    max="20"
+                    step="1"
+                    bind:value={nextIntersectionRadius}
+                    oninput={changeIntersectionRadius}
+                />
+                <label for="changeConnectionWidth">Connection width:</label><input
+                    type="range"
+                    name="changeConnectionWidth"
+                    id="changeConnectionWidth"
+                    min="0.2"
+                    max="5"
+                    step="0.1"
+                    bind:value={nextConnectionWidth}
+                    oninput={changeConnectionWidth}
+                />
             </div>
             <div class="actions">
-                <button>Save</button>
-                <button class="danger">Reset</button>
+                <button onclick={save}>Save</button>
+                <button class="danger" onclick={reset}>Reset</button>
             </div>
         </div>
     {/if}
 </Fullscreen>
+<Popup
+    bind:visible={popup.visible}
+    message={popup.message}
+    closable={popup.closable}
+    buttonText={popup.buttonText}
+    buttonAction={popup.buttonAction}
+/>
 
 <style>
     :root {

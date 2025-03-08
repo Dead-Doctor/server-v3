@@ -3,6 +3,7 @@ package de.deaddoctor.modules.games
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
 import de.deaddoctor.modules.*
+import de.deaddoctor.modules.games.ScotlandYardGame.Companion.sendSave
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -13,6 +14,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.encodeToStream
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -67,6 +69,9 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         private val editorChannel = Channel()
         private val sendUpdateBoundary = editorChannel.destination<Shape>()
         private val sendUpdateMinZoom = editorChannel.destination<Int>()
+        private val sendUpdateIntersectionRadius = editorChannel.destination<Double>()
+        private val sendUpdateConnectionWidth = editorChannel.destination<Double>()
+        private val sendSave = editorChannel.destination<Int>()
 
         private val ApplicationCall.id: String?
             get() {
@@ -124,30 +129,35 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
 
                     val reason = CloseReason(CloseReason.Codes.NORMAL, "Not allowed.")
                     suspend fun Channel.Context.changeBoundary(boundary: Shape) {
+                        if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.boundary = boundary
                         sendUpdateBoundary.toAll(editorChannel.connections.filter { it != connection }, boundary)
                     }
 
                     suspend fun Channel.Context.changeMinZoom(minZoom: Int) {
+                        if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.minZoom = minZoom
                         sendUpdateMinZoom.toAll(editorChannel.connections.filter { it != connection }, minZoom)
                     }
 
                     suspend fun Channel.Context.changeIntersectionRadius(radius: Double) {
+                        if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.intersectionRadius = radius
-                        //TODO: send updates
+                        sendUpdateIntersectionRadius.toAll(editorChannel.connections.filter { it != connection }, radius)
                     }
 
                     suspend fun Channel.Context.changeConnectionWidth(width: Double) {
+                        if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.connectionWidth = width
-                        //TODO: send updates
+                        sendUpdateConnectionWidth.toAll(editorChannel.connections.filter { it != connection }, width)
                     }
 
                     suspend fun Channel.Context.changeIntersections(intersection: Intersection) {
+                        if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.intersections.removeIf { it.id == intersection.id }
                         changes.intersections.add(intersection)
@@ -155,19 +165,42 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                     }
 
                     suspend fun Channel.Context.changeConnections(connection: Connection) {
+                        if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.connections.removeIf { it.id == connection.id }
                         changes.connections.add(connection)
                         //TODO: send updates
                     }
 
-                    fun Channel.Context.save() {
+                    suspend fun Channel.Context.save() {
+                        if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         //TODO: save current to new version
+                        val id = connection.session.call.id ?: return closeConnection(reason)
+                        val map = maps.find { it.id == id } ?: return closeConnection(reason)
+                        val changes = changes ?: return closeConnection(reason)
+
+                        val nextVersion = map.versions.keys.max() + 1
+                        val mapData = MapData(
+                            changes.boundary,
+                            changes.minZoom,
+                            changes.intersectionRadius,
+                            changes.connectionWidth,
+                            changes.intersections,
+                            changes.connections
+                        )
+                        map.versions[nextVersion] = mapData
+                        val folder = File(mapsFolder, id)
+                        val version = File(folder, "$nextVersion.json")
+                        jsonParser.encodeToStream(mapData, version.outputStream())
+
+                        logger.info("Saved version $nextVersion of map '${map.name}' to $version.")
+                        sendSave.toAll(nextVersion)
                     }
 
                     suspend fun Channel.Context.reset() {
                         val id = connection.session.call.id ?: return closeConnection(reason)
                         resetChanges(id)
+                        //TODO: send updates
                     }
                     editorChannel.receiver(Channel.Context::changeBoundary)
                     editorChannel.receiver(Channel.Context::changeMinZoom)
