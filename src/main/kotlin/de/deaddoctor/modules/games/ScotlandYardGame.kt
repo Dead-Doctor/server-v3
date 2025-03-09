@@ -3,7 +3,6 @@ package de.deaddoctor.modules.games
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
 import de.deaddoctor.modules.*
-import de.deaddoctor.modules.games.ScotlandYardGame.Companion.sendSave
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -72,6 +71,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         private val sendUpdateIntersectionRadius = editorChannel.destination<Double>()
         private val sendUpdateConnectionWidth = editorChannel.destination<Double>()
         private val sendSave = editorChannel.destination<Int>()
+        private val sendReset = editorChannel.destination<EditorMap>()
 
         private val ApplicationCall.id: String?
             get() {
@@ -201,6 +201,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                         val id = connection.session.call.id ?: return closeConnection(reason)
                         resetChanges(id)
                         //TODO: send updates
+                        val changes = changes!!
+                        sendReset.toAll(changes)
                     }
                     editorChannel.receiver(Channel.Context::changeBoundary)
                     editorChannel.receiver(Channel.Context::changeMinZoom)

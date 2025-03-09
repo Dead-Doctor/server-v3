@@ -30,9 +30,6 @@
 
     //Settings
     let showSettings = $state(false);
-    let nextMinZoom = $state(map.minZoom);
-    let nextIntersectionRadius = $state(map.intersectionRadius);
-    let nextConnectionWidth = $state(map.connectionWidth);
     
     let popup = $state({
         visible: false,
@@ -59,7 +56,7 @@
         id: bcs.int,
         from: bcs.int,
         to: bcs.int,
-        type: bcs.int,
+        type: bcs.enumeration(transport),
         shape: bcsShape,
     });
     const bcsMap = bcs.struct({
@@ -83,7 +80,7 @@
     channel.receiverWith(onUpdateIntersectionRadius, bcs.double)
     channel.receiverWith(onUpdateConnectionWidth, bcs.double)
     channel.receiverWith(onSave, bcs.int)
-    // channel.receiverWith(onReset, bcsMap)
+    channel.receiverWith(onReset, bcsMap)
 
     interface IntersectionData {
         position: Point;
@@ -98,35 +95,39 @@
         shape: Shape;
     }
 
-    const intersections: { [id: number]: IntersectionData } = $state({});
-    const connections: { [id: number]: ConnectionData } = $state({});
+    let intersections: { [id: number]: IntersectionData } = $state({});
+    let connections: { [id: number]: ConnectionData } = $state({});
 
-    for (const i of map.intersections) {
-        intersections[i.id] = {
-            position: i.pos,
-            bus: false,
-            tram: false,
-        };
-    }
-
-    for (const c of map.connections) {
-        const from = intersections[c.from];
-        const to = intersections[c.to];
-        if (c.type === transport.BUS) {
-            from.bus = true;
-            from.bus = true;
-        } else if (c.type === transport.TRAM) {
-            to.tram = true;
-            to.tram = true;
+    const deriveMap = () => {
+        intersections = {}
+        connections = {}
+        for (const i of map.intersections) {
+            intersections[i.id] = {
+                position: i.pos,
+                bus: false,
+                tram: false,
+            };
         }
+        for (const c of map.connections) {
+            const from = intersections[c.from];
+            const to = intersections[c.to];
+            if (c.type === transport.BUS) {
+                from.bus = true;
+                from.bus = true;
+            } else if (c.type === transport.TRAM) {
+                to.tram = true;
+                to.tram = true;
+            }
 
-        connections[c.id] = {
-            from: c.from,
-            to: c.to,
-            type: c.type,
-            shape: c.shape,
-        };
+            connections[c.id] = {
+                from: c.from,
+                to: c.to,
+                type: c.type,
+                shape: c.shape,
+            };
+        }
     }
+    deriveMap()
 
     const positionById = (id: number) => intersections[id].position;
 
@@ -160,28 +161,21 @@
     }
 
     const changeMinZoom = () => {
-        sendChangeMinZoom(nextMinZoom)
-        onUpdateMinZoom(nextMinZoom)
+        sendChangeMinZoom(map.minZoom)
+    }
+    const changeIntersectionRadius = () => {
+        sendChangeIntersectionRadius(map.intersectionRadius)
+    }
+    const changeConnectionWidth = () => {
+        sendChangeConnectionWidth(map.connectionWidth)
     }
 
     function onUpdateMinZoom(minZoom: number) {
         map.minZoom = minZoom;
     }
-
-    const changeIntersectionRadius = () => {
-        sendChangeIntersectionRadius(nextIntersectionRadius)
-        onUpdateIntersectionRadius(nextIntersectionRadius)
-    }
-    
     function onUpdateIntersectionRadius(intersectionRadius: number) {
         map.intersectionRadius = intersectionRadius
     }
-
-    const changeConnectionWidth = () => {
-        sendChangeConnectionWidth(nextConnectionWidth)
-        onUpdateConnectionWidth(nextConnectionWidth)
-    }
-
     function onUpdateConnectionWidth(connectionWidth: number) {
         map.connectionWidth = connectionWidth
     }
@@ -217,9 +211,14 @@
         }
     }
 
-    //TODO: implement enum for bcs encoding
     function onReset(data: MapData) {
-        // map = data
+        map.boundary = data.boundary
+        map.minZoom = data.minZoom
+        map.intersectionRadius = data.intersectionRadius
+        map.connectionWidth = data.connectionWidth
+        map.intersections = data.intersections
+        map.connections = data.connections
+        deriveMap()
         popup.visible = false
     }
 </script>
@@ -277,7 +276,7 @@
                     id="changeMinZoom"
                     min="0"
                     max="19"
-                    bind:value={nextMinZoom}
+                    bind:value={map.minZoom}
                     onchange={changeMinZoom}
                 />
                 <label for="changeIntersectionRadius">Intersection Radius:</label><input
@@ -287,7 +286,7 @@
                     min="1"
                     max="20"
                     step="1"
-                    bind:value={nextIntersectionRadius}
+                    bind:value={map.intersectionRadius}
                     oninput={changeIntersectionRadius}
                 />
                 <label for="changeConnectionWidth">Connection width:</label><input
@@ -297,7 +296,7 @@
                     min="0.2"
                     max="5"
                     step="0.1"
-                    bind:value={nextConnectionWidth}
+                    bind:value={map.connectionWidth}
                     oninput={changeConnectionWidth}
                 />
             </div>

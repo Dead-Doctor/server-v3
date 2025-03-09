@@ -137,6 +137,17 @@ const string = bcsType<string>({
     },
 });
 
+const enumeration = <T extends { [name: symbol]: string }>(type: T) =>
+    bcsType<T[keyof T]>({
+        size: (value) => uleb128.size(Object.values(type).indexOf(value)),
+        put: (view, i, value) => uleb128.put(view, i, Object.values(type).indexOf(value)),
+        take: (view, i) => {
+            const [length, value] = uleb128.take(view, i)
+            const values = Object.values(type) as T[keyof T][]
+            return [length, values[value]]
+        },
+    })
+
 const nullable = <T>(type: BcsType<T>) =>
     bcsType<T | null>({
         size: (value) => (value !== null ? 1 + type.size(value) : 1),
@@ -236,6 +247,7 @@ export const bcs = {
     float,
     double,
     string,
+    enumeration,
     nullable,
     list,
     map,

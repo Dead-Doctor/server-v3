@@ -100,7 +100,7 @@ object Bcs {
 
         // Specials
         override fun encodeEnum(enumDescriptor: SerialDescriptor, index: Int) {
-            TODO("Not yet implemented")
+            encodeULEB128(index)
         }
 
         @ExperimentalSerializationApi
@@ -273,7 +273,7 @@ object Bcs {
 
         // Specials
         override fun decodeEnum(enumDescriptor: SerialDescriptor): Int {
-            TODO("Not yet implemented")
+            return decodeULEB128()
         }
 
         @ExperimentalSerializationApi
