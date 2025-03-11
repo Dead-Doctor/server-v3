@@ -63,14 +63,14 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                 "Edit Maps" to "/game/${id()}/editor"
             ) else null
 
-        private val currentChanges = mutableMapOf<String, MutibleMapData>()
+        private val currentChanges = mutableMapOf<String, MutableMapData>()
         private val editorChannel = Channel()
         private val sendUpdateBoundary = editorChannel.destination<Shape>()
         private val sendUpdateMinZoom = editorChannel.destination<Int>()
         private val sendUpdateIntersectionRadius = editorChannel.destination<Double>()
         private val sendUpdateConnectionWidth = editorChannel.destination<Double>()
         private val sendSave = editorChannel.destination<Int>()
-        private val sendReset = editorChannel.destination<MutibleMapData>()
+        private val sendReset = editorChannel.destination<MutableMapData>()
 
         private val ApplicationCall.id: String?
             get() {
@@ -79,7 +79,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                 return if (user is AccountUser && user.admin && id != null) id
                 else null
             }
-        private val Channel.Context.changes: MutibleMapData?
+        private val Channel.Context.changes: MutableMapData?
             get() = connection.session.call.id?.let { currentChanges[it] }
 
         override fun Route.staticRoutes() {
@@ -97,10 +97,10 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                 }
 
                 route("{id}") {
-                    fun resetChanges(id: String): MutibleMapData? {
+                    fun resetChanges(id: String): MutableMapData? {
                         val map = maps.find { it.id == id } ?: return null
                         val base = map.versions[map.version]!!
-                        val changes = MutibleMapData(
+                        val changes = MutableMapData(
                             base.boundary,
                             base.minZoom,
                             base.intersectionRadius,
@@ -217,7 +217,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         }
 
         @Serializable
-        data class MutibleMapData(
+        data class MutableMapData(
             var boundary: Shape,
             var minZoom: Int,
             var intersectionRadius: Double,
