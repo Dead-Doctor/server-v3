@@ -1,10 +1,6 @@
 <script lang="ts">
     import { getData } from "../../../routing";
-
-    interface MapInfo {
-        id: string,
-        name: string
-    }
+    import type { MapInfo } from "../scotland-yard";
 
     const maps: MapInfo[] = getData('maps')
 </script>
@@ -15,7 +11,7 @@
     {#each maps as map}
         <div>
             <h3>{map.name}</h3>
-            <p>Authors: ???</p>
+            <p>Version: {map.version}</p>
             <a href="/game/scotland-yard/editor/{map.id}">Edit</a>
         </div>
     {/each}

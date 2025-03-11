@@ -31,11 +31,6 @@ const bcsType = <T>(type: BcsType<T>): Bcs<T> => ({
     },
 });
 
-const print = <T>(label: string, value: T): T => {
-    console.log(label, value);
-    return value;
-};
-
 /**
  * Unsigned-LEB128 encoded number ([Wiki](https://en.wikipedia.org/wiki/LEB128))
  */
@@ -80,7 +75,7 @@ const boolean = bcsType<boolean>({
         view.setUint8(i, value ? TRUE : FALSE);
         return 1;
     },
-    take: (view, i) => [1, view.getUint8(print('boolean', i)) === TRUE],
+    take: (view, i) => [1, view.getUint8(i) === TRUE],
 });
 
 const int = bcsType<number>({
@@ -89,7 +84,7 @@ const int = bcsType<number>({
         view.setInt32(i, value, true);
         return 4;
     },
-    take: (view, i) => [4, view.getInt32(print('int', i), true)],
+    take: (view, i) => [4, view.getInt32(i, true)],
 });
 
 const long = bcsType<bigint>({
@@ -126,12 +121,12 @@ const string = bcsType<string>({
     put: (view, start, value) => {
         const array = new Uint8Array(view.buffer, start);
         let i = uleb128.put(view, start, value.length);
-        const encodeded = textEncoder.encode(value);
-        array.set(encodeded, i);
-        return i + encodeded.length;
+        const encoded = textEncoder.encode(value);
+        array.set(encoded, i);
+        return i + encoded.length;
     },
     take: (view, start) => {
-        const [i, length] = uleb128.take(view, print('string', start));
+        const [i, length] = uleb128.take(view, start);
         const array = new Uint8Array(view.buffer, start + i, length);
         return [i + length, textDecoder.decode(array)];
     },
@@ -154,7 +149,7 @@ const nullable = <T>(type: BcsType<T>) =>
         put: (view, i, value) =>
             value !== null ? boolean.put(view, i, true) + type.put(view, i + 1, value) : boolean.put(view, i, false),
         take: (view, i) =>
-            boolean.take(view, print('nullable', i))[1]
+            boolean.take(view, i)[1]
                 ? (() => {
                       const [length, value] = type.take(view, i + 1);
                       return [1 + length, value];

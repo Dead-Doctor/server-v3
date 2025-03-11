@@ -5,7 +5,7 @@
     import Connection from '../Connection.svelte';
     import Fullscreen from '../Fullscreen.svelte';
     import Intersection from '../Intersection.svelte';
-    import { transport, type MapData, type Point, type Shape, type Transport } from '../scotland-yard';
+    import { transport, type MapData, type MapInfo, type Point, type Shape, type Transport } from '../scotland-yard';
     import { connectChannel } from '../../../channel';
     import { bcs } from '../../../bcs';
     import Marker from '../Marker.svelte';
@@ -13,7 +13,8 @@
 
     let isFullscreen = $state(false);
 
-    let map: MapData = $state(getData('map'));
+    let info: MapInfo = $state(getData('map'))
+    let map: MapData = $state(getData('changes'));
 
     const tools = {
         SELECT: 'select',
@@ -180,14 +181,15 @@
         map.connectionWidth = connectionWidth
     }
 
-    //TODO: make versioning system clear (loading, saving)
     //TODO: show playericons of currently editing (connected) users
+    // -> maybe message in corner 'Editing v65 (dd) (user)'
 
     const save = () => {
         sendSave()
     }
 
     function onSave(version: number) {
+        info.version = version
         popup = {
             visible: true,
             message: `Saved changes as version ${version}.`,
@@ -253,6 +255,7 @@
                 {/each}
             {/if}
         </Map>
+        <span class="info">Editing {info.name} v{info.version}</span>
     </div>
     <div class="tools">
         <button class:active={tool === 'select'} onclick={() => swapTool('select')}>Select Tool</button>
@@ -325,6 +328,18 @@
 
     .map {
         flex-grow: 1;
+        position: relative;
+
+        .info {
+            position: absolute;
+            top: 0;
+            right: 0;
+            margin: 1rem;
+            color: white;
+            font-weight: 600;
+            text-shadow: black 0 0 4px, black 0 0 6px;
+            z-index: 400;
+        }
     }
 
     .tools {

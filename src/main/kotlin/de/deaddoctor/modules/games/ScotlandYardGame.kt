@@ -10,7 +10,6 @@ import io.ktor.websocket.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.Transient
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
@@ -64,14 +63,14 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                 "Edit Maps" to "/game/${id()}/editor"
             ) else null
 
-        private val currentChanges = mutableMapOf<String, EditorMap>()
+        private val currentChanges = mutableMapOf<String, MutibleMapData>()
         private val editorChannel = Channel()
         private val sendUpdateBoundary = editorChannel.destination<Shape>()
         private val sendUpdateMinZoom = editorChannel.destination<Int>()
         private val sendUpdateIntersectionRadius = editorChannel.destination<Double>()
         private val sendUpdateConnectionWidth = editorChannel.destination<Double>()
         private val sendSave = editorChannel.destination<Int>()
-        private val sendReset = editorChannel.destination<EditorMap>()
+        private val sendReset = editorChannel.destination<MutibleMapData>()
 
         private val ApplicationCall.id: String?
             get() {
@@ -80,7 +79,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                 return if (user is AccountUser && user.admin && id != null) id
                 else null
             }
-        private val Channel.Context.changes: EditorMap?
+        private val Channel.Context.changes: MutibleMapData?
             get() = connection.session.call.id?.let { currentChanges[it] }
 
         override fun Route.staticRoutes() {
@@ -91,18 +90,17 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
 
                     call.respondPage("Scotland Yard Editor") {
                         head {
-                            addData("maps", maps)
+                            addData("maps", maps.map { Map.Info(it.id, it.name, it.version) })
                             addScript("game/${id()}/editor/load")
                         }
                     }
                 }
 
                 route("{id}") {
-                    fun resetChanges(id: String): EditorMap? {
+                    fun resetChanges(id: String): MutibleMapData? {
                         val map = maps.find { it.id == id } ?: return null
-                        val version = map.versions.keys.max()
-                        val base = map.versions[version]!!
-                        val changes = EditorMap(
+                        val base = map.versions[map.version]!!
+                        val changes = MutibleMapData(
                             base.boundary,
                             base.minZoom,
                             base.intersectionRadius,
@@ -116,11 +114,13 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
 
                     get {
                         val id = call.id ?: return@get call.respondRedirect("/${GameModule.path()}")
+                        val map = maps.find { it.id == id } ?: return@get call.respondRedirect("/${GameModule.path()}")
                         val changes = currentChanges[id] ?: resetChanges(id)
 
                         call.respondPage("Scotland Yard Editor") {
                             head {
-                                addData("map", changes)
+                                addData("map", Map.Info(map.id, map.name, map.version))
+                                addData("changes", changes)
                                 addScript("game/${id()}/editor/main")
                             }
                         }
@@ -179,7 +179,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                         val map = maps.find { it.id == id } ?: return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
 
-                        val nextVersion = map.versions.keys.max() + 1
+                        val nextVersion = map.version + 1
                         val mapData = MapData(
                             changes.boundary,
                             changes.minZoom,
@@ -217,7 +217,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         }
 
         @Serializable
-        data class EditorMap(
+        data class MutibleMapData(
             var boundary: Shape,
             var minZoom: Int,
             var intersectionRadius: Double,
@@ -233,14 +233,19 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         }
     }
 
-    @Serializable
     data class Map(
         val id: String,
         val name: String,
-        @Transient val versions: MutableMap<Int, MapData> = mutableMapOf()
+        val versions: MutableMap<Int, MapData> = mutableMapOf()
     ) {
+        val version: Int
+            get() = versions.keys.max()
+
         @Serializable
         data class Saved(val name: String)
+
+        @Serializable
+        data class Info(val id: String, val name: String, val version: Int)
     }
 
     @Serializable
