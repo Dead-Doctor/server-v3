@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { bcs } from './bcs';
+import { bcs } from '../scripts/bcs';
 
 const toArray = (buffer: ArrayBufferLike) => Array.from(new Uint8Array(buffer));
 const fromArray = (array: number[]) => new Uint8Array(array).buffer;

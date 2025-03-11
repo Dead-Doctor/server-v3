@@ -338,6 +338,7 @@
             color: white;
             font-weight: 600;
             text-shadow: black 0 0 4px, black 0 0 6px;
+            pointer-events: none;
             z-index: 400;
         }
     }
