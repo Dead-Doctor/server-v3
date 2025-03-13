@@ -6,6 +6,7 @@
     import { transport, type MapData, type Point } from './scotland-yard';
     import Connection from './Connection.svelte';
     import Fullscreen from './Fullscreen.svelte';
+    import { connectGameChannel } from '../game.svelte';
 
     const ticket = {
         TAXI: transport.TAXI,
@@ -29,6 +30,8 @@
 
     let showTickets = $state(false);
     let selectedTicket: Ticket | null = $state(null);
+    
+    const channel = connectGameChannel()
 
     interface IntersectionPoint {
         id: number;

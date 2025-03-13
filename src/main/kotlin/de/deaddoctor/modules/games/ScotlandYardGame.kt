@@ -229,7 +229,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
 
     override suspend fun get(call: ApplicationCall) {
         call.respondGame(ScotlandYardGame) {
-            addData("map", maps.single().versions[62])
+            val map = maps.single()
+            addData("map", map.versions[map.version])
         }
     }
 
