@@ -1,3 +1,5 @@
+export type Enum<T extends {}> = T[keyof T];
+
 export interface MapInfo {
     id: string;
     name: string;
@@ -32,7 +34,7 @@ export const transport = {
     TRAM: 'tram',
     TRAIN: 'train',
 } as const;
-export type Transport = (typeof transport)[keyof typeof transport];
+export type Transport = Enum<typeof transport>;
 
 export interface Shape {
     from: Point;
@@ -50,3 +52,14 @@ export const Points = {
         lon: a.lon + b.lon,
     }),
 };
+
+export const playerType = {
+    MISTERX: 'misterX',
+    DETECTIVE1: 'detective1',
+    DETECTIVE2: 'detective2',
+    DETECTIVE3: 'detective3',
+    DETECTIVE4: 'detective4',
+    DETECTIVE5: 'detective5',
+    DETECTIVE6: 'detective6',
+}
+export type PlayerType = Enum<typeof playerType>;

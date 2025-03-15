@@ -3,10 +3,11 @@
     import Map from './Map.svelte';
     import Intersection from './Intersection.svelte';
     import { getData } from '../../routing';
-    import { transport, type MapData, type Point } from './scotland-yard';
+    import { transport, type Enum, type MapData, type Point } from './scotland-yard';
     import Connection from './Connection.svelte';
     import Fullscreen from './Fullscreen.svelte';
     import { connectGameChannel } from '../game.svelte';
+    import Player from './Player.svelte';
 
     const ticket = {
         TAXI: transport.TAXI,
@@ -15,7 +16,7 @@
         MULTI: 'multi',
         DOUBLE: 'double',
     } as const;
-    type Ticket = (typeof ticket)[keyof typeof ticket];
+    type Ticket = Enum<typeof ticket>;
 
     const ticketNames: { [ticket: string]: string } = {};
     ticketNames[ticket.TAXI] = 'Taxi';
@@ -106,6 +107,7 @@
                     tram={i.tram}
                 ></Intersection>
             {/each}
+            <Player type="misterX" position={{lat: 51.223184, lon: 6.782727}} size={map.intersectionRadius * 4}></Player>
         </Map>
         <div class="tickets" class:enabled={showTickets}>
             {#each Object.values(ticket) as t}

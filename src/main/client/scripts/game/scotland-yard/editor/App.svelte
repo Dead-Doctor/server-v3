@@ -5,7 +5,7 @@
     import Connection from '../Connection.svelte';
     import Fullscreen from '../Fullscreen.svelte';
     import Intersection from '../Intersection.svelte';
-    import { transport, type MapData, type MapInfo, type Point, type Shape, type Transport } from '../scotland-yard';
+    import { transport, type Enum, type MapData, type MapInfo, type Point, type Shape, type Transport } from '../scotland-yard';
     import { connectChannel } from '../../../channel';
     import { bcs } from '../../../bcs';
     import Marker from '../Marker.svelte';
@@ -20,8 +20,8 @@
         SELECT: 'select',
         ADD: 'add',
     } as const;
+    type Tool = Enum<typeof tools>;
 
-    type Tool = (typeof tools)[keyof typeof tools];
     let tool: Tool | null = $state(null);
     let selection:
         | { type: 'boundary' }
