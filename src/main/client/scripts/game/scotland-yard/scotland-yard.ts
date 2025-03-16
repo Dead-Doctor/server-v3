@@ -54,12 +54,12 @@ export const Points = {
 };
 
 export const playerType = {
-    MISTERX: 'misterX',
+    MISTER_X: 'misterX',
     DETECTIVE1: 'detective1',
     DETECTIVE2: 'detective2',
     DETECTIVE3: 'detective3',
     DETECTIVE4: 'detective4',
     DETECTIVE5: 'detective5',
     DETECTIVE6: 'detective6',
-}
+} as const;
 export type PlayerType = Enum<typeof playerType>;

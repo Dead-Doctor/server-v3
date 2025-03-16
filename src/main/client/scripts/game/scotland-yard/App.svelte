@@ -3,7 +3,7 @@
     import Map from './Map.svelte';
     import Intersection from './Intersection.svelte';
     import { getData } from '../../routing';
-    import { transport, type Enum, type MapData, type Point } from './scotland-yard';
+    import { playerType, transport, type Enum, type MapData, type PlayerType, type Point } from './scotland-yard';
     import Connection from './Connection.svelte';
     import Fullscreen from './Fullscreen.svelte';
     import { connectGameChannel } from '../game.svelte';
@@ -28,6 +28,7 @@
     let isFullscreen = $state(false);
 
     const map: MapData = getData('map');
+    const positions: { [type: string]: number } = $state(getData('positions'))
 
     let showTickets = $state(false);
     let selectedTicket: Ticket | null = $state(null);
@@ -107,7 +108,10 @@
                     tram={i.tram}
                 ></Intersection>
             {/each}
-            <Player type="misterX" position={{lat: 51.223184, lon: 6.782727}} size={map.intersectionRadius * 4}></Player>
+            {#each Object.entries(positions) as [type, id]}
+                {@const intersection = findIntersectionById(id)!}
+                <Player type={type as PlayerType} position={intersection.position} size={map.intersectionRadius * 4}></Player>
+            {/each}
         </Map>
         <div class="tickets" class:enabled={showTickets}>
             {#each Object.values(ticket) as t}

@@ -146,7 +146,10 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
                         if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.intersectionRadius = radius
-                        sendUpdateIntersectionRadius.toAll(editorChannel.connections.filter { it != connection }, radius)
+                        sendUpdateIntersectionRadius.toAll(
+                            editorChannel.connections.filter { it != connection },
+                            radius
+                        )
                     }
 
                     suspend fun Channel.Context.changeConnectionWidth(width: Double) {
@@ -227,10 +230,20 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         )
     }
 
+    private val mapInfo = maps.single()
+    private val map = mapInfo.versions[mapInfo.version]!!
+    private val positions = mutableMapOf<PlayerType, Int>()
+
+    init {
+        for (type in PlayerType.entries) {
+            positions[type] = map.intersections.random().id
+        }
+    }
+
     override suspend fun get(call: ApplicationCall) {
         call.respondGame(ScotlandYardGame) {
-            val map = maps.single()
-            addData("map", map.versions[map.version])
+            addData("map", map)
+            addData("positions", positions)
         }
     }
 
@@ -285,4 +298,15 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
 
     @Serializable
     data class Point(val lat: Double, val lon: Double)
+
+    @Serializable
+    enum class PlayerType {
+        @SerialName("misterX") MISTER_X,
+        @SerialName("detective1") DETECTIVE1,
+        @SerialName("detective2") DETECTIVE2,
+        @SerialName("detective3") DETECTIVE3,
+        @SerialName("detective4") DETECTIVE4,
+        @SerialName("detective5") DETECTIVE5,
+        @SerialName("detective6") DETECTIVE6
+    }
 }
