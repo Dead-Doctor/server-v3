@@ -114,9 +114,9 @@
             const to = intersections[c.to];
             if (c.type === transport.BUS) {
                 from.bus = true;
-                from.bus = true;
+                to.bus = true;
             } else if (c.type === transport.TRAM) {
-                to.tram = true;
+                from.tram = true;
                 to.tram = true;
             }
 

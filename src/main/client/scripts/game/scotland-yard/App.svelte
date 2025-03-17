@@ -3,11 +3,13 @@
     import Map from './Map.svelte';
     import Intersection from './Intersection.svelte';
     import { getData } from '../../routing';
-    import { playerType, transport, type Enum, type MapData, type PlayerType, type Point } from './scotland-yard';
+    import { playerType, transport, type Enum, type MapData, type PlayerType, type Point, type Transport, type Shape } from './scotland-yard';
     import Connection from './Connection.svelte';
     import Fullscreen from './Fullscreen.svelte';
     import { connectGameChannel } from '../game.svelte';
     import Player from './Player.svelte';
+
+    //TODO: scripts are included multiple times
 
     const ticket = {
         TAXI: transport.TAXI,
@@ -25,59 +27,98 @@
     ticketNames[ticket.MULTI] = 'Multi';
     ticketNames[ticket.DOUBLE] = '2x';
 
-    let isFullscreen = $state(false);
+    interface IntersectionData {
+        position: Point;
+        bus: boolean;
+        tram: boolean;
+        connections: number[]
+    }
+
+    interface ConnectionData {
+        from: number;
+        to: number;
+        type: Transport;
+        shape: Shape;
+    }
 
     const map: MapData = getData('map');
+
+    let intersections: { [id: number]: IntersectionData } = {};
+    let connections: { [id: number]: ConnectionData } = {};
+
+    for (const i of map.intersections) {
+        intersections[i.id] = {
+            position: i.pos,
+            bus: false,
+            tram: false,
+            connections: []
+        };
+    }
+
+    for (const c of map.connections) {
+        const from = intersections[c.from];
+        const to = intersections[c.to];
+
+        from.connections.push(c.id)
+        to.connections.push(c.id)
+        if (c.type === transport.BUS) {
+            from.bus = true;
+            to.bus = true;
+        } else if (c.type === transport.TRAM) {
+            from.tram = true;
+            to.tram = true;
+        }
+
+        connections[c.id] = {
+            from: c.from,
+            to: c.to,
+            type: c.type,
+            shape: c.shape,
+        };
+    }
+
+    const you = playerType.MISTER_X;
+    
+    let isFullscreen = $state(false);
+
     const positions: { [type: string]: number } = $state(getData('positions'))
 
     let showTickets = $state(false);
     let selectedTicket: Ticket | null = $state(null);
+
+    const availableConnections = $derived(intersections[positions[you]].connections)
     
     const channel = connectGameChannel()
 
-    interface IntersectionPoint {
-        id: number;
-        position: Point;
-        bus: boolean;
-        tram: boolean;
-    }
-
-    const intersections: IntersectionPoint[] = map.intersections.map((i) => {
-        return {
-            id: i.id,
-            position: i.pos,
-            bus: false,
-            tram: false,
-        };
-    });
-
-    const findIntersectionById = (id: number) => intersections.find((i) => i.id === id);
-
-    const connections = map.connections.map((c) => {
-        const i1 = findIntersectionById(c.from)!;
-        const i2 = findIntersectionById(c.to)!;
-        if (c.type === transport.BUS) {
-            i1.bus = true;
-            i2.bus = true;
-        } else if (c.type === transport.TRAM) {
-            i1.tram = true;
-            i2.tram = true;
-        }
-        return {
-            id: c.id,
-            from: i1.position,
-            to: i2.position,
-            type: c.type,
-            shape: c.shape,
-        };
-    });
+    let availableTickets: Ticket[] = []
 
     const beginTurn = () => {
         showTickets = true;
+
+        let taxi = false
+        let bus = false
+        let tram = false
+        for (const id of availableConnections) {
+            const connection = connections[id]
+            switch (connection.type) {
+                case transport.TAXI: taxi = true; break;
+                case transport.BUS: bus = true; break;
+                case transport.TRAM: tram = true; break;
+            }
+        }
+
+        if (taxi) availableTickets.push(ticket.TAXI)
+        if (bus) availableTickets.push(ticket.BUS)
+        if (tram) availableTickets.push(ticket.TRAM)
+        availableTickets.push(ticket.MULTI)
+        availableTickets.push(ticket.DOUBLE)
+
+        console.log(availableTickets)
     };
 
     const endTurn = () => {
         showTickets = false;
+        availableTickets = []
         selectedTicket = null;
     };
 
@@ -89,19 +130,19 @@
 <Fullscreen bind:isFullscreen>
     <div class="map">
         <Map minZoom={map.minZoom} boundary={map.boundary}>
-            {#each connections as c}
+            {#each Object.entries(connections) as [id, c]}
                 <Connection
-                    id={c.id.toString()}
-                    from={c.from}
-                    to={c.to}
+                    id={id.toString()}
+                    from={intersections[c.from].position}
+                    to={intersections[c.to].position}
                     width={map.connectionWidth}
                     shape={c.shape}
                     type={c.type}
                 ></Connection>
             {/each}
-            {#each intersections as i}
+            {#each Object.entries(intersections) as [id, i]}
                 <Intersection
-                    id={i.id.toString()}
+                    id={id.toString()}
                     position={i.position}
                     radius={map.intersectionRadius}
                     bus={i.bus}
@@ -109,8 +150,7 @@
                 ></Intersection>
             {/each}
             {#each Object.entries(positions) as [type, id]}
-                {@const intersection = findIntersectionById(id)!}
-                <Player type={type as PlayerType} position={intersection.position} size={map.intersectionRadius * 4}></Player>
+                <Player type={type as PlayerType} position={intersections[id].position} size={map.intersectionRadius * 4}></Player>
             {/each}
         </Map>
         <div class="tickets" class:enabled={showTickets}>
