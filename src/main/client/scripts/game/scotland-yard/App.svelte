@@ -3,7 +3,16 @@
     import Map from './Map.svelte';
     import Intersection from './Intersection.svelte';
     import { getData } from '../../routing';
-    import { playerType, transport, type Enum, type MapData, type PlayerType, type Point, type Transport, type Shape } from './scotland-yard';
+    import {
+        playerType,
+        transport,
+        type Enum,
+        type MapData,
+        type PlayerType,
+        type Point,
+        type Transport,
+        type Shape,
+    } from './scotland-yard';
     import Connection from './Connection.svelte';
     import Fullscreen from './Fullscreen.svelte';
     import { connectGameChannel } from '../game.svelte';
@@ -31,7 +40,7 @@
         position: Point;
         bus: boolean;
         tram: boolean;
-        connections: number[]
+        connections: number[];
     }
 
     interface ConnectionData {
@@ -51,7 +60,7 @@
             position: i.pos,
             bus: false,
             tram: false,
-            connections: []
+            connections: [],
         };
     }
 
@@ -59,8 +68,8 @@
         const from = intersections[c.from];
         const to = intersections[c.to];
 
-        from.connections.push(c.id)
-        to.connections.push(c.id)
+        from.connections.push(c.id);
+        to.connections.push(c.id);
         if (c.type === transport.BUS) {
             from.bus = true;
             to.bus = true;
@@ -78,47 +87,45 @@
     }
 
     const you = playerType.MISTER_X;
-    
+
     let isFullscreen = $state(false);
 
-    const positions: { [type: string]: number } = $state(getData('positions'))
+    const positions: { [type: string]: number } = $state(getData('positions'));
 
     let showTickets = $state(false);
     let selectedTicket: Ticket | null = $state(null);
 
-    const availableConnections = $derived(intersections[positions[you]].connections)
-    
-    const channel = connectGameChannel()
+    const availableConnections = $derived(intersections[positions[you]].connections);
 
-    let availableTickets: Ticket[] = []
+    const channel = connectGameChannel();
+
+    const availableTickets: { [ticket: string]: boolean } = {};
+    availableTickets[ticket.MULTI] = true;
+    availableTickets[ticket.DOUBLE] = true;
 
     const beginTurn = () => {
         showTickets = true;
 
-        let taxi = false
-        let bus = false
-        let tram = false
+        availableTickets[ticket.TAXI] = false;
+        availableTickets[ticket.BUS] = false;
+        availableTickets[ticket.TRAM] = false;
         for (const id of availableConnections) {
-            const connection = connections[id]
+            const connection = connections[id];
+            console.log(connection)
             switch (connection.type) {
-                case transport.TAXI: taxi = true; break;
-                case transport.BUS: bus = true; break;
-                case transport.TRAM: tram = true; break;
+                case transport.TAXI:
+                    availableTickets[ticket.TAXI] = true; break;
+                case transport.BUS:
+                    availableTickets[ticket.BUS] = true; break;
+                case transport.TRAM:
+                    availableTickets[ticket.TRAM] = true; break;
             }
         }
-
-        if (taxi) availableTickets.push(ticket.TAXI)
-        if (bus) availableTickets.push(ticket.BUS)
-        if (tram) availableTickets.push(ticket.TRAM)
-        availableTickets.push(ticket.MULTI)
-        availableTickets.push(ticket.DOUBLE)
-
-        console.log(availableTickets)
+        console.log(availableTickets);
     };
 
     const endTurn = () => {
         showTickets = false;
-        availableTickets = []
         selectedTicket = null;
     };
 
@@ -150,7 +157,11 @@
                 ></Intersection>
             {/each}
             {#each Object.entries(positions) as [type, id]}
-                <Player type={type as PlayerType} position={intersections[id].position} size={map.intersectionRadius * 4}></Player>
+                <Player
+                    type={type as PlayerType}
+                    position={intersections[id].position}
+                    size={map.intersectionRadius * 4}
+                ></Player>
             {/each}
         </Map>
         <div class="tickets" class:enabled={showTickets}>
@@ -158,7 +169,7 @@
                 <button
                     class={t}
                     disabled={!showTickets}
-                    class:active={selectedTicket === null || selectedTicket === t}
+                    class:active={(selectedTicket === null && availableTickets[t]) || selectedTicket === t}
                     onclick={() => selectTicket(t)}>{ticketNames[t]}</button
                 >
             {/each}
@@ -241,12 +252,16 @@
                 }
 
                 &:not(:disabled) {
-                    &:hover {
-                        font-weight: 600;
-                    }
-
                     &.active {
                         filter: none;
+
+                        &:hover {
+                            font-weight: 600;
+                        }
+                    }
+
+                    &:not(.active) {
+                        cursor: not-allowed;
                     }
                 }
             }
