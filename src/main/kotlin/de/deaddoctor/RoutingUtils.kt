@@ -106,7 +106,7 @@ object ViteBuild {
         for (imported in entry.imports) {
             val chunk = manifest[imported]!!
             linkCss(chunk.css)
-            link { rel = "modulepreload"; href = "/${entry.file}" }
+            link { rel = "modulepreload"; href = "/${chunk.file}" }
         }
     }
     

@@ -20,8 +20,6 @@
     import Player from './Player.svelte';
     import { you, type PlayerId } from '../../lobby.svelte';
 
-    //TODO: scripts are included multiple times
-
     const ticket = {
         TAXI: transport.TAXI,
         BUS: transport.BUS,
