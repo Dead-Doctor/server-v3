@@ -3,6 +3,7 @@ package de.deaddoctor.modules.games
 import de.deaddoctor.*
 import de.deaddoctor.ViteBuild.addScript
 import de.deaddoctor.modules.*
+import de.deaddoctor.modules.LobbyModule.YouInfo
 import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -232,17 +233,28 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
 
     private val mapInfo = maps.single()
     private val map = mapInfo.versions[mapInfo.version]!!
-    private val positions = mutableMapOf<PlayerType, Int>()
+    private val roles = mutableMapOf<Role, TrackedUser?>()
+    private val positions = mutableMapOf<Role, Int>()
 
     init {
-        for (type in PlayerType.entries) {
+        for (type in Role.entries) {
             positions[type] = map.intersections.random().id
         }
+        roles[Role.MISTER_X] = lobby.activePlayers.keys.first()
+        roles[Role.DETECTIVE1] = null
+        roles[Role.DETECTIVE2] = null
+        roles[Role.DETECTIVE3] = null
+        roles[Role.DETECTIVE4] = null
+        roles[Role.DETECTIVE5] = null
+        roles[Role.DETECTIVE6] = null
     }
 
     override suspend fun get(call: ApplicationCall) {
         call.respondGame(ScotlandYardGame) {
+            addData("youInfo", YouInfo(call.trackedUser))
+            addData("lobbyInfo", lobbyInfo)
             addData("map", map)
+            addData("roles", roles.mapValues { it.value?.id })
             addData("positions", positions)
         }
     }
@@ -300,7 +312,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
     data class Point(val lat: Double, val lon: Double)
 
     @Serializable
-    enum class PlayerType {
+    enum class Role {
         @SerialName("misterX") MISTER_X,
         @SerialName("detective1") DETECTIVE1,
         @SerialName("detective2") DETECTIVE2,

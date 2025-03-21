@@ -53,7 +53,7 @@ export const Points = {
     }),
 };
 
-export const playerType = {
+export const role = {
     MISTER_X: 'misterX',
     DETECTIVE1: 'detective1',
     DETECTIVE2: 'detective2',
@@ -62,4 +62,4 @@ export const playerType = {
     DETECTIVE5: 'detective5',
     DETECTIVE6: 'detective6',
 } as const;
-export type PlayerType = Enum<typeof playerType>;
+export type Role = Enum<typeof role>;

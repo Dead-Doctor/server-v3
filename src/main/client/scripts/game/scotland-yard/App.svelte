@@ -3,12 +3,13 @@
     import Map from './Map.svelte';
     import Intersection from './Intersection.svelte';
     import { getData } from '../../routing';
+    import "../../lobby.svelte";
     import {
-        playerType,
+        role,
         transport,
         type Enum,
         type MapData,
-        type PlayerType,
+        type Role,
         type Point,
         type Transport,
         type Shape,
@@ -17,6 +18,7 @@
     import Fullscreen from './Fullscreen.svelte';
     import { connectGameChannel } from '../game.svelte';
     import Player from './Player.svelte';
+    import { you, type PlayerId } from '../../lobby.svelte';
 
     //TODO: scripts are included multiple times
 
@@ -29,12 +31,13 @@
     } as const;
     type Ticket = Enum<typeof ticket>;
 
-    const ticketNames: { [ticket: string]: string } = {};
-    ticketNames[ticket.TAXI] = 'Taxi';
-    ticketNames[ticket.BUS] = 'Bus';
-    ticketNames[ticket.TRAM] = 'Tram';
-    ticketNames[ticket.MULTI] = 'Multi';
-    ticketNames[ticket.DOUBLE] = '2x';
+    const ticketNames: { [_ in Ticket]: string } = {
+        [ticket.TAXI]: 'Taxi',
+        [ticket.BUS]: 'Bus',
+        [ticket.TRAM]: 'Tram',
+        [ticket.MULTI]: 'Multi',
+        [ticket.DOUBLE]: '2x',
+    };
 
     interface IntersectionData {
         position: Point;
@@ -85,31 +88,39 @@
             shape: c.shape,
         };
     }
-
-    const you = playerType.MISTER_X;
-
+    
     let isFullscreen = $state(false);
+    
+    const roles: { [_ in Role]: PlayerId | null } = $state(getData('roles'));
+    const yourRole = $derived(Object.entries(roles).find(([_, id]) => id === you.id)?.[0])
+    const spectating = $derived(yourRole === undefined)
 
     const positions: { [type: string]: number } = $state(getData('positions'));
 
     let showTickets = $state(false);
     let selectedTicket: Ticket | null = $state(null);
 
-    const availableConnections = $derived(intersections[positions[you]].connections);
+    const availableConnections = $derived(!spectating ? intersections[positions[yourRole!]].connections : null);
 
     const channel = connectGameChannel();
 
-    const availableTickets: { [ticket: string]: boolean } = {};
-    availableTickets[ticket.MULTI] = true;
-    availableTickets[ticket.DOUBLE] = true;
-
+    const availableTickets: { [_ in Ticket]: boolean } = {
+        [ticket.TAXI]: false,
+        [ticket.BUS]: false,
+        [ticket.TRAM]: false,
+        [ticket.MULTI]: true,
+        [ticket.DOUBLE]: true,
+    };
+    
     const beginTurn = () => {
+        if (spectating) throw new Error('Illegal State: Began turn while spectating!');
+        
         showTickets = true;
 
         availableTickets[ticket.TAXI] = false;
         availableTickets[ticket.BUS] = false;
         availableTickets[ticket.TRAM] = false;
-        for (const id of availableConnections) {
+        for (const id of availableConnections!) {
             const connection = connections[id];
             console.log(connection)
             switch (connection.type) {
@@ -156,9 +167,9 @@
                     tram={i.tram}
                 ></Intersection>
             {/each}
-            {#each Object.entries(positions) as [type, id]}
+            {#each Object.entries(positions) as [role, id]}
                 <Player
-                    type={type as PlayerType}
+                    role={role as Role}
                     position={intersections[id].position}
                     size={map.intersectionRadius * 4}
                 ></Player>
