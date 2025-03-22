@@ -154,6 +154,11 @@
                     width={map.connectionWidth}
                     shape={c.shape}
                     type={c.type}
+                    disabled={!(selectedTicket === ticket.MULTI
+                    || (selectedTicket === ticket.TAXI && c.type === transport.TAXI)
+                    || (selectedTicket === ticket.BUS && c.type === transport.BUS)
+                    || (selectedTicket === ticket.TRAM && c.type === transport.TRAM))
+                    || availableConnections === null || id !in availableConnections}
                 ></Connection>
             {/each}
             {#each Object.entries(intersections) as [id, i]}

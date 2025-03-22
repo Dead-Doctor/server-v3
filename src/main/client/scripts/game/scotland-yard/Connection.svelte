@@ -10,6 +10,7 @@
         width: number;
         type: Transport;
         shape: Shape;
+        disabled?: boolean;
         selected?: boolean;
         onclick?: L.LeafletMouseEventHandlerFn | null;
         cursor?: string;
@@ -22,6 +23,7 @@
         width,
         type,
         shape,
+        disabled = false,
         selected = false,
         onclick = null,
         cursor = onclick !== null ? 'pointer' : 'grab',
@@ -43,11 +45,12 @@
 </script>
 
 <path
-    class:target={onclick !== null}
+    class:target={!disabled && onclick !== null}
     class:taxi={type === transport.TAXI}
     class:bus={type === transport.BUS}
     class:tram={type === transport.TRAM}
     class:train={type === transport.TRAIN}
+    class:disabled
     style="cursor: {cursor};"
     d="M {start.x} {start.y} C {controlStart.x} {controlStart.y} {controlEndInverse.x} {controlEndInverse.y} {end.x} {end.y}"
     fill="none"
@@ -69,5 +72,9 @@
 
     .train {
         stroke: var(--train-color);
+    }
+
+    .disabled {
+        stroke: var(--background);
     }
 </style>
