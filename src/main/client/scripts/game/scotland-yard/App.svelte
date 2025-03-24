@@ -19,6 +19,7 @@
     import { connectGameChannel } from '../game.svelte';
     import Player from './Player.svelte';
     import { you, type PlayerId } from '../../lobby.svelte';
+    import { bcs } from '../../bcs';
 
     const ticket = {
         TAXI: transport.TAXI,
@@ -100,7 +101,10 @@
 
     const availableConnections = $derived(!spectating ? intersections[positions[yourRole!]].connections : null);
 
+    let chosenConnection: string | null = $state(null)
+
     const channel = connectGameChannel();
+    const sendTakeConnection = channel.destinationWith(bcs.int)
 
     const availableTickets: { [_ in Ticket]: boolean } = {
         [ticket.TAXI]: false,
@@ -141,6 +145,19 @@
     const selectTicket = (t: Ticket) => {
         selectedTicket = selectedTicket === t ? null : t;
     };
+
+    const canChooseConnection = $derived(showTickets && selectedTicket != null)
+
+    const isValidTicket = (type: Transport, t: Ticket) =>
+        t === ticket.MULTI
+        || t === ticket.TAXI && type === transport.TAXI
+        || t === ticket.BUS && type === transport.BUS
+        || t === ticket.TRAM && type === transport.TRAM
+    
+    const chooseConnection = (id: string) => () => {
+        console.log(connections[parseInt(id)])
+        sendTakeConnection(parseInt(id))
+    }
 </script>
 
 <Fullscreen bind:isFullscreen>
@@ -148,17 +165,17 @@
         <Map minZoom={map.minZoom} boundary={map.boundary}>
             {#each Object.entries(connections) as [id, c]}
                 <Connection
-                    id={id.toString()}
+                    id={id}
                     from={intersections[c.from].position}
                     to={intersections[c.to].position}
                     width={map.connectionWidth}
                     shape={c.shape}
                     type={c.type}
-                    disabled={!(selectedTicket === ticket.MULTI
-                    || (selectedTicket === ticket.TAXI && c.type === transport.TAXI)
-                    || (selectedTicket === ticket.BUS && c.type === transport.BUS)
-                    || (selectedTicket === ticket.TRAM && c.type === transport.TRAM))
-                    || availableConnections === null || id !in availableConnections}
+                    disabled={canChooseConnection
+                    && (!isValidTicket(c.type, selectedTicket!)
+                        || (availableConnections !== null && !availableConnections.includes(parseInt(id))))}
+                    onclick={canChooseConnection ? chooseConnection(id) : null}
+                    selected={chosenConnection === id}
                 ></Connection>
             {/each}
             {#each Object.entries(intersections) as [id, i]}
@@ -182,9 +199,9 @@
             {#each Object.values(ticket) as t}
                 <button
                     class={t}
-                    disabled={!showTickets}
+                    disabled={!showTickets || !availableTickets[t]}
                     class:active={(selectedTicket === null && availableTickets[t]) || selectedTicket === t}
-                    onclick={() => selectTicket(t)}>{ticketNames[t]}</button
+                    onclick={() => selectTicket(t)}>{ticketNames[t]}</button 
                 >
             {/each}
         </div>
@@ -217,18 +234,17 @@
 
         .tickets {
             position: absolute;
-            display: flex;
+            display: none;
             bottom: 0;
             left: 0;
             right: 0;
             margin: 1rem 0;
             justify-content: center;
             gap: 1rem;
-            opacity: 0.5;
             z-index: 400;
 
             &.enabled {
-                opacity: 1;
+                display: flex;
             }
 
             button {
@@ -265,6 +281,10 @@
                     background-color: var(--train-color);
                 }
 
+                &:disabled {
+                    opacity: 0.4;
+                }
+
                 &:not(:disabled) {
                     &.active {
                         filter: none;
@@ -272,10 +292,6 @@
                         &:hover {
                             font-weight: 600;
                         }
-                    }
-
-                    &:not(.active) {
-                        cursor: not-allowed;
                     }
                 }
             }

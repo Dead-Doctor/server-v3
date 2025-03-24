@@ -44,7 +44,16 @@
     });
 </script>
 
+{#if selected}
+    <path
+        d="M {start.x} {start.y} C {controlStart.x} {controlStart.y} {controlEndInverse.x} {controlEndInverse.y} {end.x} {end.y}"
+        fill="none"
+        stroke="white"
+        stroke-width={width * 1.4}
+    />
+{/if}
 <path
+    data-target={targetId}
     class:target={!disabled && onclick !== null}
     class:taxi={type === transport.TAXI}
     class:bus={type === transport.BUS}
@@ -58,6 +67,10 @@
 />
 
 <style>
+    .target {
+        cursor: pointer !important;
+    }
+
     .taxi {
         stroke: var(--taxi-color);
     }

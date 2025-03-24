@@ -18,7 +18,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<ScotlandYardGame>(channel, lobby, {
-
+    receiverTyped(ScotlandYardGame::onTakeConnection)
 }) {
 
     @OptIn(ExperimentalSerializationApi::class)
@@ -231,34 +231,6 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         )
     }
 
-    private val mapInfo = maps.single()
-    private val map = mapInfo.versions[mapInfo.version]!!
-    private val roles = mutableMapOf<Role, TrackedUser?>()
-    private val positions = mutableMapOf<Role, Int>()
-
-    init {
-        for (type in Role.entries) {
-            positions[type] = map.intersections.random().id
-        }
-        roles[Role.MISTER_X] = lobby.activePlayers.keys.first()
-        roles[Role.DETECTIVE1] = null
-        roles[Role.DETECTIVE2] = null
-        roles[Role.DETECTIVE3] = null
-        roles[Role.DETECTIVE4] = null
-        roles[Role.DETECTIVE5] = null
-        roles[Role.DETECTIVE6] = null
-    }
-
-    override suspend fun get(call: ApplicationCall) {
-        call.respondGame(ScotlandYardGame) {
-            addData("youInfo", YouInfo(call.trackedUser))
-            addData("lobbyInfo", lobbyInfo)
-            addData("map", map)
-            addData("roles", roles.mapValues { it.value?.id })
-            addData("positions", positions)
-        }
-    }
-
     data class Map(
         val id: String,
         val name: String,
@@ -320,5 +292,37 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         @SerialName("detective4") DETECTIVE4,
         @SerialName("detective5") DETECTIVE5,
         @SerialName("detective6") DETECTIVE6
+    }
+
+    private val mapInfo = maps.single()
+    private val map = mapInfo.versions[mapInfo.version]!!
+    private val roles = mutableMapOf<Role, TrackedUser?>()
+    private val positions = mutableMapOf<Role, Int>()
+
+    init {
+        for (type in Role.entries) {
+            positions[type] = map.intersections.random().id
+        }
+        roles[Role.MISTER_X] = lobby.activePlayers.keys.first()
+        roles[Role.DETECTIVE1] = null
+        roles[Role.DETECTIVE2] = null
+        roles[Role.DETECTIVE3] = null
+        roles[Role.DETECTIVE4] = null
+        roles[Role.DETECTIVE5] = null
+        roles[Role.DETECTIVE6] = null
+    }
+
+    override suspend fun get(call: ApplicationCall) {
+        call.respondGame(ScotlandYardGame) {
+            addData("youInfo", YouInfo(call.trackedUser))
+            addData("lobbyInfo", lobbyInfo)
+            addData("map", map)
+            addData("roles", roles.mapValues { it.value?.id })
+            addData("positions", positions)
+        }
+    }
+
+    private fun onTakeConnection(ctx: Channel.Context, id: Int) {
+        println(id)
     }
 }
