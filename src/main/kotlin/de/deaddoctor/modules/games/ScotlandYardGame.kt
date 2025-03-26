@@ -17,7 +17,7 @@ import kotlinx.serialization.json.encodeToStream
 import org.slf4j.LoggerFactory
 import java.io.File
 
-class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<ScotlandYardGame>(channel, lobby, {
+class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings: Settings) : Game<ScotlandYardGame>(channel, lobby, {
     receiverTyped(ScotlandYardGame::onTakeConnection)
 }) {
 
@@ -26,8 +26,11 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
         override fun id() = "scotland-yard"
         override fun name() = "Scotland Yard"
         override fun description() = "The classic Scotland Yard game but played on a custom map of Dusseldorf. "
+        override fun settings(): Settings {
+            TODO("Not yet implemented")
+        }
 
-        override suspend fun create(channel: GameChannel, lobby: LobbyModule.Lobby) = ScotlandYardGame(channel, lobby)
+        override suspend fun create(channel: GameChannel, lobby: LobbyModule.Lobby, settings: LobbyModule.GameSettings) = ScotlandYardGame(channel, lobby, settings as Settings)
 
         private val logger = LoggerFactory.getLogger(ScotlandYardGame::class.java)
         private val jsonParser = Json
@@ -230,6 +233,11 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<Sc
             val connections: MutableList<Connection>
         )
     }
+
+    data class Settings(
+        @LobbyModule.PlayerDropDown
+        val misterX: TrackedUser
+    ) : LobbyModule.GameSettings
 
     data class Map(
         val id: String,

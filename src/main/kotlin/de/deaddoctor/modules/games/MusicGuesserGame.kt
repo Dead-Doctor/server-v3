@@ -44,7 +44,8 @@ class MusicGuesserGame(
         override fun id() = "music-guesser"
         override fun name() = "Music Guesser"
         override fun description() = "Have a listen to a randomly chosen song and see if you can guess when it was made."
-        override suspend fun create(channel: GameChannel, lobby: Lobby) = MusicGuesserGame(channel, lobby).apply {
+        override fun settings() = Settings()
+        override suspend fun create(channel: GameChannel, lobby: Lobby, settings: LobbyModule.GameSettings) = MusicGuesserGame(channel, lobby).apply {
             loadQuestion()
         }
 
@@ -292,6 +293,8 @@ class MusicGuesserGame(
         }
         return search.results.single()
     }
+
+    class Settings : LobbyModule.GameSettings
 
     @Serializable
     data class RoundInfo(

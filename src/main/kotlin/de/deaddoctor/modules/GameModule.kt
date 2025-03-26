@@ -23,7 +23,7 @@ object GameModule : Module {
 
     override fun path() = "game"
 
-    val gameTypes = mutableListOf<GameType<*>>(
+    val gameTypes = mutableListOf(
         MusicGuesserGame,
         QuizGame,
         ScotlandYardGame
@@ -98,7 +98,8 @@ interface GameType<T : Game<T>> {
     fun id(): String
     fun name(): String
     fun description(): String
-    suspend fun create(channel: GameChannel, lobby: Lobby): T
+    fun settings(): LobbyModule.GameSettings
+    suspend fun create(channel: GameChannel, lobby: Lobby, settings: LobbyModule.GameSettings): T
 
     fun links(call: ApplicationCall): MutableMap<String, String>? = null
     /**

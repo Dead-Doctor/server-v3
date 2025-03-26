@@ -11,6 +11,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlin.reflect.full.memberProperties
+import kotlin.reflect.full.primaryConstructor
 import kotlin.time.Duration.Companion.seconds
 
 object LobbyModule : Module {
@@ -200,6 +202,12 @@ object LobbyModule : Module {
         )
     }
 
+    interface GameSettings
+
+    annotation class PlayerDropDown {
+
+    }
+
     class Lobby(val id: String, var gameSelected: GameType<*>) {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
@@ -280,6 +288,8 @@ object LobbyModule : Module {
         fun selectGame(gameType: GameType<*>) {
             gameSelected = gameType
             sendGameSelected.toAll(gameType.id())
+
+            // construct settings
         }
 
         suspend fun beginGame() {
@@ -288,8 +298,13 @@ object LobbyModule : Module {
             // - sliders
             // - player-dropdowns (exclusive)
             val channel = GameChannel(sendGame)
+
+            val settingsType = gameSelected.settings()::class
+            println(settingsType.memberProperties.joinToString { it.name })
+            val settings = settingsType.primaryConstructor!!.call()
+
             //TODO: loading animation
-            game = gameSelected.create(channel, this)
+            game = gameSelected.create(channel, this, settings)
             sendGameStarted.toAll("/${GameModule.path()}/${gameSelected.id()}/$id")
         }
 
