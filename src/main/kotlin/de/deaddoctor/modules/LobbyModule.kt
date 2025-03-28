@@ -12,7 +12,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlin.reflect.full.memberProperties
-import kotlin.reflect.full.primaryConstructor
 import kotlin.time.Duration.Companion.seconds
 
 object LobbyModule : Module {
@@ -204,18 +203,28 @@ object LobbyModule : Module {
 
     interface GameSettings
 
-    annotation class PlayerDropDown {
+    class PlayerDropDown {
+        private var selection: TrackedUser? = null
 
+        val value: TrackedUser
+            get() {
+                return selection ?: throw IllegalStateException("Tried to get value of PlayerDropDown before it was initialized!")
+            }
     }
 
     class Lobby(val id: String, var gameSelected: GameType<*>) {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
+        private var gameSettings = gameSelected.settings()
         var game: Game<*>? = null
         fun joined(user: TrackedUser) = players.containsKey(user)
 
         val activePlayers
             get() = players.filter { it.value.state.active }
+
+        init {
+            constructSettings()
+        }
 
         fun active(user: TrackedUser) = players[user]?.state?.active ?: false
         fun getPlayer(user: TrackedUser) = players[user]
@@ -287,24 +296,26 @@ object LobbyModule : Module {
 
         fun selectGame(gameType: GameType<*>) {
             gameSelected = gameType
-            sendGameSelected.toAll(gameType.id())
+            gameSettings = gameSelected.settings()
 
-            // construct settings
+            sendGameSelected.toAll(gameType.id())
+            constructSettings()
         }
 
-        suspend fun beginGame() {
+        private fun constructSettings() {
             //TODO: configurable settings
             // - dropdowns
             // - sliders
             // - player-dropdowns (exclusive)
-            val channel = GameChannel(sendGame)
 
-            val settingsType = gameSelected.settings()::class
+            val settingsType = gameSettings::class
             println(settingsType.memberProperties.joinToString { it.name })
-            val settings = settingsType.primaryConstructor!!.call()
+        }
 
+        suspend fun beginGame() {
+            val channel = GameChannel(sendGame)
             //TODO: loading animation
-            game = gameSelected.create(channel, this, settings)
+            game = gameSelected.create(channel, this, gameSettings)
             sendGameStarted.toAll("/${GameModule.path()}/${gameSelected.id()}/$id")
         }
 

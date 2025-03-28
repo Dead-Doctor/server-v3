@@ -26,9 +26,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         override fun id() = "scotland-yard"
         override fun name() = "Scotland Yard"
         override fun description() = "The classic Scotland Yard game but played on a custom map of Dusseldorf. "
-        override fun settings(): Settings {
-            TODO("Not yet implemented")
-        }
+        override fun settings() = Settings()
 
         override suspend fun create(channel: GameChannel, lobby: LobbyModule.Lobby, settings: LobbyModule.GameSettings) = ScotlandYardGame(channel, lobby, settings as Settings)
 
@@ -234,10 +232,9 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         )
     }
 
-    data class Settings(
-        @LobbyModule.PlayerDropDown
-        val misterX: TrackedUser
-    ) : LobbyModule.GameSettings
+    class Settings : LobbyModule.GameSettings {
+        val misterX = LobbyModule.PlayerDropDown()
+    }
 
     data class Map(
         val id: String,
@@ -311,7 +308,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         for (type in Role.entries) {
             positions[type] = map.intersections.random().id
         }
-        roles[Role.MISTER_X] = lobby.activePlayers.keys.first()
+        roles[Role.MISTER_X] = settings.misterX.value
         roles[Role.DETECTIVE1] = null
         roles[Role.DETECTIVE2] = null
         roles[Role.DETECTIVE3] = null
