@@ -5,7 +5,7 @@
     import Popup from '../Popup.svelte';
     import { type PlayerId, type Player, type GameType, lobby, you, isOperator, playerById } from '../lobby.svelte';
     import type { Component } from 'svelte';
-    import { bcs, type BcsType } from '../bcs';
+    import { bcs } from '../bcs';
     type Props<T> = T extends Component<infer P, any, any> ? P : never;
 
     type PopupProps = Props<typeof Popup>
@@ -19,7 +19,7 @@
     }
 
     interface PlayerDropDown {
-        value: string
+        value: string | null
     }
 
     let gameTypes: GameType[] = getData('gameTypes');
@@ -57,14 +57,6 @@
         login: false
     });
 
-    const channel = connectChannel();
-    const sendCheckName = channel.destinationWith(bcs.string)
-    const sendJoin = channel.destinationWith(bcs.string)
-    const sendPromote = channel.destinationWith(bcs.string)
-    const sendKick = channel.destinationWith(bcs.string)
-    const sendGameSelected = channel.destinationWith(bcs.string)
-    const sendBeginGame = channel.destination()
-
     const bcsPlayer = bcs.struct({
         id: bcs.string,
         name: bcs.string,
@@ -80,8 +72,18 @@
     const bcsGameSetting = bcs.struct({
         id: bcs.string,
         name: bcs.string,
-        playerDropDown: bcs.list(bcs.struct({ value: bcs.string }))
+        playerDropDown: bcs.list(bcs.struct({ value: bcs.nullable(bcs.string) }))
     })
+
+    const channel = connectChannel();
+    const sendCheckName = channel.destinationWith(bcs.string)
+    const sendJoin = channel.destinationWith(bcs.string)
+    const sendPromote = channel.destinationWith(bcs.string)
+    const sendKick = channel.destinationWith(bcs.string)
+    const sendGameSelected = channel.destinationWith(bcs.string)
+    const sendGameSettingChanged = channel.destinationWith(bcsGameSetting)
+    const sendBeginGame = channel.destination()
+
     channel.receiverWith(onCheckedName, bcs.list(bcs.string))
     channel.receiverWith(onJoin, bcs.string)
     channel.receiverWith(onPlayerJoined, bcsPlayer)
@@ -90,6 +92,7 @@
     channel.receiverWith(onHostChanged, bcs.string)
     channel.receiverWith(onKicked, bcs.string)
     channel.receiverWith(onGameSelected, bcs.tuple([bcs.string, bcs.list(bcsGameSetting)] as const))
+    channel.receiverWith(onGameSettingChanged, bcsGameSetting)
     channel.receiverWith(onGameStarted, bcs.string)
     channel.receiver(onGameEnded)
 
@@ -139,6 +142,11 @@
         gameSettings = settings
     }
 
+    function onGameSettingChanged(setting: GameSetting) {
+        const i = gameSettings.findIndex((s) => s.id === setting.id)
+        gameSettings[i] = setting
+    }
+
     function onGameStarted(pathname: string) {
         location.pathname = pathname;
     }
@@ -174,9 +182,13 @@
         popup.input = false,
         popup.login = false
     })
+
+    const changeSetting = (setting: GameSetting) => () => {
+        console.log(setting.id, setting)
+        sendGameSettingChanged(setting)
+    }
 </script>
 
-{@debug gameSettings}
 <section class="title">
     <h2>Lobby</h2>
     <h3><b>{lobby.id}</b></h3>
@@ -203,6 +215,25 @@
             <option value={type.id}>{type.name}</option>
         {/each}
     </select>
+    <div class="settings">
+        {#each gameSettings as setting}
+            <label for="setting-{setting.id}">{setting.name}</label>
+            {#if setting.playerDropDown.length === 1}
+                {@const dropDown = setting.playerDropDown[0]}
+                <select
+                    name="setting-{setting.id}"
+                    id="setting-{setting.id}"
+                    disabled={!isOperator() || gameRunning}
+                    bind:value={dropDown.value}
+                    onchange={changeSetting(setting)}
+                >
+                    {#each lobby.players as player}
+                        <option value={player.id}>{player.name}</option>
+                    {/each}
+                </select>
+            {/if}
+        {/each}
+    </div>
     <button disabled={!isOperator() || gameRunning} onclick={() => sendBeginGame()}>{gameRunning ? 'Running' : 'Begin'}</button>
 </section>
 <Popup

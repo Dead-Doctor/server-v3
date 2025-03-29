@@ -134,31 +134,28 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                         if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.boundary = boundary
-                        sendUpdateBoundary.toAll(editorChannel.connections.filter { it != connection }, boundary)
+                        sendUpdateBoundary.toAllExcept(connection, boundary)
                     }
 
                     suspend fun Channel.Context.changeMinZoom(minZoom: Int) {
                         if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.minZoom = minZoom
-                        sendUpdateMinZoom.toAll(editorChannel.connections.filter { it != connection }, minZoom)
+                        sendUpdateMinZoom.toAllExcept(connection, minZoom)
                     }
 
                     suspend fun Channel.Context.changeIntersectionRadius(radius: Double) {
                         if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.intersectionRadius = radius
-                        sendUpdateIntersectionRadius.toAll(
-                            editorChannel.connections.filter { it != connection },
-                            radius
-                        )
+                        sendUpdateIntersectionRadius.toAllExcept(connection, radius)
                     }
 
                     suspend fun Channel.Context.changeConnectionWidth(width: Double) {
                         if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.connectionWidth = width
-                        sendUpdateConnectionWidth.toAll(editorChannel.connections.filter { it != connection }, width)
+                        sendUpdateConnectionWidth.toAllExcept(connection, width)
                     }
 
                     suspend fun Channel.Context.changeIntersections(intersection: Intersection) {

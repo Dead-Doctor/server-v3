@@ -328,9 +328,7 @@ object Bcs {
             index: Int,
             deserializer: DeserializationStrategy<T?>,
             previousValue: T?
-        ): T? {
-            TODO("Not yet implemented")
-        }
+        ) = decodeNullableSerializableValue(deserializer)
 
         override fun decodeShortElement(descriptor: SerialDescriptor, index: Int) = decodeShort()
 

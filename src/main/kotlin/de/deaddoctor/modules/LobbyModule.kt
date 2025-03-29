@@ -11,11 +11,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import org.slf4j.LoggerFactory
 import kotlin.reflect.full.memberProperties
 import kotlin.time.Duration.Companion.seconds
 
 object LobbyModule : Module {
     override fun path() = "lobby"
+
+    private val logger = LoggerFactory.getLogger(LobbyModule::class.java)
 
     private val idCharacters = 'A'..'Z'
     private fun generateId() = buildString {
@@ -31,6 +34,7 @@ object LobbyModule : Module {
     private val sendHostChanged = channel.destination<String>()
     private val sendKicked = channel.destination<String>()
     private val sendGameSelected = channel.destination<Pair<String, List<GameSetting.Info>>>()
+    private val sendGameSettingChanged = channel.destination<GameSetting.Info>()
     private val sendGameStarted = channel.destination<String>()
     private val sendGameEnded = channel.destination<Unit>()
     private val sendGame = channel.destinationRaw(100u)
@@ -164,6 +168,11 @@ object LobbyModule : Module {
                 if (user !is TrackedUser || !lobby.isOperator(user) || gameType == null || lobby.isRunning) return
                 lobby.selectGame(gameType)
             }
+            fun Channel.Context.gameSettingChanged(gameSetting: GameSetting.Info) {
+                val lobby = connection.lobby ?: return
+                if (user !is TrackedUser || !lobby.isOperator(user) || lobby.isRunning) return
+                lobby.changeGameSetting(connection, gameSetting)
+            }
             suspend fun Channel.Context.beginGame() {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return
@@ -182,6 +191,7 @@ object LobbyModule : Module {
             channel.receiver(Channel.Context::promote)
             channel.receiver(Channel.Context::kick)
             channel.receiver(Channel.Context::gameSelected)
+            channel.receiver(Channel.Context::gameSettingChanged)
             channel.receiver(Channel.Context::beginGame)
             channel.rawReceiver(Channel.Context::game, 100u)
         }
@@ -294,6 +304,29 @@ object LobbyModule : Module {
             sendGameSelected.toAll(gameType.id() to settingsInfo)
         }
 
+        fun changeGameSetting(connection: Connection, setting: GameSetting.Info) {
+            val i = settingsInfo.indexOfFirst { it.id == setting.id }
+            if (i == -1) {
+                logger.warn("Tried to change non-existing setting '${setting.id}' on '${gameSettings::class}'!")
+                return
+            }
+            settingsInfo[i] = setting
+
+            val settingsType = gameSettings::class
+            val type = settingsType.memberProperties.find { it.name == setting.id }!!
+            when (val gameSetting = type.getter.call(gameSettings)) {
+                is GameSetting.PlayerDropDown -> {
+                    val id = setting.playerDropDown.single().value
+                    gameSetting.selection = players.keys.first { it.id == id }
+                }
+                else -> {
+                    throw IllegalArgumentException("Unimplemented settings type (updating): ${type.name} (${type.returnType})")
+                }
+            }
+
+            sendGameSettingChanged.toAllExcept(connection, setting)
+        }
+
         private fun constructSettings() {
             //TODO: configurable settings
             // (-) dropdowns
@@ -308,7 +341,7 @@ object LobbyModule : Module {
                         settingsInfo.add(GameSetting.PlayerDropDown.Info(type.name, setting))
                     }
                     else -> {
-                        throw IllegalArgumentException("Unimplemented settings type: ${type.name} (${type.returnType})")
+                        throw IllegalArgumentException("Unimplemented settings type (construction): ${type.name} (${type.returnType})")
                     }
                 }
             }

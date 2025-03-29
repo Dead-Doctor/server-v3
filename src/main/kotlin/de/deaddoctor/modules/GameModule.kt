@@ -161,21 +161,20 @@ class GameChannel(private val send: Destination<ByteArray>) {
             return byteArrayOf(i.toByte()) + serializer(content)
         }
 
-        override fun toAll(content: T) {
+        override fun toAll(content: T) =
             channel.send.toAll(encodePacket(content))
-        }
 
-        override fun toAll(connections: List<Connection>, content: T) {
+        override fun toAll(connections: List<Connection>, content: T) =
             channel.send.toAll(connections, encodePacket(content))
-        }
 
-        override fun toUser(user: User, content: T) {
+        override fun toAllExcept(connection: Connection, content: T) =
+            channel.send.toAllExcept(connection, encodePacket(content))
+
+        override fun toUser(user: User, content: T) =
             channel.send.toUser(user, encodePacket(content))
-        }
 
-        override fun toConnection(connection: Connection, content: T) {
+        override fun toConnection(connection: Connection, content: T) =
             channel.send.toConnection(connection, encodePacket(content))
-        }
 
     }
 }
