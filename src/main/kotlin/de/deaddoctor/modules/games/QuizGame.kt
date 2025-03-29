@@ -25,15 +25,13 @@ class QuizGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<QuizGame>(
     @Serializable
     data class Answer(val text: String, val correct: Boolean)
 
-    class Settings : LobbyModule.GameSettings
-
     @OptIn(ExperimentalSerializationApi::class)
     companion object : GameType<QuizGame> {
         override fun id() = "quiz"
         override fun name() = "Quiz"
         override fun description() = "It's a quiz. What is there more to know?"
-        override fun settings() = Settings()
-        override suspend fun create(channel: GameChannel, lobby: LobbyModule.Lobby, settings: LobbyModule.GameSettings) = QuizGame(channel, lobby)
+        override fun settings() = GameSettings()
+        override suspend fun create(channel: GameChannel, lobby: LobbyModule.Lobby, settings: GameSettings) = QuizGame(channel, lobby)
 
         private val logger = LoggerFactory.getLogger(QuizGame::class.java)
         private val jsonParser = Json

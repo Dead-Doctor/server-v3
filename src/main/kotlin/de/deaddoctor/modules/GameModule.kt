@@ -98,8 +98,8 @@ interface GameType<T : Game<T>> {
     fun id(): String
     fun name(): String
     fun description(): String
-    fun settings(): LobbyModule.GameSettings
-    suspend fun create(channel: GameChannel, lobby: Lobby, settings: LobbyModule.GameSettings): T
+    fun settings(): GameSettings
+    suspend fun create(channel: GameChannel, lobby: Lobby, settings: GameSettings): T
 
     fun links(call: ApplicationCall): MutableMap<String, String>? = null
     /**
@@ -199,6 +199,35 @@ class GameChannelEvents : ChannelEvents() {
             val game = lobby.game ?: return@handler ctx.closeConnection(reasonInternalError)
             if (game !is T) return@handler ctx.closeConnection(reasonInternalError)
             game.handler(ctx, Bcs.decodeFromBytes<U>(data))
+        }
+    }
+}
+
+
+//TODO: optional settings verifier callback
+open class GameSettings
+
+open class GameSetting(val name: String) {
+    @Serializable
+    data class Info(val id: String, val name: String) {
+        val playerDropDown = mutableListOf<PlayerDropDown.Info>()
+    }
+
+    class PlayerDropDown(name: String) : GameSetting(name) {
+        var selection: TrackedUser? = null
+
+        val value: TrackedUser
+            get() {
+                return selection ?: throw IllegalStateException("Tried to get value of PlayerDropDown before it was initialized!")
+            }
+
+        @Serializable
+        data class Info(val value: String?) {
+            companion object {
+                operator fun invoke(id: String, setting: PlayerDropDown) = Info(id, setting.name).also {
+                    it.playerDropDown.add(Info(setting.selection?.id))
+                }
+            }
         }
     }
 }

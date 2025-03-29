@@ -28,7 +28,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         override fun description() = "The classic Scotland Yard game but played on a custom map of Dusseldorf. "
         override fun settings() = Settings()
 
-        override suspend fun create(channel: GameChannel, lobby: LobbyModule.Lobby, settings: LobbyModule.GameSettings) = ScotlandYardGame(channel, lobby, settings as Settings)
+        override suspend fun create(channel: GameChannel, lobby: LobbyModule.Lobby, settings: GameSettings) = ScotlandYardGame(channel, lobby, settings as Settings)
 
         private val logger = LoggerFactory.getLogger(ScotlandYardGame::class.java)
         private val jsonParser = Json
@@ -232,8 +232,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         )
     }
 
-    class Settings : LobbyModule.GameSettings {
-        val misterX = LobbyModule.PlayerDropDown()
+    class Settings : GameSettings() {
+        val misterX = GameSetting.PlayerDropDown("Mister X")
     }
 
     data class Map(

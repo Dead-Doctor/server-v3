@@ -30,7 +30,7 @@ object LobbyModule : Module {
     private val sendPlayerScoreChanged = channel.destination<Pair<String, Int>>()
     private val sendHostChanged = channel.destination<String>()
     private val sendKicked = channel.destination<String>()
-    private val sendGameSelected = channel.destination<String>()
+    private val sendGameSelected = channel.destination<Pair<String, List<GameSetting.Info>>>()
     private val sendGameStarted = channel.destination<String>()
     private val sendGameEnded = channel.destination<Unit>()
     private val sendGame = channel.destinationRaw(100u)
@@ -94,6 +94,7 @@ object LobbyModule : Module {
                         addData("lobbyInfo", Lobby.Info(lobby))
                         addData("gameTypes", GameModule.gameTypesInfo(call))
                         addData("gameSelected", lobby.gameSelected.id())
+                        addData("gameSettings", lobby.settingsInfo)
                         addData("gameRunning", lobby.game != null)
                         addScript("${path()}/main")
                     }
@@ -201,21 +202,11 @@ object LobbyModule : Module {
         )
     }
 
-    interface GameSettings
-
-    class PlayerDropDown {
-        private var selection: TrackedUser? = null
-
-        val value: TrackedUser
-            get() {
-                return selection ?: throw IllegalStateException("Tried to get value of PlayerDropDown before it was initialized!")
-            }
-    }
-
     class Lobby(val id: String, var gameSelected: GameType<*>) {
         private val players = mutableMapOf<TrackedUser, Player>()
         private var host: TrackedUser? = null
         private var gameSettings = gameSelected.settings()
+        val settingsInfo = mutableListOf<GameSetting.Info>()
         var game: Game<*>? = null
         fun joined(user: TrackedUser) = players.containsKey(user)
 
@@ -284,7 +275,6 @@ object LobbyModule : Module {
 
         fun promote(user: TrackedUser) {
             host = user
-
             sendHostChanged.toAll(user.id)
         }
 
@@ -298,18 +288,30 @@ object LobbyModule : Module {
             gameSelected = gameType
             gameSettings = gameSelected.settings()
 
-            sendGameSelected.toAll(gameType.id())
+            settingsInfo.clear()
             constructSettings()
+
+            sendGameSelected.toAll(gameType.id() to settingsInfo)
         }
 
         private fun constructSettings() {
             //TODO: configurable settings
-            // - dropdowns
-            // - sliders
-            // - player-dropdowns (exclusive)
+            // (-) dropdowns
+            // (-) sliders
+            // (-) presets (maybe through onchange events with callbacks)
+            // (+) player-dropdowns TODO: initialization, exclusivity (maybe dropdown-groups)
 
             val settingsType = gameSettings::class
-            println(settingsType.memberProperties.joinToString { it.name })
+            for (type in settingsType.memberProperties) {
+                when (val setting = type.getter.call(gameSettings)) {
+                    is GameSetting.PlayerDropDown -> {
+                        settingsInfo.add(GameSetting.PlayerDropDown.Info(type.name, setting))
+                    }
+                    else -> {
+                        throw IllegalArgumentException("Unimplemented settings type: ${type.name} (${type.returnType})")
+                    }
+                }
+            }
         }
 
         suspend fun beginGame() {

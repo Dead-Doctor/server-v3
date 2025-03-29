@@ -12,8 +12,19 @@
 
     //TODO: popup with invite instructions
 
+    interface GameSetting {
+        id: string
+        name: string
+        playerDropDown: PlayerDropDown[]
+    }
+
+    interface PlayerDropDown {
+        value: string
+    }
+
     let gameTypes: GameType[] = getData('gameTypes');
     let gameSelected: string = $state(getData('gameSelected'));
+    let gameSettings: GameSetting[] = $state(getData('gameSettings')); // https://stackoverflow.com/a/30525521
     let gameRunning: boolean = $state(getData('gameRunning'))
 
     let sortedPlayers = $derived(
@@ -62,17 +73,23 @@
         active: bcs.boolean,
         score: bcs.int,
     })
+    const bcsPlayerActiveChanged = bcs.struct({
+        player: bcs.string,
+        active: bcs.boolean
+    })
+    const bcsGameSetting = bcs.struct({
+        id: bcs.string,
+        name: bcs.string,
+        playerDropDown: bcs.list(bcs.struct({ value: bcs.string }))
+    })
     channel.receiverWith(onCheckedName, bcs.list(bcs.string))
     channel.receiverWith(onJoin, bcs.string)
     channel.receiverWith(onPlayerJoined, bcsPlayer)
-    channel.receiverWith(onPlayerActiveChanged, bcs.struct({
-        player: bcs.string,
-        active: bcs.boolean
-    }))
-    channel.receiverWith(onPlayerScoreChanged, bcs.tuple<[BcsType<string>, BcsType<number>]>([bcs.string, bcs.int]))
+    channel.receiverWith(onPlayerActiveChanged, bcsPlayerActiveChanged)
+    channel.receiverWith(onPlayerScoreChanged, bcs.tuple([bcs.string, bcs.int] as const))
     channel.receiverWith(onHostChanged, bcs.string)
     channel.receiverWith(onKicked, bcs.string)
-    channel.receiverWith(onGameSelected, bcs.string)
+    channel.receiverWith(onGameSelected, bcs.tuple([bcs.string, bcs.list(bcsGameSetting)] as const))
     channel.receiverWith(onGameStarted, bcs.string)
     channel.receiver(onGameEnded)
 
@@ -117,8 +134,9 @@
         popup.login = false
     }
 
-    function onGameSelected(game: string) {
+    function onGameSelected([game, settings]: [string, GameSetting[]]) {
         gameSelected = game;
+        gameSettings = settings
     }
 
     function onGameStarted(pathname: string) {
@@ -158,6 +176,7 @@
     })
 </script>
 
+{@debug gameSettings}
 <section class="title">
     <h2>Lobby</h2>
     <h3><b>{lobby.id}</b></h3>
