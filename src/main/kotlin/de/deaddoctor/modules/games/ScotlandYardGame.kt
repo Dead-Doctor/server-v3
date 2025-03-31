@@ -231,6 +231,12 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
     class Settings : GameSettings() {
         val misterX = GameSetting.PlayerDropDown("Mister X")
+        val detective1 = GameSetting.PlayerDropDown("Detective 1")
+        val detective2 = GameSetting.PlayerDropDown("Detective 2", true)
+        val detective3 = GameSetting.PlayerDropDown("Detective 3", true)
+        val detective4 = GameSetting.PlayerDropDown("Detective 4", true)
+        val detective5 = GameSetting.PlayerDropDown("Detective 5", true)
+        val detective6 = GameSetting.PlayerDropDown("Detective 6", true)
     }
 
     data class Map(
@@ -306,12 +312,12 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             positions[type] = map.intersections.random().id
         }
         roles[Role.MISTER_X] = settings.misterX.value
-        roles[Role.DETECTIVE1] = null
-        roles[Role.DETECTIVE2] = null
-        roles[Role.DETECTIVE3] = null
-        roles[Role.DETECTIVE4] = null
-        roles[Role.DETECTIVE5] = null
-        roles[Role.DETECTIVE6] = null
+        roles[Role.DETECTIVE1] = settings.detective1.value
+        roles[Role.DETECTIVE2] = settings.detective2.value
+        roles[Role.DETECTIVE3] = settings.detective3.value
+        roles[Role.DETECTIVE4] = settings.detective4.value
+        roles[Role.DETECTIVE5] = settings.detective5.value
+        roles[Role.DETECTIVE6] = settings.detective6.value
     }
 
     override suspend fun get(call: ApplicationCall) {

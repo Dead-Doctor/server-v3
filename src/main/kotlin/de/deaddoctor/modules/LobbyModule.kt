@@ -317,7 +317,7 @@ object LobbyModule : Module {
             when (val gameSetting = type.getter.call(gameSettings)) {
                 is GameSetting.PlayerDropDown -> {
                     val id = setting.playerDropDown.single().value
-                    gameSetting.selection = players.keys.first { it.id == id }
+                    gameSetting.selection = if (id == "") null else players.keys.first { it.id == id }
                 }
                 else -> {
                     throw IllegalArgumentException("Unimplemented settings type (updating): ${type.name} (${type.returnType})")

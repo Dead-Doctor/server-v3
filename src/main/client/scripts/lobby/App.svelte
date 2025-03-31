@@ -19,7 +19,8 @@
     }
 
     interface PlayerDropDown {
-        value: string | null
+        value: string,
+        optional: boolean
     }
 
     let gameTypes: GameType[] = getData('gameTypes');
@@ -72,7 +73,7 @@
     const bcsGameSetting = bcs.struct({
         id: bcs.string,
         name: bcs.string,
-        playerDropDown: bcs.list(bcs.struct({ value: bcs.nullable(bcs.string) }))
+        playerDropDown: bcs.list(bcs.struct({ value: bcs.string, optional: bcs.boolean }))
     })
 
     const channel = connectChannel();
@@ -227,6 +228,9 @@
                     bind:value={dropDown.value}
                     onchange={changeSetting(setting)}
                 >
+                    {#if dropDown.optional}
+                        <option value="">None</option>
+                    {/if}
                     {#each lobby.players as player}
                         <option value={player.id}>{player.name}</option>
                     {/each}

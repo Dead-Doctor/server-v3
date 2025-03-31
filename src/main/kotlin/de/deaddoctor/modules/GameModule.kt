@@ -212,19 +212,20 @@ open class GameSetting(val name: String) {
         val playerDropDown = mutableListOf<PlayerDropDown.Info>()
     }
 
-    class PlayerDropDown(name: String) : GameSetting(name) {
+    class PlayerDropDown(name: String, private val optional: Boolean = false) : GameSetting(name) {
         var selection: TrackedUser? = null
 
-        val value: TrackedUser
+        val value: TrackedUser?
             get() {
-                return selection ?: throw IllegalStateException("Tried to get value of PlayerDropDown before it was initialized!")
+                if (!optional && selection == null) throw IllegalStateException("Tried to get value of PlayerDropDown before it was initialized!")
+                return selection
             }
 
         @Serializable
-        data class Info(val value: String?) {
+        data class Info(val value: String, val optional: Boolean = false) {
             companion object {
                 operator fun invoke(id: String, setting: PlayerDropDown) = Info(id, setting.name).also {
-                    it.playerDropDown.add(Info(setting.selection?.id))
+                    it.playerDropDown.add(Info(setting.selection?.id ?: "", setting.optional))
                 }
             }
         }
