@@ -112,7 +112,7 @@ fun Application.module() {
     install(redirectTrailingSlash)
 
     val adjectives = listOf(
-        "coolest", "best", "top", "supreme", "ultimate", "unbeatable", "unmatched", "unrivaled", "flawless", "perfect",
+        "cool", "top", "supreme", "ultimate", "unbeatable", "unmatched", "unrivaled", "flawless", "perfect",
         "exquisite", "immaculate", "legendary", "incomparable", "phenomenal", "outstanding", "stellar", "fantastic",
         "world-class", "brilliant", "exceptional", "remarkable", "sensational", "incredible", "superb", "astonishing",
         "majestic", "spectacular", "impressive", "dead"
@@ -123,8 +123,10 @@ fun Application.module() {
                 content {
                     section {
                         h1 {
-                            +"The "
-                            b { +adjectives[Random.nextInt(adjectives.size)] }
+                            val adjective = adjectives[Random.nextInt(adjectives.size)]
+                            if (adjective[0] in "aeiou") +"An "
+                            else +"A "
+                            b { +adjective }
                             +" website"
                         }
                         h2 {
