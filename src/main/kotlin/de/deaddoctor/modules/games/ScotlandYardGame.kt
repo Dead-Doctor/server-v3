@@ -17,9 +17,10 @@ import kotlinx.serialization.json.encodeToStream
 import org.slf4j.LoggerFactory
 import java.io.File
 
-class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings: Settings) : Game<ScotlandYardGame>(channel, lobby, {
-    receiverTyped(ScotlandYardGame::onTakeConnection)
-}) {
+class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings: Settings) :
+    Game<ScotlandYardGame>(channel, lobby, {
+        receiverTyped(ScotlandYardGame::onTakeConnection)
+    }) {
 
     @OptIn(ExperimentalSerializationApi::class)
     companion object : GameType<ScotlandYardGame> {
@@ -28,7 +29,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         override fun description() = "The classic Scotland Yard game but played on a custom map of Dusseldorf. "
         override fun settings() = Settings()
 
-        override suspend fun create(channel: GameChannel, lobby: LobbyModule.Lobby, settings: GameSettings) = ScotlandYardGame(channel, lobby, settings as Settings)
+        override suspend fun create(channel: GameChannel, lobby: LobbyModule.Lobby, settings: GameSettings) =
+            ScotlandYardGame(channel, lobby, settings as Settings)
 
         private val logger = LoggerFactory.getLogger(ScotlandYardGame::class.java)
         private val jsonParser = Json
@@ -271,25 +273,19 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     data class Connection(val id: Int, val from: Int, val to: Int, val type: Transport, val shape: Shape)
 
     @Serializable
-    enum class Transport {
-        @SerialName("taxi")
-        TAXI,
-
-        @SerialName("bus")
-        BUS,
-
-        @SerialName("tram")
-        TRAM,
-
-        @SerialName("train")
-        TRAIN
-    }
-
-    @Serializable
     data class Shape(val from: Point, val to: Point)
 
     @Serializable
     data class Point(val lat: Double, val lon: Double)
+
+    //@formatter:off
+    @Serializable
+    enum class Transport {
+        @SerialName("taxi") TAXI,
+        @SerialName("bus") BUS,
+        @SerialName("tram") TRAM,
+        @SerialName("train") TRAIN
+    }
 
     @Serializable
     enum class Role {
@@ -301,14 +297,29 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         @SerialName("detective5") DETECTIVE5,
         @SerialName("detective6") DETECTIVE6
     }
+    //@formatter:on
+
+    @Serializable
+    enum class Ticket {
+        TAXI,
+        BUS,
+        TRAM,
+        MULTI
+    }
+
+    private val sendMove = channel.destination<Pair<Role, Int>>()
+    private val sendNextTurn = channel.destination<Role>()
 
     private val mapInfo = maps.single()
     private val map = mapInfo.versions[mapInfo.version]!!
     private val roles = mutableMapOf<Role, TrackedUser?>()
+    private val detectives = mutableListOf<TrackedUser>()
     private val positions = mutableMapOf<Role, Int>()
+    private var turn = Role.MISTER_X
 
     init {
         for (type in Role.entries) {
+            //TODO: improve starting positions generator
             positions[type] = map.intersections.random().id
         }
         roles[Role.MISTER_X] = settings.misterX.value
@@ -318,6 +329,11 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         roles[Role.DETECTIVE4] = settings.detective4.value
         roles[Role.DETECTIVE5] = settings.detective5.value
         roles[Role.DETECTIVE6] = settings.detective6.value
+        for (role in Role.entries) {
+            if (role == Role.MISTER_X) continue
+            val user = roles[role]
+            if (user != null) detectives.add(user)
+        }
     }
 
     override suspend fun get(call: ApplicationCall) {
@@ -327,10 +343,35 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             addData("map", map)
             addData("roles", roles.mapValues { it.value?.id })
             addData("positions", positions)
+            addData("turn", turn)
         }
     }
 
-    private fun onTakeConnection(ctx: Channel.Context, id: Int) {
-        println(id)
+    private fun onTakeConnection(ctx: Channel.Context, data: Pair<Ticket, Int>) {
+        val ticket: Ticket = data.first
+        val id: Int = data.second
+
+        if (ctx.user !is TrackedUser) return
+        val currentUser = roles[turn]
+        if (currentUser != ctx.user && !(currentUser == null && ctx.user in detectives)) return
+
+        val connection = map.connections.find { it.id == id } ?: return
+        val previous = positions[turn]
+        val next =
+            if (connection.from == previous) connection.to
+            else if (connection.to == previous) connection.from
+            else return
+
+        positions[turn] = next
+        sendMove.toAll(turn to next)
+
+        println("$turn took connection $id to intersection $next with $ticket ticket.")
+        nextTurn()
+    }
+
+    private fun nextTurn() {
+        val nextRole = (turn.ordinal + 1) % Role.entries.count()
+        turn = Role.entries[nextRole]
+        sendNextTurn.toAll(turn)
     }
 }

@@ -63,3 +63,13 @@ export const role = {
     DETECTIVE6: 'detective6',
 } as const;
 export type Role = Enum<typeof role>;
+
+export const roleNames: { [_ in Role]: string } = {
+    [role.MISTER_X]: 'Mister X',
+    [role.DETECTIVE1]: 'Detective 1',
+    [role.DETECTIVE2]: 'Detective 2',
+    [role.DETECTIVE3]: 'Detective 3',
+    [role.DETECTIVE4]: 'Detective 4',
+    [role.DETECTIVE5]: 'Detective 5',
+    [role.DETECTIVE6]: 'Detective 6',
+};

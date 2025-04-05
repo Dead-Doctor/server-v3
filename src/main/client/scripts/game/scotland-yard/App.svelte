@@ -13,20 +13,21 @@
         type Point,
         type Transport,
         type Shape,
+        roleNames,
     } from './scotland-yard';
     import Connection from './Connection.svelte';
     import Fullscreen from './Fullscreen.svelte';
     import { connectGameChannel } from '../game.svelte';
     import Player from './Player.svelte';
-    import { you, type PlayerId } from '../../lobby.svelte';
+    import { playerById, you, type PlayerId } from '../../lobby.svelte';
     import { bcs } from '../../bcs';
+    import { BenchTask } from 'vitest';
 
     const ticket = {
         TAXI: transport.TAXI,
         BUS: transport.BUS,
         TRAM: transport.TRAM,
-        MULTI: 'multi',
-        DOUBLE: 'double',
+        MULTI: 'multi'
     } as const;
     type Ticket = Enum<typeof ticket>;
 
@@ -34,8 +35,7 @@
         [ticket.TAXI]: 'Taxi',
         [ticket.BUS]: 'Bus',
         [ticket.TRAM]: 'Tram',
-        [ticket.MULTI]: 'Multi',
-        [ticket.DOUBLE]: '2x',
+        [ticket.MULTI]: 'Multi'
     };
 
     interface IntersectionData {
@@ -91,31 +91,34 @@
     let isFullscreen = $state(false);
     
     const roles: { [_ in Role]: PlayerId | null } = $state(getData('roles'));
-    const yourRole = $derived(Object.entries(roles).find(([_, id]) => id === you.id)?.[0])
-    const spectating = $derived(yourRole === undefined)
+    const yourRole = $derived((Object.entries(roles).find(([_, id]) => id === you.id)?.[0] as Role | undefined) ?? null)
 
-    const positions: { [type: string]: number } = $state(getData('positions'));
+    const positions: { [_ in Role]: number } = $state(getData('positions'));
+    let turn: Role = $state(getData('turn'))
+    const yourTurn = $derived(turn === yourRole || (roles[turn] === null && (yourRole?.startsWith('detective') ?? false)))
 
     let showTickets = $state(false);
     let selectedTicket: Ticket | null = $state(null);
 
-    const availableConnections = $derived(!spectating ? intersections[positions[yourRole!]].connections : null);
+    const availableConnections = $derived(yourTurn ? intersections[positions[turn!]].connections : null);
 
     let chosenConnection: string | null = $state(null)
 
+    const bcsRole = bcs.enumeration(role)
     const channel = connectGameChannel();
-    const sendTakeConnection = channel.destinationWith(bcs.int)
+    const sendTakeConnection = channel.destinationWith(bcs.tuple([bcs.enumeration(ticket), bcs.int]))
+    channel.receiverWith(onMove, bcs.tuple([bcsRole, bcs.int] as const))
+    channel.receiverWith(onNextTurn, bcsRole)
 
     const availableTickets: { [_ in Ticket]: boolean } = {
         [ticket.TAXI]: false,
         [ticket.BUS]: false,
         [ticket.TRAM]: false,
-        [ticket.MULTI]: true,
-        [ticket.DOUBLE]: true,
+        [ticket.MULTI]: true
     };
     
     const beginTurn = () => {
-        if (spectating) throw new Error('Illegal State: Began turn while spectating!');
+        if (!yourTurn) return
         
         showTickets = true;
 
@@ -124,7 +127,6 @@
         availableTickets[ticket.TRAM] = false;
         for (const id of availableConnections!) {
             const connection = connections[id];
-            console.log(connection)
             switch (connection.type) {
                 case transport.TAXI:
                     availableTickets[ticket.TAXI] = true; break;
@@ -134,7 +136,6 @@
                     availableTickets[ticket.TRAM] = true; break;
             }
         }
-        console.log(availableTickets);
     };
 
     const endTurn = () => {
@@ -155,8 +156,21 @@
         || t === ticket.TRAM && type === transport.TRAM
     
     const chooseConnection = (id: string) => () => {
-        console.log(connections[parseInt(id)])
-        sendTakeConnection(parseInt(id))
+        if (selectedTicket === null) return
+        const connection = parseInt(id)
+
+        sendTakeConnection([selectedTicket, connection])
+    }
+
+    function onMove([r, id]: [Role, number]) {
+        positions[r] = id
+    }
+
+    beginTurn()
+    function onNextTurn(next: Role) {
+        endTurn()
+        turn = next
+        beginTurn()
     }
 </script>
 
@@ -195,6 +209,14 @@
                 ></Player>
             {/each}
         </Map>
+        <div class="info">
+            <h3>{roleNames[turn]}'s turn</h3>
+            {#if yourTurn}
+                <span>It's your turn</span>
+            {:else}
+                <span>Wait for {roles[turn] !== null ? playerById(roles[turn]!)!.name : 'the detectives'} to finish</span>
+            {/if}
+        </div>
         <div class="tickets" class:enabled={showTickets}>
             {#each Object.values(ticket) as t}
                 <button
@@ -207,9 +229,9 @@
         </div>
     </div>
     <div class="actions">
-        <div>Mister X</div>
+        <div>{yourRole !== null ? roleNames[yourRole] : 'Spectator'}</div>
         <div class="spacing"></div>
-        <button onclick={() => (showTickets ? endTurn() : beginTurn())}>TEST</button>
+        <button>TEST</button>
         <button>123</button>
         <button>ABC</button>
         <div class="spacing"></div>
@@ -231,6 +253,19 @@
     .map {
         flex-grow: 1;
         position: relative;
+
+        .info {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            margin: 1rem 0;
+            color: white;
+            text-shadow: black 0 0 2px, black 0 0 4px, black 0 0 6px, black 0 0 8px;
+            text-align: center;
+            pointer-events: none;
+            z-index: 400;
+        }
 
         .tickets {
             position: absolute;
@@ -275,10 +310,6 @@
                         var(--tram-color) 50% 75%,
                         var(--taxi-color) 75% 0%
                     );
-                }
-
-                &.double {
-                    background-color: var(--train-color);
                 }
 
                 &:disabled {
