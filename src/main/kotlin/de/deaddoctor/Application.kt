@@ -22,6 +22,7 @@ import io.ktor.server.sessions.*
 import io.ktor.server.util.*
 import io.ktor.server.websocket.*
 import kotlinx.html.*
+import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.random.Random
@@ -66,7 +67,7 @@ fun Application.module() {
     }
     httpClient = HttpClient(Apache) {
         install(ContentNegotiationClient) {
-            json()
+            json(Json { ignoreUnknownKeys = true })
         }
     }
     install(WebSockets) {

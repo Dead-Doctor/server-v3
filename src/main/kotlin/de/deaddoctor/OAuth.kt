@@ -104,9 +104,6 @@ data class DiscordInfo(
     val premiumType: Int,
     @SerialName("public_flags")
     val publicFlags: Int,
-//    @SerialName("avatar_decoration")
-    @SerialName("avatar_decoration_data")
-    val avatarDecoration: String?,
     val collectibles: String? = null
 )
 
