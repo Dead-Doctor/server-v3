@@ -1,7 +1,9 @@
 <script lang="ts">
+    import type { Snippet } from "svelte";
+
     interface Props {
         isFullscreen: boolean
-        children: any
+        children: Snippet
     }
 
     let { isFullscreen = $bindable(), children }: Props = $props()

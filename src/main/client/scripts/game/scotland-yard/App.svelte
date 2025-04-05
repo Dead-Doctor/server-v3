@@ -21,7 +21,7 @@
     import Player from './Player.svelte';
     import { playerById, you, type PlayerId } from '../../lobby.svelte';
     import { bcs } from '../../bcs';
-    import { BenchTask } from 'vitest';
+    import Message from './Message.svelte';
 
     const ticket = {
         TAXI: transport.TAXI,
@@ -96,6 +96,7 @@
     const positions: { [_ in Role]: number } = $state(getData('positions'));
     let turn: Role = $state(getData('turn'))
     const yourTurn = $derived(turn === yourRole || (roles[turn] === null && (yourRole?.startsWith('detective') ?? false)))
+    let yourTurnMessage = $state(false)
 
     let showTickets = $state(false);
     let selectedTicket: Ticket | null = $state(null);
@@ -121,6 +122,7 @@
         if (!yourTurn) return
         
         showTickets = true;
+        yourTurnMessage = true;
 
         availableTickets[ticket.TAXI] = false;
         availableTickets[ticket.BUS] = false;
@@ -140,6 +142,7 @@
 
     const endTurn = () => {
         showTickets = false;
+        yourTurnMessage = false;
         selectedTicket = null;
     };
 
@@ -208,8 +211,9 @@
                     size={map.intersectionRadius * 4}
                 ></Player>
             {/each}
+            <Message bind:visible={yourTurnMessage} position={intersections[positions[turn]].position} content="It's your turn!" />
         </Map>
-        <div class="info">
+        <div class="overlay info">
             <h3>{roleNames[turn]}'s turn</h3>
             {#if yourTurn}
                 <span>It's your turn</span>
@@ -217,13 +221,13 @@
                 <span>Wait for {roles[turn] !== null ? playerById(roles[turn]!)!.name : 'the detectives'} to finish</span>
             {/if}
         </div>
-        <div class="tickets" class:enabled={showTickets}>
+        <div class="overlay tickets" class:enabled={showTickets}>
             {#each Object.values(ticket) as t}
                 <button
                     class={t}
                     disabled={!showTickets || !availableTickets[t]}
                     class:active={(selectedTicket === null && availableTickets[t]) || selectedTicket === t}
-                    onclick={() => selectTicket(t)}>{ticketNames[t]}</button 
+                    onclick={() => selectTicket(t)}>{ticketNames[t]}</button
                 >
             {/each}
         </div>
@@ -254,29 +258,27 @@
         flex-grow: 1;
         position: relative;
 
-        .info {
+        .overlay {
             position: absolute;
-            top: 0;
             left: 0;
             right: 0;
             margin: 1rem 0;
-            color: white;
-            text-shadow: black 0 0 2px, black 0 0 4px, black 0 0 6px, black 0 0 8px;
-            text-align: center;
             pointer-events: none;
             z-index: 400;
         }
 
+        .info {
+            top: 0;
+            color: white;
+            text-shadow: black 0 0 2px, black 0 0 4px, black 0 0 6px, black 0 0 8px;
+            text-align: center;
+        }
+
         .tickets {
-            position: absolute;
             display: none;
             bottom: 0;
-            left: 0;
-            right: 0;
-            margin: 1rem 0;
             justify-content: center;
             gap: 1rem;
-            z-index: 400;
 
             &.enabled {
                 display: flex;
@@ -290,6 +292,7 @@
                 text-align: center;
                 text-transform: uppercase;
                 filter: saturate(0.5) contrast(0.6);
+                pointer-events: all;
 
                 &.taxi {
                     background-color: var(--taxi-color);

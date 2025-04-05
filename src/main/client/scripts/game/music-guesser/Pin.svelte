@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { getContext } from "svelte";
+    import { getContext, type Snippet } from "svelte";
     import { fade, fly } from "svelte/transition";
 
     interface Props {
@@ -8,7 +8,7 @@
         above?: boolean
         interactive?: boolean
         disabled?: boolean
-        children: any
+        children: Snippet
     }
 
     let { year = $bindable(), delay = 0, above = false, interactive = false, disabled = false, children }: Props = $props()

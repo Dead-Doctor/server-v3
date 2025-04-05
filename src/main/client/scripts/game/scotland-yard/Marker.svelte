@@ -4,7 +4,7 @@
 
 <script lang="ts">
     import { getContext, onDestroy, onMount } from 'svelte';
-    import type { MapContext, MapInfo } from './Map.svelte';
+    import type { MapContext } from './Map.svelte';
     import type { Point } from './scotland-yard';
     import L from 'leaflet';
 
@@ -23,7 +23,7 @@
         marker = L.marker(
             [position.lat, position.lon],
             ondrag ? { draggable: true, autoPan: true } : undefined
-        ).addTo(info.map!);
+        ).addTo(info.map);
 
         if (ondrag)
             marker.on('drag', (e) => {

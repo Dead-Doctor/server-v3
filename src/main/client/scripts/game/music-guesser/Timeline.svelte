@@ -1,12 +1,12 @@
 <script lang="ts">
-    import { setContext } from "svelte";
+    import { setContext, type Snippet } from "svelte";
 
 
     interface Props {
         yearMin: number
         yearMax: number
         yearStep?: number
-        children: any
+        children: Snippet
     }
 
     let { yearMin, yearMax, yearStep = 5, children }: Props = $props()

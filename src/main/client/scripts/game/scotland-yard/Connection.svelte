@@ -88,6 +88,6 @@
     }
 
     .disabled {
-        stroke: var(--background);
+        stroke: hsl(0, 0%, 55%);
     }
 </style>

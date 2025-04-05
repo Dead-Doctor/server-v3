@@ -1,11 +1,11 @@
 <script lang="ts">
     import L from 'leaflet';
     import 'leaflet/dist/leaflet.css';
-    import { setContext } from 'svelte';
+    import { setContext, type Snippet } from 'svelte';
     import type { Point, Shape } from './scotland-yard';
 
     export interface MapInfo {
-        map: L.Map | null;
+        map: L.Map;
         boundary: L.LatLngBounds;
         width: number;
         height: number;
@@ -20,7 +20,7 @@
         boundary: Shape;
         onclick?: L.LeafletMouseEventHandlerFn | null;
         cursor?: string;
-        children: any;
+        children: Snippet;
     }
 
     let { minZoom, boundary: corners, onclick = null, cursor = 'grab', children }: Props = $props();
@@ -37,22 +37,20 @@
     })
     let featureEventHandlers: ((target: string, event: L.LeafletMouseEvent) => void)[] = $state([])
 
-    let info: MapInfo = $derived({
+    let info: MapInfo | null = $derived(map === null ? null : {
         map,
         boundary,
         width: scale,
         height: (size.y / size.x) * scale,
         projectPoint: (point) => ({
-            x: ((point.lon - info.boundary.getWest()) / (info.boundary.getEast() - info.boundary.getWest())) * info.width,
+            x: ((point.lon - info!.boundary.getWest()) / (info!.boundary.getEast() - info!.boundary.getWest())) * info!.width,
             y:
-                ((info.boundary.getNorth() - point.lat) / (info.boundary.getNorth() - info.boundary.getSouth())) *
-                info.height,
+                ((info!.boundary.getNorth() - point.lat) / (info!.boundary.getNorth() - info!.boundary.getSouth())) *
+                info!.height,
         }),
         featureEventHandlers,
     });
-    setContext('map', () => info);
 
-    let svgElement: SVGElement;
     let svgOverlay: L.SVGOverlay;
 
     const initializeMap = (node: HTMLElement) => {
@@ -62,6 +60,7 @@
             zoom: minZoom,
             maxBounds: boundary.pad(0.2),
         });
+        setContext('map', () => info);
 
         map.on('click', (e) => {
             onclick?.(e);
@@ -71,9 +70,18 @@
             maxZoom: 19,
         }).addTo(map);
 
+        return {
+            destroy() {
+                map?.remove();
+                map = null;
+            },
+        };
+    };
+
+    const initializeOverlay = (svgElement: SVGElement) => {
         svgOverlay = L.svgOverlay(svgElement, boundary, {
             interactive: true,
-        }).addTo(map);
+        }).addTo(map!);
 
         svgOverlay.on('click', (e) => {
             const source = e.originalEvent.target as Element;
@@ -84,22 +92,15 @@
             featureEventHandlers.forEach((handler) => handler(target.dataset.target!, e));
         });
 
-        return {
-            destroy() {
-                map?.remove();
-                map = null;
-            },
-        };
-    };
+        $effect(() => {
+            svgElement.style.cursor = cursor;
+        });
 
-    $effect(() => {
-        svgElement.style.cursor = cursor;
-    });
-
-    $effect(() => {
-        map?.setMaxBounds(boundary.pad(0.2))
-        svgOverlay.setBounds(boundary)
-    });
+        $effect(() => {
+            map?.setMaxBounds(boundary.pad(0.2))
+            svgOverlay.setBounds(boundary)
+        });
+    }
 
     $effect(() => {
         map?.setMinZoom(minZoom)
@@ -107,10 +108,12 @@
 </script>
 
 <template>
-    <svg width={info.width} height={info.height} viewBox="0 0 {info.width} {info.height}" bind:this={svgElement}>
-        {@render children?.()}
-        <rect x="0" y="0" width={info.width} height={info.height} stroke="black" stroke-width="10" fill="none" />
-    </svg>
+    {#if info !== null}
+        <svg width={info.width} height={info.height} viewBox="0 0 {info.width} {info.height}" use:initializeOverlay>
+            {@render children?.()}
+            <rect x="0" y="0" width={info.width} height={info.height} stroke="black" stroke-width="10" fill="none" />
+        </svg>
+    {/if}
 </template>
 <div class="map" use:initializeMap onresize={() => map?.invalidateSize()}></div>
 
