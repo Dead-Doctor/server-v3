@@ -114,6 +114,7 @@ const double = bcsType<number>({
     take: (view, i) => [8, view.getFloat64(i, true)],
 });
 
+//TODO: fix strings containing special characters (Error: Deserialization only used 56 bytes, but expected 58 number of bytes.)
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 const string = bcsType<string>({

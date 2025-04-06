@@ -362,12 +362,20 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             else if (connection.to == previous) connection.from
             else return
 
+        if (!isValidTicketFor(connection.type, ticket)) return
+
         positions[turn] = next
         sendMove.toAll(turn to next)
-
         println("$turn took connection $id to intersection $next with $ticket ticket.")
+
         nextTurn()
     }
+
+    private fun isValidTicketFor(type: Transport, ticket: Ticket) =
+        ticket == Ticket.MULTI
+            || ticket == Ticket.TAXI && type == Transport.TAXI
+            || ticket == Ticket.BUS && type == Transport.BUS
+            || ticket == Ticket.TRAM && type == Transport.TRAM
 
     private fun nextTurn() {
         val nextRole = (turn.ordinal + 1) % Role.entries.count()

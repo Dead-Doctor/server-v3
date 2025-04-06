@@ -158,11 +158,22 @@
         || t === ticket.BUS && type === transport.BUS
         || t === ticket.TRAM && type === transport.TRAM
     
-    const chooseConnection = (id: string) => () => {
+    const chooseConnection = (connection: number) => () => {
         if (selectedTicket === null) return
-        const connection = parseInt(id)
-
         sendTakeConnection([selectedTicket, connection])
+    }
+
+    const chooseIntersection = (id: number) => () => {
+        if (availableConnections === null || selectedTicket === null) return
+
+        for (const c of availableConnections) {
+            const connection = connections[c]
+            if (connection.from !== id && connection.to !== id) continue
+            if (!isValidTicket(connection.type, selectedTicket)) continue
+
+            chooseConnection(c)()
+            return
+        }
     }
 
     function onMove([r, id]: [Role, number]) {
@@ -191,7 +202,7 @@
                     disabled={canChooseConnection
                     && (!isValidTicket(c.type, selectedTicket!)
                         || (availableConnections !== null && !availableConnections.includes(parseInt(id))))}
-                    onclick={canChooseConnection ? chooseConnection(id) : null}
+                    onclick={canChooseConnection ? chooseConnection(parseInt(id)) : null}
                     selected={chosenConnection === id}
                 ></Connection>
             {/each}
@@ -202,6 +213,7 @@
                     radius={map.intersectionRadius}
                     bus={i.bus}
                     tram={i.tram}
+                    onclick={canChooseConnection ? chooseIntersection(parseInt(id)) : null}
                 ></Intersection>
             {/each}
             {#each Object.entries(positions) as [role, id]}
