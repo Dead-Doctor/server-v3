@@ -170,6 +170,9 @@ class GameChannel(private val send: Destination<ByteArray>) {
         override fun toAllExcept(connection: Connection, content: T) =
             channel.send.toAllExcept(connection, encodePacket(content))
 
+        override fun toAllExceptUser(user: User, content: T) =
+            channel.send.toAllExceptUser(user, encodePacket(content))
+
         override fun toUser(user: User, content: T) =
             channel.send.toUser(user, encodePacket(content))
 

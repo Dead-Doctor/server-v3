@@ -51,6 +51,7 @@ interface Destination<T> {
     fun toAll(content: T)
     fun toAll(connections: List<Connection>, content: T)
     fun toAllExcept(connection: Connection, content: T)
+    fun toAllExceptUser(user: User, content: T)
     fun toUser(user: User, content: T)
     fun toConnection(connection: Connection, content: T)
 }
@@ -90,6 +91,10 @@ class Channel : ChannelEvents() {
 
         override fun toAllExcept(connection: Connection, content: T) = with(encodePacket(content)) {
             channel.connections.forEach { if (it != connection) rawToConnection(it, this) }
+        }
+
+        override fun toAllExceptUser(user: User, content: T) = with(encodePacket(content)) {
+            channel.connections.forEach { if (it.user != user) rawToConnection(it, this) }
         }
 
         override fun toConnection(connection: Connection, content: T) =

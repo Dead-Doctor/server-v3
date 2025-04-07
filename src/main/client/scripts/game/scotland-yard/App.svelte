@@ -94,6 +94,7 @@
     const yourRole = $derived((Object.entries(roles).find(([_, id]) => id === you.id)?.[0] as Role | undefined) ?? null)
 
     const positions: { [_ in Role]: number } = $state(getData('positions'));
+    let round: number = $state(getData('round'))
     let turn: Role = $state(getData('turn'))
     const yourTurn = $derived(turn === yourRole || (roles[turn] === null && (yourRole?.startsWith('detective') ?? false)))
     let yourTurnMessage = $state(false)
@@ -110,6 +111,7 @@
     const sendTakeConnection = channel.destinationWith(bcs.tuple([bcs.enumeration(ticket), bcs.int]))
     channel.receiverWith(onMove, bcs.tuple([bcsRole, bcs.int] as const))
     channel.receiverWith(onNextTurn, bcsRole)
+    channel.receiverWith(onNextRound, bcs.int)
 
     const availableTickets: { [_ in Ticket]: boolean } = {
         [ticket.TAXI]: false,
@@ -186,6 +188,10 @@
         turn = next
         beginTurn()
     }
+
+    function onNextRound(next: number) {
+        round = next
+    }
 </script>
 
 <Fullscreen bind:isFullscreen>
@@ -217,21 +223,19 @@
                 ></Intersection>
             {/each}
             {#each Object.entries(positions) as [role, id]}
-                <Player
-                    role={role as Role}
-                    position={intersections[id].position}
-                    size={map.intersectionRadius * 4}
-                ></Player>
+                {#if id !== -1}
+                    <Player
+                        role={role as Role}
+                        position={intersections[id].position}
+                        size={map.intersectionRadius * 4}
+                    ></Player>
+                {/if}
             {/each}
-            <Message bind:visible={yourTurnMessage} position={intersections[positions[turn]].position} content="It's your turn!" />
+            <Message bind:visible={yourTurnMessage} position={yourTurn ? intersections[positions[turn]].position : {lat: 0.0, lon: 0.0}} content="It's your turn!" />
         </Map>
         <div class="overlay info">
-            <h3>{roleNames[turn]}'s turn</h3>
-            {#if yourTurn}
-                <span>It's your turn</span>
-            {:else}
-                <span>Wait for {roles[turn] !== null ? playerById(roles[turn]!)!.name : 'the detectives'} to finish</span>
-            {/if}
+            <h3>Round {round + 1}</h3>
+            <span>{roleNames[turn]}'s turn ({roles[turn] !== null ? playerById(roles[turn]!)!.name : 'Detectives'})</span>
         </div>
         <div class="overlay tickets" class:enabled={showTickets}>
             {#each Object.values(ticket) as t}

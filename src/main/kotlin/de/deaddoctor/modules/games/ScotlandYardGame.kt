@@ -309,13 +309,16 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
     private val sendMove = channel.destination<Pair<Role, Int>>()
     private val sendNextTurn = channel.destination<Role>()
+    private val sendNextRound = channel.destination<Int>()
 
     private val mapInfo = maps.single()
     private val map = mapInfo.versions[mapInfo.version]!!
     private val roles = mutableMapOf<Role, TrackedUser?>()
     private val detectives = mutableListOf<TrackedUser>()
     private val positions = mutableMapOf<Role, Int>()
+    private var round = 0
     private var turn = Role.MISTER_X
+    private var lastKnownMisterX = -1
 
     init {
         for (type in Role.entries) {
@@ -342,7 +345,11 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             addData("lobbyInfo", lobbyInfo)
             addData("map", map)
             addData("roles", roles.mapValues { it.value?.id })
-            addData("positions", positions)
+            val redacted = positions.toMutableMap()
+            if (call.user != roles[Role.MISTER_X])
+                redacted[Role.MISTER_X] = lastKnownMisterX
+            addData("positions", redacted)
+            addData("round", round)
             addData("turn", turn)
         }
     }
@@ -365,10 +372,27 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         if (!isValidTicketFor(connection.type, ticket)) return
 
         positions[turn] = next
-        sendMove.toAll(turn to next)
+        updatePosition(turn)
         println("$turn took connection $id to intersection $next with $ticket ticket.")
 
         nextTurn()
+    }
+
+    private val revealMisterX
+        get() = round % 3 == 2
+
+    private fun updatePosition(role: Role) {
+        val position = positions[turn]!!
+
+        if (role != Role.MISTER_X)
+            return sendMove.toAll(turn to position)
+
+        if (revealMisterX)
+            lastKnownMisterX = position
+
+        val misterXUser = roles[Role.MISTER_X]!!
+        sendMove.toUser(misterXUser, role to position)
+        sendMove.toAllExceptUser(misterXUser, role to lastKnownMisterX)
     }
 
     private fun isValidTicketFor(type: Transport, ticket: Ticket) =
@@ -378,7 +402,12 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             || ticket == Ticket.TRAM && type == Transport.TRAM
 
     private fun nextTurn() {
-        val nextRole = (turn.ordinal + 1) % Role.entries.count()
+        var nextRole = turn.ordinal + 1
+        if (nextRole == Role.entries.count()) {
+            round++
+            nextRole = 0
+            sendNextRound.toAll(round)
+        }
         turn = Role.entries[nextRole]
         sendNextTurn.toAll(turn)
     }
