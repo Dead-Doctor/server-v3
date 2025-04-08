@@ -321,9 +321,23 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private var lastKnownMisterX = -1
 
     init {
+        val pool = map.intersections.toMutableList()
         for (type in Role.entries) {
-            //TODO: improve starting positions generator
-            positions[type] = map.intersections.random().id
+            val position = pool.random()
+
+            val neighbours = mutableListOf(position.id to 3)
+            while (neighbours.isNotEmpty()) {
+                val (current, depth) = neighbours.removeFirst()
+                if (!pool.removeIf { it.id == current }) continue
+                if (depth == 0) continue
+                neighbours.addAll(map.connections.mapNotNull {
+                    if (it.from == current) it.to to depth - 1
+                    else if (it.to == current) it.from to depth - 1
+                    else null
+                })
+            }
+
+            positions[type] = position.id
         }
         roles[Role.MISTER_X] = settings.misterX.value
         roles[Role.DETECTIVE1] = settings.detective1.value
