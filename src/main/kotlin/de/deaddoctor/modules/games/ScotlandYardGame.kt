@@ -307,18 +307,27 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         MULTI
     }
 
-    private val sendMove = channel.destination<Pair<Role, Int>>()
-    private val sendNextTurn = channel.destination<Role>()
     private val sendNextRound = channel.destination<Int>()
+    private val sendNextTurn = channel.destination<Role>()
+    private val sendAvailableConnections = channel.destination<List<Int>>()
+    private val sendMove = channel.destination<Pair<Role, Int>>()
 
     private val mapInfo = maps.single()
     private val map = mapInfo.versions[mapInfo.version]!!
     private val roles = mutableMapOf<Role, TrackedUser?>()
     private val detectives = mutableListOf<TrackedUser>()
+
     private val positions = mutableMapOf<Role, Int>()
-    private var round = 0
-    private var turn = Role.MISTER_X
     private var lastKnownMisterX = -1
+    private var round = 0
+
+    private var turn = Role.MISTER_X
+
+    /**
+     * List of available moves for the current turn.
+     * Pairs of connections to intersections.
+     */
+    private var availableMoves: List<Pair<Int, Int>>
 
     init {
         val pool = map.intersections.toMutableList()
@@ -330,15 +339,14 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                 val (current, depth) = neighbours.removeFirst()
                 if (!pool.removeIf { it.id == current }) continue
                 if (depth == 0) continue
-                neighbours.addAll(map.connections.mapNotNull {
-                    if (it.from == current) it.to to depth - 1
-                    else if (it.to == current) it.from to depth - 1
-                    else null
-                })
+                neighbours.addAll(findConnections(current).map { it.second to depth - 1 })
             }
 
             positions[type] = position.id
         }
+
+        availableMoves = findAvailableMoves()
+
         roles[Role.MISTER_X] = settings.misterX.value
         roles[Role.DETECTIVE1] = settings.detective1.value
         roles[Role.DETECTIVE2] = settings.detective2.value
@@ -353,6 +361,12 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         }
     }
 
+    private fun findConnections(intersection: Int) = map.connections.mapNotNull {
+        if (it.from == intersection) it.id to it.to
+        else if (it.to == intersection) it.id to it.from
+        else null
+    }
+
     override suspend fun get(call: ApplicationCall) {
         call.respondGame(ScotlandYardGame) {
             addData("youInfo", YouInfo(call.trackedUser))
@@ -365,23 +379,27 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             addData("positions", redacted)
             addData("round", round)
             addData("turn", turn)
+            val availableConnections =
+                if (isTheirTurn(call.trackedUser)) availableMoves.map { it.first }
+                else null
+            addData("availableConnections", availableConnections)
         }
+    }
+
+    private fun isTheirTurn(user: TrackedUser): Boolean {
+        val currentUser = roles[turn]
+        return currentUser == user || (currentUser == null && user in detectives)
     }
 
     private fun onTakeConnection(ctx: Channel.Context, data: Pair<Ticket, Int>) {
         val ticket: Ticket = data.first
         val id: Int = data.second
 
-        if (ctx.user !is TrackedUser) return
-        val currentUser = roles[turn]
-        if (currentUser != ctx.user && !(currentUser == null && ctx.user in detectives)) return
+        if (ctx.user !is TrackedUser || !isTheirTurn(ctx.user)) return
 
         val connection = map.connections.find { it.id == id } ?: return
-        val previous = positions[turn]
-        val next =
-            if (connection.from == previous) connection.to
-            else if (connection.to == previous) connection.from
-            else return
+        val move = availableMoves.find { it.first == id } ?: return
+        val next = move.second
 
         if (!isValidTicketFor(connection.type, ticket)) return
 
@@ -391,6 +409,12 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
         nextTurn()
     }
+
+    private fun isValidTicketFor(type: Transport, ticket: Ticket) =
+        ticket == Ticket.MULTI
+                || ticket == Ticket.TAXI && type == Transport.TAXI
+                || ticket == Ticket.BUS && type == Transport.BUS
+                || ticket == Ticket.TRAM && type == Transport.TRAM
 
     private val revealMisterX
         get() = round % 3 == 2
@@ -409,12 +433,6 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         sendMove.toAllExceptUser(misterXUser, role to lastKnownMisterX)
     }
 
-    private fun isValidTicketFor(type: Transport, ticket: Ticket) =
-        ticket == Ticket.MULTI
-            || ticket == Ticket.TAXI && type == Transport.TAXI
-            || ticket == Ticket.BUS && type == Transport.BUS
-            || ticket == Ticket.TRAM && type == Transport.TRAM
-
     private fun nextTurn() {
         var nextRole = turn.ordinal + 1
         if (nextRole == Role.entries.count()) {
@@ -423,6 +441,21 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             sendNextRound.toAll(round)
         }
         turn = Role.entries[nextRole]
+        availableMoves = findAvailableMoves()
+
+        //TODO: might be in incorrect order
         sendNextTurn.toAll(turn)
+        val user = roles[turn]
+        if (user != null) sendAvailableConnections.toUser(user, availableMoves.map { it.first })
+        else sendAvailableConnections.toAllExceptUser(roles[Role.MISTER_X]!!, availableMoves.map { it.first })
+    }
+
+    private fun findAvailableMoves(): List<Pair<Int, Int>> {
+        val position = positions[turn]!!
+        val neighbours = findConnections(position)
+        val detectivePositions = positions.mapNotNull { if (it.key != Role.MISTER_X) it.value else null }
+        val unoccupied = neighbours.filterNot { it.second in detectivePositions }
+        if (unoccupied.isEmpty()) TODO("No available move.")
+        return unoccupied
     }
 }
