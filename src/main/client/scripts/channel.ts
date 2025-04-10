@@ -26,18 +26,21 @@ export const connectChannel = (pathname: string = location.pathname, port: numbe
         console.log(`[Channel] Error: ${e}`);
     });
 
-    socket.addEventListener('message', async (e: MessageEvent<Blob>) => {
-        const binaryData = await e.data.arrayBuffer()
-        const array = new Uint8Array(binaryData)
-        if (port != null && array[0] != port) return
+    let queue = Promise.resolve()
+    socket.addEventListener('message', (e: MessageEvent<Blob>) => {
+        queue = queue.then(async () => {
+            const binaryData = await e.data.arrayBuffer()
+            const array = new Uint8Array(binaryData)
+            if (port != null && array[0] != port) return
 
-        const offset = port == null ? 0 : 1
-        const id = array[offset]
-        if (id < 0 || id >= receivers.length) return
-        const receiver = receivers[id]
-        
-        console.log(`[Channel] Received: ${array}`);
-        receiver(array.slice(offset + 1))
+            const offset = port == null ? 0 : 1
+            const id = array[offset]
+            if (id < 0 || id >= receivers.length) return
+            const receiver = receivers[id]
+            
+            console.log(`[Channel] Received: ${array}`);
+            receiver(array.slice(offset + 1))
+        })
     })
 
     return {

@@ -443,7 +443,6 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         turn = Role.entries[nextRole]
         availableMoves = findAvailableMoves()
 
-        //TODO: might be in incorrect order
         sendNextTurn.toAll(turn)
         val user = roles[turn]
         if (user != null) sendAvailableConnections.toUser(user, availableMoves.map { it.first })

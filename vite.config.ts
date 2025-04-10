@@ -1,7 +1,20 @@
-import { defineConfig } from 'vite'
-import { svelte } from '@sveltejs/vite-plugin-svelte'
+import { defineConfig } from 'vite';
+import { svelte } from '@sveltejs/vite-plugin-svelte';
 
-const entries = ['game/main', 'lobby/main', 'lobby/admin', 'game/music-guesser/main', 'game/quiz/main', 'game/scotland-yard/main', 'game/scotland-yard/editor/load', 'game/scotland-yard/editor/main', 'wsTest', 'chat', 'snake']
+const entries = [
+    'game/main',
+    'lobby/main',
+    'lobby/admin',
+    'game/music-guesser/main',
+    'game/quiz/main',
+    'game/scotland-yard/main',
+    'game/scotland-yard/editor/load',
+    'game/scotland-yard/editor/main',
+    'test',
+    'wsTest',
+    'chat',
+    'snake',
+];
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -14,12 +27,12 @@ export default defineConfig({
         outDir: './../resources/dist',
         emptyOutDir: true,
         rollupOptions: {
-            input: entries.map(entry => `src/main/client/scripts/${entry}.ts`)
-        }
+            input: entries.map((entry) => `src/main/client/scripts/${entry}.ts`),
+        },
     },
     esbuild: {
         supported: {
-            'top-level-await': true
-        }
-    }
-})
+            'top-level-await': true,
+        },
+    },
+});
