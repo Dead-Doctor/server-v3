@@ -16,6 +16,7 @@ import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.encodeToStream
 import org.slf4j.LoggerFactory
 import java.io.File
+import kotlin.collections.Map as MapC
 
 class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings: Settings) :
     Game<ScotlandYardGame>(channel, lobby, {
@@ -178,7 +179,6 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
                     suspend fun Channel.Context.save() {
                         if (user !is AccountUser || !user.admin) return closeConnection(reason)
-                        //TODO: save current to new version
                         val id = connection.session.call.id ?: return closeConnection(reason)
                         val map = maps.find { it.id == id } ?: return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
@@ -204,10 +204,10 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                     suspend fun Channel.Context.reset() {
                         val id = connection.session.call.id ?: return closeConnection(reason)
                         resetChanges(id)
-                        //TODO: send updates
                         val changes = changes!!
                         sendReset.toAll(changes)
                     }
+
                     editorChannel.receiver(Channel.Context::changeBoundary)
                     editorChannel.receiver(Channel.Context::changeMinZoom)
                     editorChannel.receiver(Channel.Context::changeIntersectionRadius)
@@ -288,8 +288,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     }
 
     @Serializable
-    enum class Role {
-        @SerialName("misterX") MISTER_X,
+    enum class Role(val detective: Boolean = true) {
+        @SerialName("misterX") MISTER_X(false),
         @SerialName("detective1") DETECTIVE1,
         @SerialName("detective2") DETECTIVE2,
         @SerialName("detective3") DETECTIVE3,
@@ -297,19 +297,38 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         @SerialName("detective5") DETECTIVE5,
         @SerialName("detective6") DETECTIVE6
     }
-    //@formatter:on
 
     @Serializable
     enum class Ticket {
-        TAXI,
-        BUS,
-        TRAM,
-        MULTI
+        @SerialName("taxi") TAXI,
+        @SerialName("bus") BUS,
+        @SerialName("tram") TRAM,
+        @SerialName("multi") MULTI
+    }
+    //@formatter:on
+
+    @JvmInline
+    @Serializable
+    value class Count(private val value: Int) {
+        companion object {
+            val NONE = Count(-1)
+            val INFINITE = Count(Int.MAX_VALUE)
+        }
+
+        val isZero
+            get() = value <= 0
+
+        private val isInfinite
+            get() = this == INFINITE
+
+        fun decrement() =
+            if (isInfinite) this else Count(value - 1)
     }
 
     private val sendNextRound = channel.destination<Int>()
     private val sendNextTurn = channel.destination<Role>()
     private val sendAvailableConnections = channel.destination<List<Int>>()
+    private val sendUseTicket = channel.destination<Triple<Role, Ticket, Count>>()
     private val sendMove = channel.destination<Pair<Role, Int>>()
 
     private val mapInfo = maps.single()
@@ -317,6 +336,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private val roles = mutableMapOf<Role, TrackedUser?>()
     private val detectives = mutableListOf<TrackedUser>()
 
+    private val tickets: MapC<Role, MutableMap<Ticket, Count>>
     private val positions = mutableMapOf<Role, Int>()
     private var lastKnownMisterX = -1
     private var round = 0
@@ -330,6 +350,27 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private var availableMoves: List<Pair<Int, Int>>
 
     init {
+        roles[Role.MISTER_X] = settings.misterX.value
+        roles[Role.DETECTIVE1] = settings.detective1.value
+        roles[Role.DETECTIVE2] = settings.detective2.value
+        roles[Role.DETECTIVE3] = settings.detective3.value
+        roles[Role.DETECTIVE4] = settings.detective4.value
+        roles[Role.DETECTIVE5] = settings.detective5.value
+        roles[Role.DETECTIVE6] = settings.detective6.value
+        for (role in Role.entries) {
+            if (!role.detective) continue
+            val user = roles[role]
+            if (user != null) detectives.add(user)
+        }
+
+        val none = Count.NONE
+        val special = Count(3)
+        val inf = Count.INFINITE
+        tickets = Role.entries.associateWith {
+            if (!it.detective) mutableMapOf(Ticket.TAXI to inf, Ticket.BUS to inf, Ticket.TRAM to inf, Ticket.MULTI to special)
+            else mutableMapOf(Ticket.TAXI to inf, Ticket.BUS to inf, Ticket.TRAM to inf, Ticket.MULTI to none)
+        }
+
         val pool = map.intersections.toMutableList()
         for (type in Role.entries) {
             val position = pool.random()
@@ -346,19 +387,6 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         }
 
         availableMoves = findAvailableMoves()
-
-        roles[Role.MISTER_X] = settings.misterX.value
-        roles[Role.DETECTIVE1] = settings.detective1.value
-        roles[Role.DETECTIVE2] = settings.detective2.value
-        roles[Role.DETECTIVE3] = settings.detective3.value
-        roles[Role.DETECTIVE4] = settings.detective4.value
-        roles[Role.DETECTIVE5] = settings.detective5.value
-        roles[Role.DETECTIVE6] = settings.detective6.value
-        for (role in Role.entries) {
-            if (role == Role.MISTER_X) continue
-            val user = roles[role]
-            if (user != null) detectives.add(user)
-        }
     }
 
     private fun findConnections(intersection: Int) = map.connections.mapNotNull {
@@ -376,6 +404,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             val redacted = positions.toMutableMap()
             if (call.user != roles[Role.MISTER_X])
                 redacted[Role.MISTER_X] = lastKnownMisterX
+
+            addData("tickets", tickets)
             addData("positions", redacted)
             addData("round", round)
             addData("turn", turn)
@@ -402,6 +432,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         val next = move.second
 
         if (!isValidTicketFor(connection.type, ticket)) return
+        if (!tryUseTicket(ticket)) return
 
         positions[turn] = next
         updatePosition(turn)
@@ -416,13 +447,24 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                 || ticket == Ticket.BUS && type == Transport.BUS
                 || ticket == Ticket.TRAM && type == Transport.TRAM
 
+    private fun tryUseTicket(ticket: Ticket): Boolean {
+        val counts = tickets[turn]!!
+        val count = counts[ticket]!!
+        if (count.isZero) return false
+
+        val nextCount = count.decrement()
+        counts[ticket] = nextCount
+        sendUseTicket.toAll(Triple(turn, ticket, nextCount))
+        return true
+    }
+
     private val revealMisterX
         get() = round % 3 == 2
 
     private fun updatePosition(role: Role) {
         val position = positions[turn]!!
 
-        if (role != Role.MISTER_X)
+        if (role.detective)
             return sendMove.toAll(turn to position)
 
         if (revealMisterX)
@@ -452,7 +494,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private fun findAvailableMoves(): List<Pair<Int, Int>> {
         val position = positions[turn]!!
         val neighbours = findConnections(position)
-        val detectivePositions = positions.mapNotNull { if (it.key != Role.MISTER_X) it.value else null }
+        val detectivePositions = positions.filterKeys { it.detective }.values
         val unoccupied = neighbours.filterNot { it.second in detectivePositions }
         if (unoccupied.isEmpty()) TODO("No available move.")
         return unoccupied

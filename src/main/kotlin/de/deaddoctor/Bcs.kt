@@ -113,10 +113,8 @@ object Bcs {
             bytes.append(TRUE)
         }
 
-        // Complicated?
-        override fun encodeInline(descriptor: SerialDescriptor): Encoder {
-            TODO("Not yet implemented")
-        }
+        // Nested
+        override fun encodeInline(descriptor: SerialDescriptor) = this
 
         override fun beginCollection(descriptor: SerialDescriptor, collectionSize: Int): CompositeEncoder {
             encodeULEB128(collectionSize)
@@ -148,9 +146,7 @@ object Bcs {
             encodeFloat(value)
         }
 
-        override fun encodeInlineElement(descriptor: SerialDescriptor, index: Int): Encoder {
-            TODO("Not yet implemented")
-        }
+        override fun encodeInlineElement(descriptor: SerialDescriptor, index: Int) = encodeInline(descriptor)
 
         override fun encodeIntElement(descriptor: SerialDescriptor, index: Int, value: Int) {
             encodeInt(value)
@@ -284,10 +280,8 @@ object Bcs {
         @ExperimentalSerializationApi
         override fun decodeNotNullMark() = decodeBoolean()
 
-        // Complicated?
-        override fun decodeInline(descriptor: SerialDescriptor): Decoder {
-            TODO("Not yet implemented")
-        }
+        // Nested
+        override fun decodeInline(descriptor: SerialDescriptor) = this
 
         override fun beginStructure(descriptor: SerialDescriptor): CompositeDecoder {
             return BcsDecoder(buffer)

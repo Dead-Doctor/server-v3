@@ -27,9 +27,12 @@ export const connectChannel = (pathname: string = location.pathname, port: numbe
     });
 
     let queue = Promise.resolve()
+    
     socket.addEventListener('message', (e: MessageEvent<Blob>) => {
+        const promiseBinaryData = e.data.arrayBuffer()
+
         queue = queue.then(async () => {
-            const binaryData = await e.data.arrayBuffer()
+            const binaryData = await promiseBinaryData
             const array = new Uint8Array(binaryData)
             if (port != null && array[0] != port) return
 

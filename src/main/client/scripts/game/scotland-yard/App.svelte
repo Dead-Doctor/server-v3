@@ -96,6 +96,8 @@
         (Object.entries(roles).find(([_, id]) => id === you.id)?.[0] as Role | undefined) ?? null
     );
 
+    const tickets: { [_ in Role]: { [_ in Ticket]: number } } = $state(getData('tickets'));
+    const ticketInfinite = 2147483647;
     const positions: { [_ in Role]: number } = $state(getData('positions'));
     let round: number = $state(getData('round'));
     let turn: Role = $state(getData('turn'));
@@ -112,11 +114,14 @@
     let chosenConnection: string | null = $state(null);
 
     const bcsRole = bcs.enumeration(role);
+    const bcsTicket = bcs.enumeration(ticket);
+
     const channel = connectGameChannel();
     const sendTakeConnection = channel.destinationWith(bcs.tuple([bcs.enumeration(ticket), bcs.int]));
     channel.receiverWith(onNextRound, bcs.int);
     channel.receiverWith(onNextTurn, bcsRole);
     channel.receiverWith(onAvailableConnections, bcs.list(bcs.int));
+    channel.receiverWith(onUseTicket, bcs.tuple([bcsRole, bcsTicket, bcs.int] as const));
     channel.receiverWith(onMove, bcs.tuple([bcsRole, bcs.int] as const));
 
     const availableTickets: { [_ in Ticket]: boolean } = {
@@ -203,6 +208,10 @@
         beginTurn();
     }
 
+    function onUseTicket([r, t, count]: [Role, Ticket, number]) {
+        tickets[r][t] = count;
+    }
+
     function onMove([r, id]: [Role, number]) {
         positions[r] = id;
     }
@@ -260,12 +269,24 @@
         </div>
         <div class="overlay tickets" class:enabled={showTickets}>
             {#each Object.values(ticket) as t}
-                <button
-                    class={t}
-                    disabled={!showTickets || !availableTickets[t]}
-                    class:active={(selectedTicket === null && availableTickets[t]) || selectedTicket === t}
-                    onclick={() => selectTicket(t)}>{ticketNames[t]}</button
-                >
+                {@const count = tickets[turn][t]}
+                {#if count !== -1}
+                    <button
+                        class={t}
+                        disabled={!showTickets || !availableTickets[t] || count === 0}
+                        class:active={(selectedTicket === null && availableTickets[t]) || selectedTicket === t}
+                        onclick={() => selectTicket(t)}
+                    >
+                        {ticketNames[t]}
+                        <span class="count">
+                            {#if count === ticketInfinite}
+                                &infin;
+                            {:else}
+                                {count}
+                            {/if}
+                        </span>
+                    </button>
+                {/if}
             {/each}
         </div>
     </div>
@@ -326,6 +347,7 @@
             }
 
             button {
+                position: relative;
                 width: 5rem;
                 padding: 0.7rem 0;
                 border: var(--border);
@@ -368,6 +390,19 @@
                             font-weight: 600;
                         }
                     }
+                }
+
+                .count {
+                    position: absolute;
+                    top: 0;
+                    right: 0;
+                    width: 1.3rem;
+                    height: 1.3rem;
+                    transform: translate(50%, -50%);
+                    background-color: var(--tram-color);
+                    border-radius: 50%;
+                    line-height: 1.2rem;
+                    font-weight: normal;
                 }
             }
         }
