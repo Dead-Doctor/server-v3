@@ -327,9 +327,10 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
     private val sendNextRound = channel.destination<Int>()
     private val sendNextTurn = channel.destination<Role>()
-    private val sendAvailableConnections = channel.destination<List<Int>>()
+    private val sendBeginTurn = channel.destination<List<Int>>()
     private val sendUseTicket = channel.destination<Triple<Role, Ticket, Count>>()
     private val sendMove = channel.destination<Pair<Role, Int>>()
+    private val sendReveal = channel.destination<Int>()
 
     private val mapInfo = maps.single()
     private val map = mapInfo.versions[mapInfo.version]!!
@@ -340,6 +341,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private val positions = mutableMapOf<Role, Int>()
     private var lastKnownMisterX = -1
     private var round = 0
+    private val clues = mutableListOf<Pair<Ticket, Int>>()
 
     private var turn = Role.MISTER_X
 
@@ -408,6 +410,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             addData("tickets", tickets)
             addData("positions", redacted)
             addData("round", round)
+            addData("clues", clues)
+
             addData("turn", turn)
             val availableConnections =
                 if (isTheirTurn(call.trackedUser)) availableMoves.map { it.first }
@@ -434,9 +438,10 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         if (!isValidTicketFor(connection.type, ticket)) return
         if (!tryUseTicket(ticket)) return
 
+        if (turn == Role.MISTER_X) clues.add(ticket to -1)
+
         positions[turn] = next
         updatePosition(turn)
-        println("$turn took connection $id to intersection $next with $ticket ticket.")
 
         nextTurn()
     }
@@ -458,22 +463,17 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         return true
     }
 
-    private val revealMisterX
-        get() = round % 3 == 2
-
     private fun updatePosition(role: Role) {
         val position = positions[turn]!!
 
         if (role.detective)
             return sendMove.toAll(turn to position)
 
-        if (revealMisterX)
-            lastKnownMisterX = position
-
-        val misterXUser = roles[Role.MISTER_X]!!
-        sendMove.toUser(misterXUser, role to position)
-        sendMove.toAllExceptUser(misterXUser, role to lastKnownMisterX)
+        sendMove.toUser(roles[Role.MISTER_X]!!, role to position)
     }
+
+    private val revealMisterX
+        get() = round % 3 == 2
 
     private fun nextTurn() {
         var nextRole = turn.ordinal + 1
@@ -481,14 +481,21 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             round++
             nextRole = 0
             sendNextRound.toAll(round)
+
+            if (revealMisterX) {
+                lastKnownMisterX = positions[Role.MISTER_X]!!
+                clues[round - 1] = clues.last().first to lastKnownMisterX
+                sendReveal.toAll(lastKnownMisterX)
+            }
         }
         turn = Role.entries[nextRole]
         availableMoves = findAvailableMoves()
+        val availableConnections = availableMoves.map { it.first }
 
         sendNextTurn.toAll(turn)
         val user = roles[turn]
-        if (user != null) sendAvailableConnections.toUser(user, availableMoves.map { it.first })
-        else sendAvailableConnections.toAllExceptUser(roles[Role.MISTER_X]!!, availableMoves.map { it.first })
+        if (user != null) sendBeginTurn.toUser(user, availableConnections)
+        else sendBeginTurn.toAll(availableConnections)
     }
 
     private fun findAvailableMoves(): List<Pair<Int, Int>> {

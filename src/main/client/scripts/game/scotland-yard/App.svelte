@@ -97,9 +97,12 @@
     );
 
     const tickets: { [_ in Role]: { [_ in Ticket]: number } } = $state(getData('tickets'));
-    const ticketInfinite = 2147483647;
+    const infiniteCount = 2147483647;
     const positions: { [_ in Role]: number } = $state(getData('positions'));
     let round: number = $state(getData('round'));
+    const clues: [Ticket, number][] = $state(getData('clues'));
+    let showClues = $state(false);
+
     let turn: Role = $state(getData('turn'));
     const yourTurn = $derived(
         turn === yourRole || (roles[turn] === null && (yourRole?.startsWith('detective') ?? false))
@@ -120,9 +123,10 @@
     const sendTakeConnection = channel.destinationWith(bcs.tuple([bcs.enumeration(ticket), bcs.int]));
     channel.receiverWith(onNextRound, bcs.int);
     channel.receiverWith(onNextTurn, bcsRole);
-    channel.receiverWith(onAvailableConnections, bcs.list(bcs.int));
+    channel.receiverWith(onBeginTurn, bcs.list(bcs.int));
     channel.receiverWith(onUseTicket, bcs.tuple([bcsRole, bcsTicket, bcs.int] as const));
     channel.receiverWith(onMove, bcs.tuple([bcsRole, bcs.int] as const));
+    channel.receiverWith(onReveal, bcs.int);
 
     const availableTickets: { [_ in Ticket]: boolean } = {
         [ticket.TAXI]: false,
@@ -132,8 +136,6 @@
     };
 
     const beginTurn = () => {
-        if (!yourTurn) return;
-
         showTickets = true;
         yourTurnMessage = true;
 
@@ -200,31 +202,37 @@
     function onNextTurn(next: Role) {
         endTurn();
         turn = next;
-        // turn begins when server sends available connections
     }
 
-    function onAvailableConnections(connections: number[]) {
+    function onBeginTurn(connections: number[]) {
+        if (!yourTurn) return;
         availableConnections = connections;
         beginTurn();
     }
 
     function onUseTicket([r, t, count]: [Role, Ticket, number]) {
         tickets[r][t] = count;
+        if (r === role.MISTER_X) clues.push([t, -1]);
     }
 
     function onMove([r, id]: [Role, number]) {
         positions[r] = id;
     }
 
+    function onReveal(id: number) {
+        positions[role.MISTER_X] = id;
+        clues[round - 1][1] = id;
+    }
+
     onMount(() => {
-        if (availableConnections !== null) beginTurn();
+        if (yourTurn && availableConnections !== null) beginTurn();
     });
 </script>
 
 <Fullscreen bind:isFullscreen>
     <div class="map">
         <Map minZoom={map.minZoom} boundary={map.boundary}>
-            {#each Object.entries(connections) as [id, c]}
+            {#each Object.entries(connections) as [id, c] (id)}
                 <Connection
                     {id}
                     from={intersections[c.from].position}
@@ -239,7 +247,7 @@
                     selected={chosenConnection === id}
                 ></Connection>
             {/each}
-            {#each Object.entries(intersections) as [id, i]}
+            {#each Object.entries(intersections) as [id, i] (id)}
                 <Intersection
                     id={id.toString()}
                     position={i.position}
@@ -249,7 +257,7 @@
                     onclick={canChooseConnection ? chooseIntersection(parseInt(id)) : null}
                 ></Intersection>
             {/each}
-            {#each Object.entries(positions) as [role, id]}
+            {#each Object.entries(positions) as [role, id] (role)}
                 {#if id !== -1}
                     <Player role={role as Role} position={intersections[id].position} size={map.intersectionRadius * 4}
                     ></Player>
@@ -261,25 +269,19 @@
                 content="It's your turn!"
             />
         </Map>
-        <div class="overlay info">
-            <h3>Round {round + 1}</h3>
-            <span
-                >{roleNames[turn]}'s turn ({roles[turn] !== null ? playerById(roles[turn]!)!.name : 'Detectives'})</span
-            >
-        </div>
-        <div class="overlay tickets" class:enabled={showTickets}>
+        <div class="overlay float tickets" class:enabled={showTickets}>
             {#each Object.values(ticket) as t}
                 {@const count = tickets[turn][t]}
                 {#if count !== -1}
                     <button
-                        class={t}
+                        class="ticket {t}"
                         disabled={!showTickets || !availableTickets[t] || count === 0}
                         class:active={(selectedTicket === null && availableTickets[t]) || selectedTicket === t}
                         onclick={() => selectTicket(t)}
                     >
                         {ticketNames[t]}
                         <span class="count">
-                            {#if count === ticketInfinite}
+                            {#if count === infiniteCount}
                                 &infin;
                             {:else}
                                 {count}
@@ -289,13 +291,33 @@
                 {/if}
             {/each}
         </div>
+        <div class="overlay float info">
+            <h3>Round {round + 1}</h3>
+            <span
+                >{roleNames[turn]}'s turn ({roles[turn] !== null ? playerById(roles[turn]!)!.name : 'Detectives'})</span
+            >
+        </div>
+        <div class="overlay clues" class:visible={showClues}>
+            <button onclick={() => (showClues = false)}><Icon id="x-lg" /></button>
+            <h3>Clues</h3>
+            <div class="table">
+                <span>Round</span>
+                <span>Ticket</span>
+                <span>To</span>
+                <div class="seperator"></div>
+                {#each clues as [t, id], i (i)}
+                    <span>{i + 1}</span>
+                    <div class="ticket {t}">{ticketNames[t]}</div>
+                    <span>{id !== -1 ? id : '-'}</span>
+                {/each}
+            </div>
+        </div>
     </div>
     <div class="actions">
         <div>{yourRole !== null ? roleNames[yourRole] : 'Spectator'}</div>
         <div class="spacing"></div>
-        <button>TEST</button>
-        <button>123</button>
-        <button>ABC</button>
+        <button onclick={() => (showClues = !showClues)}>Clues</button>
+        <button>Powerups</button>
         <div class="spacing"></div>
         <button><Icon id="gear" /></button>
         <button onclick={() => (isFullscreen = !isFullscreen)}>
@@ -318,11 +340,14 @@
 
         .overlay {
             position: absolute;
-            left: 0;
             right: 0;
-            margin: 1rem 0;
-            pointer-events: none;
-            z-index: 400;
+            z-index: 1200;
+
+            &.float {
+                left: 0;
+                margin: 1rem 0;
+                pointer-events: none;
+            }
         }
 
         .info {
@@ -348,35 +373,8 @@
 
             button {
                 position: relative;
-                width: 5rem;
-                padding: 0.7rem 0;
-                border: var(--border);
-                border-radius: 0.3rem;
-                text-align: center;
-                text-transform: uppercase;
                 filter: saturate(0.5) contrast(0.6);
                 pointer-events: all;
-
-                &.taxi {
-                    background-color: var(--taxi-color);
-                }
-
-                &.bus {
-                    background-color: var(--bus-color);
-                }
-
-                &.tram {
-                    background-color: var(--tram-color);
-                }
-
-                &.multi {
-                    background: conic-gradient(
-                        var(--bus-color) 0% 25%,
-                        var(--train-color) 25% 50%,
-                        var(--tram-color) 50% 75%,
-                        var(--taxi-color) 75% 0%
-                    );
-                }
 
                 &:disabled {
                     opacity: 0.4;
@@ -405,6 +403,86 @@
                     font-weight: normal;
                 }
             }
+        }
+
+        .clues {
+            display: flex;
+            flex-direction: column;
+            top: 0;
+            bottom: 0;
+            width: 20rem;
+            backdrop-filter: brightness(0.6) blur(4px);
+            transform: translateX(100%);
+            transition: 200ms all ease-out;
+
+            &.visible {
+                transform: translateX(0);
+            }
+
+            button {
+                align-self: end;
+                margin: 0.7rem;
+                padding: 0.7rem;
+                background: none;
+                border: none;
+                z-index: 1;
+
+                &:hover {
+                    background-color: rgba(0, 0, 0, 0.4);
+                }
+            }
+
+            h3 {
+                margin-top: -2rem;
+                text-align: center;
+            }
+
+            .table {
+                display: grid;
+                margin: 2rem;
+                grid-template-columns: 1fr 1.5fr 1fr;
+                gap: 0.3rem;
+                justify-items: center;
+                align-items: center;
+                overflow-y: scroll;
+
+                .seperator {
+                    grid-column: 1 / 4;
+                    width: 100%;
+                    height: var(--decoration-thickness);
+                    background-color: var(--muted);
+                }
+            }
+        }
+    }
+
+    .ticket {
+        width: 5rem;
+        padding: 0.7rem 0;
+        border: var(--border);
+        border-radius: 0.3rem;
+        text-align: center;
+        text-transform: uppercase;
+
+        &.taxi {
+            background-color: var(--taxi-color);
+        }
+
+        &.bus {
+            background-color: var(--bus-color);
+        }
+
+        &.tram {
+            background-color: var(--tram-color);
+        }
+
+        &.multi {
+            background: conic-gradient(
+                var(--bus-color) 0% 25%,
+                var(--train-color) 25% 50%,
+                var(--tram-color) 50% 75%,
+                var(--taxi-color) 75% 0%
+            );
         }
     }
 
