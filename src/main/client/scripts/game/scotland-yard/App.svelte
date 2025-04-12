@@ -257,10 +257,10 @@
                     onclick={canChooseConnection ? chooseIntersection(parseInt(id)) : null}
                 ></Intersection>
             {/each}
-            {#each Object.entries(positions) as [role, id] (role)}
+            {#each Object.entries(positions) as [r, id] (r)}
                 {#if id !== -1}
-                    <Player role={role as Role} position={intersections[id].position} size={map.intersectionRadius * 4}
-                    ></Player>
+                    {@const offset = r !== role.MISTER_X && positions[role.MISTER_X] === id ? 0.2 : 0 }
+                    <Player role={r as Role} position={intersections[id].position} size={map.intersectionRadius * 4} {offset} />
                 {/if}
             {/each}
             <Message

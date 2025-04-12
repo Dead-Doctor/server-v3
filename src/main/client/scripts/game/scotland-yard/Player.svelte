@@ -7,6 +7,7 @@
         role: Role;
         position: Point;
         size: number;
+        offset?: number;
     }
 
     const halfSize = 32;
@@ -15,6 +16,7 @@
         role: r,
         position,
         size,
+        offset = 0,
     }: Props = $props();
     let ctx: MapContext = getContext('map');
     let info = ctx()
@@ -30,7 +32,7 @@
     version="1.1"
     viewBox="0 0 64 64"
     xmlns="http://www.w3.org/2000/svg"
-    transform="translate({x} {y}) scale({scale}) translate(-{halfSize} -{halfSize * 1.7})">
+    transform="translate({x} {y}) scale({scale}) translate({halfSize * (-1 + offset)} {halfSize * -1.7})">
     <path
         class:misterX={r === role.MISTER_X}
         class:detective1={r === role.DETECTIVE1}
