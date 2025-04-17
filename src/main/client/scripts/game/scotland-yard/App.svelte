@@ -99,14 +99,15 @@
     const tickets: { [_ in Role]: { [_ in Ticket]: number } } = $state(getData('tickets'));
     const infiniteCount = 2147483647;
     const positions: { [_ in Role]: number } = $state(getData('positions'));
+    let winner: boolean | null = $state(getData('winner'))
     let round: number = $state(getData('round'));
     const clues: [Ticket, number][] = $state(getData('clues'));
     let showClues = $state(false);
 
     let turn: Role = $state(getData('turn'));
     const yourTurn = $derived(
-        turn === yourRole || (roles[turn] === null && (yourRole?.startsWith('detective') ?? false))
-    );
+        winner === null && (turn === yourRole || (roles[turn] === null && (yourRole?.startsWith('detective') ?? false)))
+    )
     let yourTurnMessage = $state(false);
 
     let showTickets = $state(false);
@@ -127,6 +128,7 @@
     channel.receiverWith(onUseTicket, bcs.tuple([bcsRole, bcsTicket, bcs.int] as const));
     channel.receiverWith(onMove, bcs.tuple([bcsRole, bcs.int] as const));
     channel.receiverWith(onReveal, bcs.int);
+    channel.receiverWith(onWinner, bcs.boolean)
 
     const availableTickets: { [_ in Ticket]: boolean } = {
         [ticket.TAXI]: false,
@@ -224,6 +226,11 @@
         clues[round - 1][1] = id;
     }
 
+    function onWinner(detectivesWon: boolean) {
+        winner = detectivesWon;
+        console.log('winner', detectivesWon ? 'detectives' : 'misterX')
+    }
+
     onMount(() => {
         if (yourTurn && availableConnections !== null) beginTurn();
     });
@@ -292,10 +299,15 @@
             {/each}
         </div>
         <div class="overlay float info">
-            <h3>Round {round + 1}</h3>
-            <span
-                >{roleNames[turn]}'s turn ({roles[turn] !== null ? playerById(roles[turn]!)!.name : 'Detectives'})</span
-            >
+            {#if winner === null}
+                <h3>Round {round + 1}</h3>
+                <span
+                    >{roleNames[turn]}'s turn ({roles[turn] !== null ? playerById(roles[turn]!)!.name : 'Detectives'})</span
+                >
+            {:else}
+                <h3>Game End</h3>
+                <span>{winner ? 'Detectives' : 'Mister X'}'s won</span>
+            {/if}
         </div>
         <div class="overlay clues" class:visible={showClues}>
             <button onclick={() => (showClues = false)}><Icon id="x-lg" /></button>

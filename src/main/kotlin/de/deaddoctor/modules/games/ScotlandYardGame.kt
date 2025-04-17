@@ -331,6 +331,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private val sendUseTicket = channel.destination<Triple<Role, Ticket, Count>>()
     private val sendMove = channel.destination<Pair<Role, Int>>()
     private val sendReveal = channel.destination<Int>()
+    private val sendWinner = channel.destination<Boolean>()
 
     private val mapInfo = maps.single()
     private val map = mapInfo.versions[mapInfo.version]!!
@@ -350,6 +351,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
      * Pairs of connections to intersections.
      */
     private var availableMoves: List<Pair<Int, Int>>
+
+    private var winner: Boolean? = null
 
     init {
         roles[Role.MISTER_X] = settings.misterX.value
@@ -417,6 +420,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                 if (isTheirTurn(call.trackedUser)) availableMoves.map { it.first }
                 else null
             addData("availableConnections", availableConnections)
+
+            addData("winner", winner)
         }
     }
 
@@ -442,6 +447,10 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
         positions[turn] = next
         updatePosition(turn)
+
+        if (turn.detective && next == positions[Role.MISTER_X]) {
+            winGame(true)
+        }
 
         nextTurn()
     }
@@ -473,7 +482,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     }
 
     private val revealMisterX
-        get() = round % 3 == 2
+        get() = round % 5 == 2
 
     private fun nextTurn() {
         var nextRole = turn.ordinal + 1
@@ -490,9 +499,14 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         }
         turn = Role.entries[nextRole]
         availableMoves = findAvailableMoves()
-        val availableConnections = availableMoves.map { it.first }
+        if (availableMoves.isEmpty()) {
+            if (turn == Role.MISTER_X) winGame(true)
+            else nextTurn()
+            return
+        }
 
         sendNextTurn.toAll(turn)
+        val availableConnections = availableMoves.map { it.first }
         val user = roles[turn]
         if (user != null) sendBeginTurn.toUser(user, availableConnections)
         else sendBeginTurn.toAll(availableConnections)
@@ -503,7 +517,20 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         val neighbours = findConnections(position)
         val detectivePositions = positions.filterKeys { it.detective }.values
         val unoccupied = neighbours.filterNot { it.second in detectivePositions }
-        if (unoccupied.isEmpty()) TODO("No available move.")
         return unoccupied
+    }
+
+    private fun winGame(detectivesWon: Boolean) {
+        logger.info("Game won!")
+        winner = true
+
+        if (detectivesWon)
+            for (detective in detectives) gameWon(detective)
+        else
+            gameWon(roles[Role.MISTER_X]!!)
+
+        lastKnownMisterX = positions[Role.MISTER_X]!!
+        sendMove.toAll(Role.MISTER_X to lastKnownMisterX)
+        sendWinner.toAll(detectivesWon)
     }
 }
