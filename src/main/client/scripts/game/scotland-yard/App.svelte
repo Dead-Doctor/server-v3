@@ -89,6 +89,13 @@
         };
     }
 
+    interface Title {
+        misterXTicket?: Ticket
+        misterXRevealed?: number
+        misterXWon?: null
+        detectivesWon?: boolean
+    }
+
     let isFullscreen = $state(false);
 
     const roles: { [_ in Role]: PlayerId | null } = $state(getData('roles'));
@@ -103,6 +110,8 @@
     let round: number = $state(getData('round'));
     const clues: [Ticket, number][] = $state(getData('clues'));
     let showClues = $state(false);
+
+    let title: Title | null = $state(null)
 
     let turn: Role = $state(getData('turn'));
     const yourTurn = $derived(
@@ -197,6 +206,17 @@
         }
     };
 
+    let titleTimeout: number | undefined = undefined
+    const showTitle = (t: Title) => {
+        title = t
+
+        clearTimeout(titleTimeout)
+        titleTimeout = setTimeout(() => {
+            title = null
+            titleTimeout = undefined
+        }, 3000)
+    }
+
     function onNextRound(next: number) {
         round = next;
     }
@@ -214,7 +234,10 @@
 
     function onUseTicket([r, t, count]: [Role, Ticket, number]) {
         tickets[r][t] = count;
-        if (r === role.MISTER_X) clues.push([t, -1]);
+        if (r !== role.MISTER_X) return
+
+        clues.push([t, -1]);
+        showTitle({ misterXTicket: t })
     }
 
     function onMove([r, id]: [Role, number]) {
@@ -224,11 +247,23 @@
     function onReveal(id: number) {
         positions[role.MISTER_X] = id;
         clues[round - 1][1] = id;
+
+        showTitle({ misterXRevealed: id })
     }
 
     function onWinner(detectivesWon: boolean) {
         winner = detectivesWon;
         console.log('winner', detectivesWon ? 'detectives' : 'misterX')
+
+        if (detectivesWon) {
+            let caught = false
+            for (const [r, id] of Object.entries(positions))
+                if (r !== role.MISTER_X && positions[role.MISTER_X] === id) caught = true
+            
+            showTitle({ detectivesWon: caught })
+        } else {
+            showTitle({ misterXWon: null })
+        }
     }
 
     onMount(() => {
@@ -309,6 +344,26 @@
                 <span>{winner ? 'Detectives' : 'Mister X'}'s won</span>
             {/if}
         </div>
+        {#if title !== null}
+            <div class="overlay float title">
+                {#if title.misterXTicket !== undefined}
+                    <h1>Mister X used</h1>
+                    <div class="ticket {title.misterXTicket}">{ticketNames[title.misterXTicket]}</div>
+                {/if}
+                {#if title.misterXRevealed !== undefined}
+                    <h1>Mister X revealed</h1>
+                    <h3>Seen at {title.misterXRevealed /*TODO: render as intersection */}</h3>
+                {/if}
+                {#if title.misterXWon !== undefined}
+                    <h1>Mister X won</h1>
+                    <h3>Reached 3 checkpoints</h3>
+                {/if}
+                {#if title.detectivesWon !== undefined}
+                    <h1>Detective won</h1>
+                    <h3>Mister X was {title.detectivesWon ? 'caught' : 'surrounded'}</h3>
+                {/if}
+            </div>
+        {/if}
         <div class="overlay clues" class:visible={showClues}>
             <button onclick={() => (showClues = false)}><Icon id="x-lg" /></button>
             <h3>Clues</h3>
@@ -417,6 +472,23 @@
             }
         }
 
+        .title {
+            display: flex;
+            flex-direction: column;
+            top: 0;
+            bottom: 0;
+            justify-content: center;
+            align-items: center;
+
+            h1, h3 {
+                -webkit-text-stroke: var(--decoration-thickness) var(--decoration);
+            }
+
+            .ticket {
+                font-size: 1.5rem;
+            }
+        }
+
         .clues {
             display: flex;
             flex-direction: column;
@@ -469,10 +541,10 @@
     }
 
     .ticket {
-        width: 5rem;
-        padding: 0.7rem 0;
+        width: 5em;
+        padding: 0.7em 0;
         border: var(--border);
-        border-radius: 0.3rem;
+        border-radius: 0.3em;
         text-align: center;
         text-transform: uppercase;
 
