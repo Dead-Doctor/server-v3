@@ -15,27 +15,34 @@
     let ctx: MapContext = getContext('map');
     let info = ctx()
 
-    let popup: L.Popup
+    let popup: L.Popup | null = null
 
-    onMount(() => {
-        popup = L.popup({autoPanPadding: L.point(50, 50)})
-
-        popup.on('remove', () => {
-            visible = false
-        })
+    $effect(() => {
+        popup?.setLatLng([position.lat, position.lon])
     })
 
     $effect(() => {
-        popup.setLatLng([position.lat, position.lon])
+        popup?.setContent(content)
     })
 
     $effect(() => {
-        popup.setContent(content)
-    })
+        if (visible === (popup !== null)) return
 
-    $effect(() => {
-        if (visible === popup.isOpen()) return
-        if (visible) popup.openOn(info.map)
-        else popup.close()
+        if (visible) {
+            const padding = info.map.getSize().divideBy(3)
+            popup = L.popup({autoPanPadding: padding})
+            
+            popup.setLatLng([position.lat, position.lon])
+            popup.setContent(content)
+
+            popup.on('remove', () => {
+                visible = false
+            })
+
+            popup.openOn(info.map)
+        } else {
+            popup?.close()
+            popup = null
+        }
     })
 </script>
