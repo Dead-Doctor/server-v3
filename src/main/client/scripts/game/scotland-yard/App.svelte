@@ -19,7 +19,7 @@
     import Fullscreen from './Fullscreen.svelte';
     import { connectGameChannel } from '../game.svelte';
     import Player from './Player.svelte';
-    import { playerById, you, type PlayerId } from '../../lobby.svelte';
+    import { isOperator, playerById, you, type PlayerId } from '../../lobby.svelte';
     import { bcs } from '../../bcs';
     import Message from './Message.svelte';
     import { onMount } from 'svelte';
@@ -131,6 +131,7 @@
 
     const channel = connectGameChannel();
     const sendTakeConnection = channel.destinationWith(bcs.tuple([bcs.enumeration(ticket), bcs.int]));
+    const sendFinish = channel.destination()
     channel.receiverWith(onNextRound, bcs.int);
     channel.receiverWith(onNextTurn, bcsRole);
     channel.receiverWith(onBeginTurn, bcs.list(bcs.int));
@@ -385,6 +386,9 @@
         <div class="spacing"></div>
         <button onclick={() => (showClues = !showClues)}>Clues</button>
         <button>Powerups</button>
+        {#if winner !== null && isOperator()}
+            <button onclick={() => sendFinish()}>Finish</button>
+        {/if}
         <div class="spacing"></div>
         <button><Icon id="gear" /></button>
         <button onclick={() => (isFullscreen = !isFullscreen)}>

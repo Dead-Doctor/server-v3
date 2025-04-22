@@ -21,6 +21,7 @@ import kotlin.collections.Map as MapC
 class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings: Settings) :
     Game<ScotlandYardGame>(channel, lobby, {
         receiverTyped(ScotlandYardGame::onTakeConnection)
+        receiverTyped(ScotlandYardGame::onFinish)
     }) {
 
     @OptIn(ExperimentalSerializationApi::class)
@@ -532,5 +533,10 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         lastKnownMisterX = positions[Role.MISTER_X]!!
         sendMove.toAll(Role.MISTER_X to lastKnownMisterX)
         sendWinner.toAll(detectivesWon)
+    }
+
+    private fun onFinish(ctx: Channel.Context) {
+        if (ctx.user !is TrackedUser || !isOperator(ctx.user)) return
+        finish()
     }
 }
