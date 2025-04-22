@@ -196,6 +196,7 @@
 
     const chooseIntersection = (id: number) => () => {
         if (availableConnections === null || selectedTicket === null) return;
+        if (id === positions[turn]) return
 
         for (const c of availableConnections) {
             const connection = connections[c];
