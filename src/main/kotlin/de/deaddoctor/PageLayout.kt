@@ -7,8 +7,7 @@ import io.ktor.server.html.*
 import kotlinx.datetime.*
 import kotlinx.html.*
 
-@Suppress("MemberVisibilityCanBePrivate")
-class PageLayout(private val user: User?, private val uri: String, private val title: String): Template<HTML> {
+class PageLayout(private val user: User?, private val uri: String, private val title: String?): Template<HTML> {
     companion object {
         val styles by CSSFile()
 
@@ -41,10 +40,14 @@ class PageLayout(private val user: User?, private val uri: String, private val t
             meta(charset = "utf-8")
             meta(name = "viewport", content = "width=device-width, initial-scale=1.0")
             title {
-                +this@PageLayout.title
-                +" "
-                entity(Entities.ndash)
-                +" DeadDoctor"
+                if (this@PageLayout.title == null) {
+                    +"deaddoctor"
+                } else {
+                    +this@PageLayout.title
+                    +" "
+                    entity(Entities.ndash)
+                    +" deaddoctor"
+                }
             }
             addStyles(styles)
             link(rel = "icon", type = "image/x-icon", href = "/favicon.ico")

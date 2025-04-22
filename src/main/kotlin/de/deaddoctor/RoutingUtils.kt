@@ -51,7 +51,7 @@ val ApplicationRequest.url: Url
 val Url.clean: String
     get() = "${protocolWithAuthority}${encodedPath}"
 
-suspend fun ApplicationCall.respondPage(title: String, body: PageLayout.() -> Unit) {
+suspend fun ApplicationCall.respondPage(title: String? = null, body: PageLayout.() -> Unit) {
     respondHtmlTemplate(PageLayout(user, request.uri, title), HttpStatusCode.OK, body)
 }
 

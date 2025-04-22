@@ -120,7 +120,7 @@ fun Application.module() {
     )
     routing {
         get("/") {
-            call.respondPage("deaddoctor") {
+            call.respondPage {
                 content {
                     section {
                         h1 {
