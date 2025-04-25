@@ -95,12 +95,16 @@
         .popup {
             display: flex;
             flex-direction: column;
-            width: min(30rem, 80%);
+            max-width: 80%;
             padding: 1.5rem;
             gap: 1rem;
             background-color: var(--background);
             border: var(--border);
             border-radius: 1rem;
+
+            &:has(.textInput) {
+                width: 30rem;
+            }
 
             .textInput {
                 width: 100%;
@@ -122,8 +126,11 @@
 
             .actions {
                 display: grid;
-                grid-template-columns: 1fr auto 1fr;
                 align-items: center;
+
+                &:has(.login) {
+                    grid-template-columns: 1fr auto 1fr;
+                }
 
                 .login {
                     grid-column: 2;
@@ -131,6 +138,7 @@
                 }
 
                 .end {
+                    grid-column: -2;
                     justify-self: end;
                     display: flex;
                 }
