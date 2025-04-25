@@ -84,6 +84,12 @@ suspend fun ApplicationCall.respondCss(css: String) {
     this.respondText(css, ContentType.Text.CSS)
 }
 
+@OptIn(ExperimentalSerializationApi::class)
+inline fun <reified T> Json.decodeFromResource(stream: InputStream): T = stream.use(::decodeFromStream)
+
+@OptIn(ExperimentalSerializationApi::class)
+inline fun <reified T> Json.encodeToResource(value: T, stream: OutputStream) = stream.use { encodeToStream(value, it) }
+
 object ViteBuild {
     @OptIn(ExperimentalSerializationApi::class)
     val manifest =

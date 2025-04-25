@@ -8,12 +8,9 @@ import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
-import kotlinx.serialization.json.encodeToStream
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.collections.Map as MapC
@@ -24,7 +21,6 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         receiverTyped(ScotlandYardGame::onFinish)
     }) {
 
-    @OptIn(ExperimentalSerializationApi::class)
     companion object : GameType<ScotlandYardGame> {
         override fun id() = "scotland-yard"
         override fun name() = "Scotland Yard"
@@ -53,12 +49,12 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
         private fun loadMap(folder: File) {
             val id = folder.name
-            val info = jsonParser.decodeFromStream<Map.Saved>(File(folder, "info.json").inputStream())
+            val info = jsonParser.decodeFromResource<Map.Saved>(File(folder, "info.json").inputStream())
             val map = Map(id, info.name)
             for (file in folder.listFiles()) {
                 val name = file.nameWithoutExtension
                 if (name == "info") continue
-                val mapData = jsonParser.decodeFromStream<MapData>(file.inputStream())
+                val mapData = jsonParser.decodeFromResource<MapData>(file.inputStream())
                 map.versions[name.toInt()] = mapData
             }
             maps.add(map)
@@ -196,7 +192,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                         map.versions[nextVersion] = mapData
                         val folder = File(mapsFolder, id)
                         val version = File(folder, "$nextVersion.json")
-                        jsonParser.encodeToStream(mapData, version.outputStream())
+                        jsonParser.encodeToResource(mapData, version.outputStream())
 
                         logger.info("Saved version $nextVersion of map '${map.name}' to $version.")
                         sendSave.toAll(nextVersion)

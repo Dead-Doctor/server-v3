@@ -18,8 +18,6 @@ import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
-import kotlinx.serialization.json.encodeToStream
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.concurrent.thread
@@ -39,7 +37,6 @@ class MusicGuesserGame(
     receiverTyped(MusicGuesserGame::onFinish)
 }) {
 
-    @OptIn(ExperimentalSerializationApi::class)
     companion object : GameType<MusicGuesserGame> {
         override fun id() = "music-guesser"
         override fun name() = "Music Guesser"
@@ -126,7 +123,7 @@ class MusicGuesserGame(
         init {
             thread(isDaemon = true, name = "fetch-playlists-and-overrides") {
                 runBlocking {
-                    overrides = if (overridesFile.isFile) jsonParser.decodeFromStream(overridesFile.inputStream())
+                    overrides = if (overridesFile.isFile) jsonParser.decodeFromResource(overridesFile.inputStream())
                     else mutableMapOf()
 
                     if (!tracksCache.isFile || (System.currentTimeMillis() - tracksCache.lastModified()).milliseconds > cacheDuration) {
@@ -141,9 +138,9 @@ class MusicGuesserGame(
                         }
                         ready = true
                         logger.info("Successfully loaded ${tracks.size} tracks!")
-                        jsonParser.encodeToStream(tracks, tracksCache.outputStream())
+                        jsonParser.encodeToResource(tracks, tracksCache.outputStream())
                     } else {
-                        tracks = jsonParser.decodeFromStream(tracksCache.inputStream())
+                        tracks = jsonParser.decodeFromResource(tracksCache.inputStream())
                         ready = true
                         logger.info("Successfully read ${tracks.size} cached tracks!")
                     }
@@ -151,7 +148,7 @@ class MusicGuesserGame(
             }
             //TODO: save every few... hours?
             server.monitor.subscribe(ApplicationStopped) {
-                jsonParser.encodeToStream(overrides, overridesFile.outputStream())
+                jsonParser.encodeToResource(overrides, overridesFile.outputStream())
                 logger.info("Saved overrides!")
             }
         }

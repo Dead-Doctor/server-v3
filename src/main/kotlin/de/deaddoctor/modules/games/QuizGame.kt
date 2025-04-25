@@ -6,10 +6,8 @@ import de.deaddoctor.modules.LobbyModule.YouInfo
 import io.ktor.server.application.*
 import kotlinx.html.h1
 import kotlinx.html.h2
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
 import org.slf4j.LoggerFactory
 import java.io.File
 
@@ -25,7 +23,6 @@ class QuizGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<QuizGame>(
     @Serializable
     data class Answer(val text: String, val correct: Boolean)
 
-    @OptIn(ExperimentalSerializationApi::class)
     companion object : GameType<QuizGame> {
         override fun id() = "quiz"
         override fun name() = "Quiz"
@@ -43,7 +40,7 @@ class QuizGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<QuizGame>(
         init {
             var loaded: Array<Question>? = null
             try {
-                loaded = jsonParser.decodeFromStream(dataFile.inputStream())
+                loaded = jsonParser.decodeFromResource(dataFile.inputStream())
                 logger.info("Successfully loaded ${loaded?.size} questions!")
             } catch (error: Exception) {
                 errorMsg = "Parsing Error: ${error.message}"
