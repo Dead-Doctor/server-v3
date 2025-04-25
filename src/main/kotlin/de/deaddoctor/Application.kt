@@ -29,8 +29,14 @@ import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ContentNegotiationClient
 
+private const val MANIFEST_LOCATION = "/.vite/manifest.json"
+
 lateinit var httpClient: HttpClient
 lateinit var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>
+
+lateinit var frontendPath: String
+val manifestPath
+    get() = "$frontendPath$MANIFEST_LOCATION"
 
 var envVars: Map<String, String> = mapOf()
 private fun tryGetConfig(name: String) = System.getenv(name) ?: envVars[name]
@@ -43,7 +49,7 @@ fun main() {
         envVars = envFile.readLines().associate { it.substringBefore("=") to it.substringAfter("=") }
 
     server = embeddedServer(
-        Netty,
+        factory = Netty,
         port = tryGetConfig("PORT")?.toInt() ?: 8080,
         host = "0.0.0.0",
         module = Application::module
@@ -53,6 +59,8 @@ fun main() {
 
 fun Application.module() {
     val logger = LoggerFactory.getLogger(javaClass)
+
+    frontendPath = if (!developmentMode) "dist" else "debug"
 
     install(ForwardedHeaders)
     install(XForwardedHeaders)
@@ -99,7 +107,6 @@ fun Application.module() {
         }
     }
     val redirectTrailingSlash = createApplicationPlugin("RedirectTrailingSlash") {
-        logger.info("RedirectTrailingSlash is installed!")
         onCall { call ->
             val path = call.request.url.encodedPath
             if (path.length > 1 && path.endsWith('/')) {
@@ -180,6 +187,13 @@ fun Application.module() {
         enable(LobbyModule)
         enable(GameModule)
         routeOAuth()
-        staticResources("/", "dist")
+
+        if (!developmentMode) {
+            staticResources("/", frontendPath, null) {
+                exclude { println(it); it.file.endsWith(manifestPath) }
+            }
+        } else {
+            staticFiles("/", File(frontendPath), null)
+        }
     }
 }

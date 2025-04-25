@@ -17,6 +17,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromStream
+import kotlinx.serialization.json.encodeToStream
+import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import kotlin.reflect.KProperty
 
 interface Module {
@@ -91,9 +95,12 @@ inline fun <reified T> Json.decodeFromResource(stream: InputStream): T = stream.
 inline fun <reified T> Json.encodeToResource(value: T, stream: OutputStream) = stream.use { encodeToStream(value, it) }
 
 object ViteBuild {
-    @OptIn(ExperimentalSerializationApi::class)
-    val manifest =
-        Json.decodeFromStream<MutableMap<String, ManifestChunk>>(javaClass.getResourceAsStream("/dist/.vite/manifest.json")!!)
+    private var manifest = parseManifest()
+
+    private fun parseManifest() = Json.decodeFromResource<MutableMap<String, ManifestChunk>>(
+        if (!server.application.developmentMode) javaClass.getResourceAsStream("/$manifestPath")!!
+        else File(manifestPath).inputStream()
+    )
 
     @Serializable
     data class ManifestChunk(
@@ -106,6 +113,8 @@ object ViteBuild {
     )
 
     fun FlowOrMetaDataOrPhrasingContent.addScript(name: String) {
+        if (server.application.developmentMode) manifest = parseManifest()
+        //TODO: watch manifest.json for file changes. then reload and maybe also notify client to refresh
         val entry = manifest["scripts/$name.ts"] ?: throw IllegalArgumentException("Unknown script with name: $name (scripts/$name.ts)")
         linkCss(entry.css)
         script { type = "module"; src = "/${entry.file}"; }
