@@ -385,8 +385,8 @@
     <div class="actions">
         <div>{yourRole !== null ? roleNames[yourRole] : 'Spectator'}</div>
         <div class="spacing"></div>
-        <button onclick={() => (showClues = !showClues)}>Clues</button>
-        <button>Powerups</button>
+        <button class="stretch" onclick={() => (showClues = !showClues)}>Clues</button>
+        <button class="stretch">Powerups</button>
         {#if winner !== null && isOperator()}
             <button onclick={() => sendFinish()}>Finish</button>
         {/if}
@@ -441,6 +441,13 @@
 
             &.enabled {
                 display: flex;
+                
+                @media (width < 40rem) {
+                    &:has(> :last-child:nth-child(4)) {
+                        display: grid;
+                        grid-template-columns: repeat(2, auto);
+                    }
+                }
             }
 
             button {
@@ -499,7 +506,7 @@
             flex-direction: column;
             top: 0;
             bottom: 0;
-            width: 20rem;
+            width: min(20rem, 100%);
             backdrop-filter: brightness(0.6) blur(4px);
             transform: translateX(100%);
             transition: 200ms all ease-out;
@@ -578,6 +585,7 @@
     .actions {
         display: flex;
         height: 3rem;
+        container-type: inline-size;
 
         > * {
             display: flex;
@@ -605,6 +613,21 @@
 
             &:active {
                 background-color: var(--accent);
+            }
+        }
+
+        @container (width < 30rem) {
+            > * {
+                padding: 0 0.7rem;
+            }
+
+            .stretch {
+                flex-grow: 1;
+                justify-content: center;
+            }
+
+            .spacing {
+                display: none;
             }
         }
     }

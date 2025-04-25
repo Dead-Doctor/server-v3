@@ -69,14 +69,14 @@
         background-color: var(--secondary);
         border: var(--border);
         border-radius: 1.5rem;
-        font-size: 1.5em;
+        font-size: var(--h5);
 
         .row {
             display: grid;
             grid-column: span 3;
             grid-template-columns: subgrid;
-            padding: 0.8em 1.4em;
-            column-gap: 1.4em;
+            padding: 0.8em 1.2em;
+            column-gap: 1.2em;
             border-bottom: var(--border);
             justify-content: center;
             align-items: center;
@@ -97,6 +97,7 @@
 
             .player {
                 gap: 0.5em;
+                overflow-x: scroll;
 
                 &.inactive {
                     filter: brightness(50%);

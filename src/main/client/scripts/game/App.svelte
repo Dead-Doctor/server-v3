@@ -164,6 +164,15 @@
                 }
             }
         }
+
+        @media (width < 60rem) {
+            flex-direction: column;
+            align-items: stretch;
+
+            .join {
+                border-top: var(--border);
+            }
+        }
     }
 
     .actions {

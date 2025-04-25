@@ -49,7 +49,7 @@
         buttonDisabled: false,
         buttonAction() {},
         input: false,
-        inputPlaceholder: 'Username:',
+        inputPlaceholder: 'Username',
         inputValue: '',
         inputAction() {
             sendCheckName(popup.inputValue!)
@@ -159,7 +159,7 @@
     const youPlayer = playerById(you.id);
     if (youPlayer === undefined) {
         popup.visible = true
-        popup.message = 'Select a username:'
+        popup.message = 'Configure profile:'
         popup.closable = false,
         popup.buttonText = 'Join',
         popup.buttonDisabled = false,

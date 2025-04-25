@@ -59,18 +59,20 @@
                     <span class="error" style="display: none"><samp></samp></span>
                 </div>
             {/if}
-            {#if login}
-                <span class="login"
-                    >Or <a href={`/login?redirectUrl=${encodeURIComponent(location.pathname)}`}>Login</a></span
-                >
-            {/if}
-            <div class="actions">
-                <button onclick={() => buttonAction()} disabled={buttonDisabled}
-                    >{buttonText}</button
-                >
-                {#if closable}
-                    <button onclick={() => (visible = false)}>Close</button>
+            <div class="actions"> 
+                {#if login}
+                    <span class="login"
+                        >Or <a href={`/login?redirectUrl=${encodeURIComponent(location.pathname)}`}>Login</a></span
+                    >
                 {/if}
+                <div class="end">
+                    <button onclick={() => buttonAction()} disabled={buttonDisabled}
+                        >{buttonText}</button
+                    >
+                    {#if closable}
+                        <button onclick={() => (visible = false)}>Close</button>
+                    {/if}
+                </div>
             </div>
         </div>
     </div>
@@ -93,6 +95,7 @@
         .popup {
             display: flex;
             flex-direction: column;
+            width: min(30rem, 80%);
             padding: 1.5rem;
             gap: 1rem;
             background-color: var(--background);
@@ -100,13 +103,13 @@
             border-radius: 1rem;
 
             .textInput {
-                width: 35rem;
-                font-size: 1.5em;
+                width: 100%;
+                font-size: var(--h5);
                 font-weight: bold;
             }
 
             div .error {
-                width: 35rem;
+                width: 100%;
                 padding: 0.4em;
                 background-color: var(--secondary);
 
@@ -117,14 +120,20 @@
                 }
             }
 
-            .login {
-                align-self: center;
-                margin-bottom: -3rem;
-                color: var(--muted);
-            }
-
             .actions {
-                align-self: end;
+                display: grid;
+                grid-template-columns: 1fr auto 1fr;
+                align-items: center;
+
+                .login {
+                    grid-column: 2;
+                    color: var(--muted);
+                }
+
+                .end {
+                    justify-self: end;
+                    display: flex;
+                }
             }
         }
     }
