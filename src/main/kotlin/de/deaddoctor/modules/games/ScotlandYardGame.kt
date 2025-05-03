@@ -13,7 +13,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.io.File
-import kotlin.collections.Map as MapC
+import kotlin.collections.Map as MapCollection
 
 class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings: Settings) :
     Game<ScotlandYardGame>(channel, lobby, {
@@ -40,7 +40,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         init {
             if (!folder.isDirectory) folder.mkdir()
             if (!mapsFolder.isDirectory) mapsFolder.mkdir()
-            for (mapFolder in mapsFolder.listFiles()) {
+            for (mapFolder in mapsFolder.listFiles()!!) {
                 if (!mapFolder.isDirectory) continue
                 loadMap(mapFolder)
             }
@@ -51,7 +51,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             val id = folder.name
             val info = jsonParser.decodeFromResource<Map.Saved>(File(folder, "info.json").inputStream())
             val map = Map(id, info.name)
-            for (file in folder.listFiles()) {
+            for (file in folder.listFiles()!!) {
                 val name = file.nameWithoutExtension
                 if (name == "info") continue
                 val mapData = jsonParser.decodeFromResource<MapData>(file.inputStream())
@@ -158,7 +158,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                         sendUpdateConnectionWidth.toAllExcept(connection, width)
                     }
 
-                    suspend fun Channel.Context.changeIntersections(intersection: Intersection) {
+                    suspend fun Channel.Context.changeIntersections(intersection: IntersectionData) {
                         if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.intersections.removeIf { it.id == intersection.id }
@@ -166,7 +166,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                         //TODO: send updates
                     }
 
-                    suspend fun Channel.Context.changeConnections(connection: Connection) {
+                    suspend fun Channel.Context.changeConnections(connection: ConnectionData) {
                         if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.connections.removeIf { it.id == connection.id }
@@ -223,8 +223,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             var minZoom: Int,
             var intersectionRadius: Double,
             var connectionWidth: Double,
-            val intersections: MutableList<Intersection>,
-            val connections: MutableList<Connection>
+            val intersections: MutableList<IntersectionData>,
+            val connections: MutableList<ConnectionData>
         )
     }
 
@@ -259,15 +259,24 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         val minZoom: Int,
         val intersectionRadius: Double,
         val connectionWidth: Double,
-        val intersections: List<Intersection>,
-        val connections: List<Connection>
+        val intersections: List<IntersectionData>,
+        val connections: List<ConnectionData>
     )
 
     @Serializable
-    data class Intersection(val id: Int, @SerialName("pos") val position: Point)
+    data class IntersectionData(val id: Int, @SerialName("pos") val position: Point)
 
     @Serializable
-    data class Connection(val id: Int, val from: Int, val to: Int, val type: Transport, val shape: Shape)
+    data class ConnectionData(val id: Int, val from: Int, val to: Int, val type: Transport, val shape: Shape)
+
+    class Intersection(val position: Point) {
+        /**
+         * A list of connections with `Connection::id` and `Intersection::id`.
+         */
+        val connections = mutableListOf<Pair<Int, Int>>()
+    }
+
+    class Connection(val from: Int, val to: Int, val type: Transport, val shape: Shape)
 
     @Serializable
     data class Shape(val from: Point, val to: Point)
@@ -332,10 +341,16 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
     private val mapInfo = maps.single()
     private val map = mapInfo.versions[mapInfo.version]!!
+    private val intersections: MapCollection<Int, Intersection> = map.intersections.associate { it.id to Intersection(it.position) }
+    private val connections = map.connections.associate {
+        intersections[it.from]!!.connections.add(it.id to it.to)
+        intersections[it.to]!!.connections.add(it.id to it.from)
+        it.id to Connection(it.from, it.to, it.type, it.shape)
+    }
     private val roles = mutableMapOf<Role, TrackedUser?>()
     private val detectives = mutableListOf<TrackedUser>()
 
-    private val tickets: MapC<Role, MutableMap<Ticket, Count>>
+    private val tickets: MapCollection<Role, MutableMap<Ticket, Count>>
     private val positions = mutableMapOf<Role, Int>()
     private var lastKnownMisterX = -1
     private var round = 0
@@ -373,28 +388,24 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             else mutableMapOf(Ticket.TAXI to inf, Ticket.BUS to inf, Ticket.TRAM to inf, Ticket.MULTI to none)
         }
 
-        val pool = map.intersections.toMutableList()
+        val pool = intersections.toMutableMap()
         for (type in Role.entries) {
-            val position = pool.random()
+            val position = pool.keys.random()
 
-            val neighbours = mutableListOf(position.id to 3)
-            while (neighbours.isNotEmpty()) {
-                val (current, depth) = neighbours.removeFirst()
-                if (!pool.removeIf { it.id == current }) continue
-                if (depth == 0) continue
-                neighbours.addAll(findConnections(current).map { it.second to depth - 1 })
+            // Removes all intersections from the pool reachable within 3 connections
+            val reachable = mutableListOf(position to /* distance */ 0)
+            while (reachable.isNotEmpty()) {
+                val (current, distance) = reachable.removeFirst()
+                if (pool.remove(current) == null) continue
+                if (distance == 3) continue
+                val neighbours = intersections[current]!!.connections
+                reachable.addAll(neighbours.map { it.second to distance + 1 })
             }
 
-            positions[type] = position.id
+            positions[type] = position
         }
 
         availableMoves = findAvailableMoves()
-    }
-
-    private fun findConnections(intersection: Int) = map.connections.mapNotNull {
-        if (it.from == intersection) it.id to it.to
-        else if (it.to == intersection) it.id to it.from
-        else null
     }
 
     override suspend fun get(call: ApplicationCall) {
@@ -433,7 +444,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
         if (ctx.user !is TrackedUser || !isTheirTurn(ctx.user)) return
 
-        val connection = map.connections.find { it.id == id } ?: return
+        val connection = connections[id] ?: return
         val move = availableMoves.find { it.first == id } ?: return
         val next = move.second
 
@@ -511,7 +522,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
     private fun findAvailableMoves(): List<Pair<Int, Int>> {
         val position = positions[turn]!!
-        val neighbours = findConnections(position)
+        val neighbours = intersections[position]!!.connections
         val detectivePositions = positions.filterKeys { it.detective }.values
         val unoccupied = neighbours.filterNot { it.second in detectivePositions }
         return unoccupied

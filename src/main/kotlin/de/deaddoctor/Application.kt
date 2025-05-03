@@ -190,7 +190,7 @@ fun Application.module() {
 
         if (!developmentMode) {
             staticResources("/", frontendPath, null) {
-                exclude { println(it); it.file.endsWith(manifestPath) }
+                exclude { it.file.endsWith(manifestPath) }
             }
         } else {
             staticFiles("/", File(frontendPath), null)
