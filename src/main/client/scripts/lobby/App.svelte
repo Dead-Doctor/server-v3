@@ -212,40 +212,42 @@
             },
         }}
     />
-    <select
-        name="gameSelect"
-        id="gameSelect"
-        disabled={!isOperator() || gameRunning}
-        bind:value={gameSelected}
-        onchange={() => sendGameSelected(gameSelected)}
-    >
-        {#each gameTypes as type}
-            <option value={type.id}>{type.name}</option>
-        {/each}
-    </select>
-    <div class="settings">
-        {#each gameSettings as setting}
-            <label for="setting-{setting.id}">{setting.name}</label>
-            {#if setting.playerDropDown.length === 1}
-                {@const dropDown = setting.playerDropDown[0]}
-                <select
-                    name="setting-{setting.id}"
-                    id="setting-{setting.id}"
-                    disabled={!isOperator() || gameRunning}
-                    bind:value={dropDown.value}
-                    onchange={changeSetting(setting)}
-                >
-                    {#if dropDown.optional}
-                        <option value="">None</option>
-                    {/if}
-                    {#each lobby.players as player}
-                        <option value={player.id}>{player.name}</option>
-                    {/each}
-                </select>
-            {/if}
-        {/each}
+    <div class="options">
+        <select
+            name="gameSelect"
+            id="gameSelect"
+            disabled={!isOperator() || gameRunning}
+            bind:value={gameSelected}
+            onchange={() => sendGameSelected(gameSelected)}
+        >
+            {#each gameTypes as type}
+                <option value={type.id}>{type.name}</option>
+            {/each}
+        </select>
+        <div class="settings">
+            {#each gameSettings as setting}
+                <label for="setting-{setting.id}">{setting.name}</label>
+                {#if setting.playerDropDown.length === 1}
+                    {@const dropDown = setting.playerDropDown[0]}
+                    <select
+                        name="setting-{setting.id}"
+                        id="setting-{setting.id}"
+                        disabled={!isOperator() || gameRunning}
+                        bind:value={dropDown.value}
+                        onchange={changeSetting(setting)}
+                    >
+                        {#if dropDown.optional}
+                            <option value="">None</option>
+                        {/if}
+                        {#each lobby.players as player}
+                            <option value={player.id}>{player.name}</option>
+                        {/each}
+                    </select>
+                {/if}
+            {/each}
+        </div>
     </div>
-    <button disabled={!isOperator() || gameRunning || !gameSettingsValid} onclick={() => sendBeginGame()}
+    <button disabled={!isOperator() || gameRunning || !gameSettingsValid} onclick={() => sendBeginGame()} title={!gameSettingsValid ? 'Invalid Settings' : null}
         >{gameRunning ? 'Running' : 'Begin'}</button
     >
 </section>
@@ -279,6 +281,28 @@
 
         button {
             align-self: end;
+        }
+    }
+
+    .options {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+    @media (width > 35rem) {
+        .options {
+            grid-template-columns: 1fr 2fr;
+        }
+    }
+
+    .settings {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.5rem 1rem;
+    }
+    @media (width > 60rem) {
+        .settings {
+            grid-template-columns: repeat(2, auto 1fr);
         }
     }
 </style>
