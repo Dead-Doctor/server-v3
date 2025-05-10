@@ -236,6 +236,9 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         val detective4 = GameSetting.PlayerDropDown("Detective 4", true)
         val detective5 = GameSetting.PlayerDropDown("Detective 5", true)
         val detective6 = GameSetting.PlayerDropDown("Detective 6", true)
+
+        private val detectives = listOf(detective1, detective2, detective3, detective4, detective5, detective6)
+        override fun validate() = !detectives.any { it.value == misterX.value }
     }
 
     data class Map(
@@ -341,7 +344,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
     private val mapInfo = maps.single()
     private val map = mapInfo.versions[mapInfo.version]!!
-    private val intersections: MapCollection<Int, Intersection> = map.intersections.associate { it.id to Intersection(it.position) }
+    private val intersections: MapCollection<Int, Intersection> =
+        map.intersections.associate { it.id to Intersection(it.position) }
     private val connections = map.connections.associate {
         intersections[it.from]!!.connections.add(it.id to it.to)
         intersections[it.to]!!.connections.add(it.id to it.from)
@@ -384,7 +388,12 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         val special = Count(3)
         val inf = Count.INFINITE
         tickets = Role.entries.associateWith {
-            if (!it.detective) mutableMapOf(Ticket.TAXI to inf, Ticket.BUS to inf, Ticket.TRAM to inf, Ticket.MULTI to special)
+            if (!it.detective) mutableMapOf(
+                Ticket.TAXI to inf,
+                Ticket.BUS to inf,
+                Ticket.TRAM to inf,
+                Ticket.MULTI to special
+            )
             else mutableMapOf(Ticket.TAXI to inf, Ticket.BUS to inf, Ticket.TRAM to inf, Ticket.MULTI to none)
         }
 

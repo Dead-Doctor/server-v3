@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import kotlin.reflect.KVisibility
 import kotlin.reflect.full.memberProperties
 import kotlin.time.Duration.Companion.seconds
 
@@ -33,8 +34,8 @@ object LobbyModule : Module {
     private val sendPlayerScoreChanged = channel.destination<Pair<String, Int>>()
     private val sendHostChanged = channel.destination<String>()
     private val sendKicked = channel.destination<String>()
-    private val sendGameSelected = channel.destination<Pair<String, List<GameSetting.Info>>>()
-    private val sendGameSettingChanged = channel.destination<GameSetting.Info>()
+    private val sendGameSelected = channel.destination<Pair<String, Pair<List<GameSetting.Info>, Boolean>>>()
+    private val sendGameSettingChanged = channel.destination<Pair<GameSetting.Info, Boolean>>()
     private val sendGameStarted = channel.destination<String>()
     private val sendGameEnded = channel.destination<Unit>()
     private val sendGame = channel.destinationRaw(100u)
@@ -99,6 +100,7 @@ object LobbyModule : Module {
                         addData("gameTypes", GameModule.gameTypesInfo(call))
                         addData("gameSelected", lobby.gameSelected.id())
                         addData("gameSettings", lobby.settingsInfo)
+                        addData("gameSettingsValid", lobby.settingsValid)
                         addData("gameRunning", lobby.game != null)
                         addScript("${path()}/main")
                     }
@@ -134,10 +136,12 @@ object LobbyModule : Module {
                 }
                 return nameErrors
             }
+
             fun Channel.Context.checkName(name: String) {
                 val errors = checkName(name)
                 sendCheckedName.toConnection(connection, errors)
             }
+
             fun Channel.Context.join(name: String) {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || user is AccountUser || lobby.joined(user) || checkName(name).isNotEmpty()) return
@@ -145,39 +149,46 @@ object LobbyModule : Module {
                 lobby.activeConnect(player)
                 sendJoin.toUser(user, user.id)
             }
+
             fun Channel.Context.disconnect() {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || !lobby.joined(user) || countConnections() != 0) return
                 lobby.activeDisconnect(lobby.getPlayer(user)!!)
             }
+
             fun Channel.Context.promote(playerId: String) {
                 val lobby = connection.lobby ?: return
                 val player = TrackedUser(playerId)
                 if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return
                 lobby.promote(player)
             }
+
             fun Channel.Context.kick(playerId: String) {
                 val lobby = connection.lobby ?: return
                 val player = TrackedUser(playerId)
                 if (user !is TrackedUser || !lobby.isOperator(user) || !lobby.joined(player)) return
                 lobby.kick(player)
             }
+
             fun Channel.Context.gameSelected(gameSelected: String) {
                 val lobby = connection.lobby ?: return
                 val gameType = GameModule.getGameType(gameSelected)
                 if (user !is TrackedUser || !lobby.isOperator(user) || gameType == null || lobby.isRunning) return
                 lobby.selectGame(gameType)
             }
+
             fun Channel.Context.gameSettingChanged(gameSetting: GameSetting.Info) {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || !lobby.isOperator(user) || lobby.isRunning) return
-                lobby.changeGameSetting(connection, gameSetting)
+                lobby.changeGameSetting(gameSetting)
             }
+
             suspend fun Channel.Context.beginGame() {
                 val lobby = connection.lobby ?: return
-                if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null) return
+                if (user !is TrackedUser || !lobby.isOperator(user) || lobby.game != null || !lobby.settingsValid) return
                 lobby.beginGame()
             }
+
             suspend fun Channel.Context.game(data: ByteArray) {
                 val lobby = connection.lobby ?: return
                 val game = lobby.game ?: return
@@ -217,6 +228,7 @@ object LobbyModule : Module {
         private var host: TrackedUser? = null
         private var gameSettings = gameSelected.settings()
         val settingsInfo = mutableListOf<GameSetting.Info>()
+        var settingsValid = false
         var game: Game<*>? = null
         fun joined(user: TrackedUser) = players.containsKey(user)
 
@@ -301,10 +313,33 @@ object LobbyModule : Module {
             settingsInfo.clear()
             constructSettings()
 
-            sendGameSelected.toAll(gameType.id() to settingsInfo)
+            sendGameSelected.toAll(gameType.id() to (settingsInfo to settingsValid))
         }
 
-        fun changeGameSetting(connection: Connection, setting: GameSetting.Info) {
+        private fun constructSettings() {
+            //TODO: configurable settings
+            // (-) dropdowns
+            // (-) sliders
+            // (-) presets (maybe through onchange events with callbacks)
+            // (+) player-dropdowns TODO: initialization, exclusivity (maybe dropdown-groups)
+
+            val settingsType = gameSettings::class
+            for (type in settingsType.memberProperties.filter { it.visibility == KVisibility.PUBLIC }) {
+                when (val setting = type.getter.call(gameSettings)) {
+                    !is GameSetting ->
+                        continue
+
+                    is GameSetting.PlayerDropDown ->
+                        settingsInfo.add(GameSetting.PlayerDropDown.Info(type.name, setting))
+
+                    else ->
+                        throw IllegalArgumentException("Unimplemented settings type (construction): ${type.name} (${type.returnType})")
+                }
+            }
+            settingsValid = validateGameSettings()
+        }
+
+        fun changeGameSetting(setting: GameSetting.Info) {
             val i = settingsInfo.indexOfFirst { it.id == setting.id }
             if (i == -1) {
                 logger.warn("Tried to change non-existing setting '${setting.id}' on '${gameSettings::class}'!")
@@ -319,32 +354,23 @@ object LobbyModule : Module {
                     val id = setting.playerDropDown.single().value
                     gameSetting.selection = if (id == "") null else players.keys.first { it.id == id }
                 }
+
                 else -> {
                     throw IllegalArgumentException("Unimplemented settings type (updating): ${type.name} (${type.returnType})")
                 }
             }
 
-            sendGameSettingChanged.toAllExcept(connection, setting)
+            settingsValid = validateGameSettings()
+            sendGameSettingChanged.toAll(setting to settingsValid)
         }
 
-        private fun constructSettings() {
-            //TODO: configurable settings
-            // (-) dropdowns
-            // (-) sliders
-            // (-) presets (maybe through onchange events with callbacks)
-            // (+) player-dropdowns TODO: initialization, exclusivity (maybe dropdown-groups)
-
+        private fun validateGameSettings(): Boolean {
             val settingsType = gameSettings::class
-            for (type in settingsType.memberProperties) {
-                when (val setting = type.getter.call(gameSettings)) {
-                    is GameSetting.PlayerDropDown -> {
-                        settingsInfo.add(GameSetting.PlayerDropDown.Info(type.name, setting))
-                    }
-                    else -> {
-                        throw IllegalArgumentException("Unimplemented settings type (construction): ${type.name} (${type.returnType})")
-                    }
-                }
+            for (type in settingsType.memberProperties.filter { it.visibility == KVisibility.PUBLIC }) {
+                val setting = type.getter.call(gameSettings)
+                if (setting is GameSetting && !setting.validate()) return false
             }
+            return gameSettings.validate()
         }
 
         suspend fun beginGame() {

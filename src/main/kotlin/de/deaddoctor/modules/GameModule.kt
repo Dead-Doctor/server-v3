@@ -74,7 +74,8 @@ object GameModule : Module {
                     if (lobby.gameSelected != type)
                         return@get call.respondRedirect("/${path()}/${lobby.gameSelected.id()}/${call.parameters["id"]}")
 
-                    val game = lobby.game ?: return@get call.respondRedirect("/${LobbyModule.path()}/${call.parameters["id"]}")
+                    val game =
+                        lobby.game ?: return@get call.respondRedirect("/${LobbyModule.path()}/${call.parameters["id"]}")
                     game.get(call)
                 }
 
@@ -89,8 +90,7 @@ object GameModule : Module {
 
     fun getGameType(id: String) = gameTypes.find { it.id() == id }
 
-    fun gameTypesInfo(call: ApplicationCall): List<GameType.Info>
-        = gameTypes.map { GameType.Info(it, call) }
+    fun gameTypesInfo(call: ApplicationCall): List<GameType.Info> = gameTypes.map { GameType.Info(it, call) }
 
 }
 
@@ -102,6 +102,7 @@ interface GameType<T : Game<T>> {
     suspend fun create(channel: GameChannel, lobby: Lobby, settings: GameSettings): T
 
     fun links(call: ApplicationCall): MutableMap<String, String>? = null
+
     /**
      * **Warning!** - Should never define routes that clash with lobby ids.
      */
@@ -109,11 +110,20 @@ interface GameType<T : Game<T>> {
 
     @Serializable
     data class Info(val id: String, val name: String, val description: String, val links: MutableMap<String, String>?) {
-        constructor(type: GameType<*>, call: ApplicationCall) : this(type.id(), type.name(), type.description(), type.links(call))
+        constructor(type: GameType<*>, call: ApplicationCall) : this(
+            type.id(),
+            type.name(),
+            type.description(),
+            type.links(call)
+        )
     }
 }
 
-abstract class Game<T>(channel: GameChannel, private val lobby: Lobby, socketHandlerRegistrant: GameChannelEvents.() -> Unit) {
+abstract class Game<T>(
+    channel: GameChannel,
+    private val lobby: Lobby,
+    socketHandlerRegistrant: GameChannelEvents.() -> Unit
+) {
 
     val channelEvents = GameChannelEvents().apply(socketHandlerRegistrant)
 
@@ -205,11 +215,14 @@ class GameChannelEvents : ChannelEvents() {
     }
 }
 
-
-//TODO: optional settings verifier callback
-open class GameSettings
+open class GameSettings {
+    open fun validate(): Boolean = true
+}
 
 open class GameSetting(val name: String) {
+
+    open fun validate(): Boolean = true
+
     @Serializable
     data class Info(val id: String, val name: String) {
         val playerDropDown = mutableListOf<PlayerDropDown.Info>()
@@ -220,9 +233,11 @@ open class GameSetting(val name: String) {
 
         val value: TrackedUser?
             get() {
-                if (!optional && selection == null) throw IllegalStateException("Tried to get value of PlayerDropDown before it was initialized!")
+                if (!validate()) throw IllegalStateException("Tried to get value of PlayerDropDown before it was initialized!")
                 return selection
             }
+
+        override fun validate() = optional || selection != null
 
         @Serializable
         data class Info(val value: String, val optional: Boolean = false) {

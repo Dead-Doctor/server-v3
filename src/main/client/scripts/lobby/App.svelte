@@ -8,25 +8,26 @@
     import { bcs } from '../bcs';
     type Props<T> = T extends Component<infer P, any, any> ? P : never;
 
-    type PopupProps = Props<typeof Popup>
+    type PopupProps = Props<typeof Popup>;
 
     //TODO: popup with invite instructions
 
     interface GameSetting {
-        id: string
-        name: string
-        playerDropDown: PlayerDropDown[]
+        id: string;
+        name: string;
+        playerDropDown: PlayerDropDown[];
     }
 
     interface PlayerDropDown {
-        value: string,
-        optional: boolean
+        value: string;
+        optional: boolean;
     }
 
     let gameTypes: GameType[] = getData('gameTypes');
     let gameSelected: string = $state(getData('gameSelected'));
     let gameSettings: GameSetting[] = $state(getData('gameSettings')); // https://stackoverflow.com/a/30525521
-    let gameRunning: boolean = $state(getData('gameRunning'))
+    let gameSettingsValid: boolean = $state(getData('gameSettingsValid'));
+    let gameRunning: boolean = $state(getData('gameRunning'));
 
     let sortedPlayers = $derived(
         lobby.players
@@ -52,10 +53,10 @@
         inputPlaceholder: 'Username',
         inputValue: '',
         inputAction() {
-            sendCheckName(popup.inputValue!)
+            sendCheckName(popup.inputValue!);
         },
         inputErrors: [],
-        login: false
+        login: false,
     });
 
     const bcsPlayer = bcs.struct({
@@ -65,37 +66,40 @@
         avatar: bcs.nullable(bcs.string),
         active: bcs.boolean,
         score: bcs.int,
-    })
+    });
     const bcsPlayerActiveChanged = bcs.struct({
         player: bcs.string,
-        active: bcs.boolean
-    })
+        active: bcs.boolean,
+    });
     const bcsGameSetting = bcs.struct({
         id: bcs.string,
         name: bcs.string,
-        playerDropDown: bcs.list(bcs.struct({ value: bcs.string, optional: bcs.boolean }))
-    })
+        playerDropDown: bcs.list(bcs.struct({ value: bcs.string, optional: bcs.boolean })),
+    });
 
     const channel = connectChannel();
-    const sendCheckName = channel.destinationWith(bcs.string)
-    const sendJoin = channel.destinationWith(bcs.string)
-    const sendPromote = channel.destinationWith(bcs.string)
-    const sendKick = channel.destinationWith(bcs.string)
-    const sendGameSelected = channel.destinationWith(bcs.string)
-    const sendGameSettingChanged = channel.destinationWith(bcsGameSetting)
-    const sendBeginGame = channel.destination()
+    const sendCheckName = channel.destinationWith(bcs.string);
+    const sendJoin = channel.destinationWith(bcs.string);
+    const sendPromote = channel.destinationWith(bcs.string);
+    const sendKick = channel.destinationWith(bcs.string);
+    const sendGameSelected = channel.destinationWith(bcs.string);
+    const sendGameSettingChanged = channel.destinationWith(bcsGameSetting);
+    const sendBeginGame = channel.destination();
 
-    channel.receiverWith(onCheckedName, bcs.list(bcs.string))
-    channel.receiverWith(onJoin, bcs.string)
-    channel.receiverWith(onPlayerJoined, bcsPlayer)
-    channel.receiverWith(onPlayerActiveChanged, bcsPlayerActiveChanged)
-    channel.receiverWith(onPlayerScoreChanged, bcs.tuple([bcs.string, bcs.int] as const))
-    channel.receiverWith(onHostChanged, bcs.string)
-    channel.receiverWith(onKicked, bcs.string)
-    channel.receiverWith(onGameSelected, bcs.tuple([bcs.string, bcs.list(bcsGameSetting)] as const))
-    channel.receiverWith(onGameSettingChanged, bcsGameSetting)
-    channel.receiverWith(onGameStarted, bcs.string)
-    channel.receiver(onGameEnded)
+    channel.receiverWith(onCheckedName, bcs.list(bcs.string));
+    channel.receiverWith(onJoin, bcs.string);
+    channel.receiverWith(onPlayerJoined, bcsPlayer);
+    channel.receiverWith(onPlayerActiveChanged, bcsPlayerActiveChanged);
+    channel.receiverWith(onPlayerScoreChanged, bcs.tuple([bcs.string, bcs.int] as const));
+    channel.receiverWith(onHostChanged, bcs.string);
+    channel.receiverWith(onKicked, bcs.string);
+    channel.receiverWith(
+        onGameSelected,
+        bcs.tuple([bcs.string, bcs.tuple([bcs.list(bcsGameSetting), bcs.boolean] as const)] as const)
+    );
+    channel.receiverWith(onGameSettingChanged, bcs.tuple([bcsGameSetting, bcs.boolean] as const));
+    channel.receiverWith(onGameStarted, bcs.string);
+    channel.receiver(onGameEnded);
 
     function onCheckedName(errors: string[]) {
         popup.inputErrors = errors;
@@ -103,7 +107,7 @@
     }
 
     function onJoin(id: PlayerId) {
-        popup.visible = false
+        popup.visible = false;
         you.id = id;
     }
 
@@ -126,26 +130,27 @@
     }
 
     function onKicked(message: string) {
-        popup.visible = true
-        popup.message = message
-        popup.closable = false
-        popup.buttonText = 'Close'
-        popup.buttonDisabled = false
+        popup.visible = true;
+        popup.message = message;
+        popup.closable = false;
+        popup.buttonText = 'Close';
+        popup.buttonDisabled = false;
         popup.buttonAction = () => {
             location.pathname = '/';
-        }
-        popup.input = false,
-        popup.login = false
+        };
+        (popup.input = false), (popup.login = false);
     }
 
-    function onGameSelected([game, settings]: [string, GameSetting[]]) {
+    function onGameSelected([game, [settings, settingsValid]]: [string, [GameSetting[], boolean]]) {
         gameSelected = game;
-        gameSettings = settings
+        gameSettings = settings;
+        gameSettingsValid = settingsValid;
     }
 
-    function onGameSettingChanged(setting: GameSetting) {
-        const i = gameSettings.findIndex((s) => s.id === setting.id)
-        gameSettings[i] = setting
+    function onGameSettingChanged([setting, settingsValid]: [GameSetting, boolean]) {
+        const i = gameSettings.findIndex((s) => s.id === setting.id);
+        gameSettings[i] = setting;
+        gameSettingsValid = settingsValid;
     }
 
     function onGameStarted(pathname: string) {
@@ -153,41 +158,39 @@
     }
 
     function onGameEnded() {
-        gameRunning = false
+        gameRunning = false;
     }
 
     const youPlayer = playerById(you.id);
     if (youPlayer === undefined) {
-        popup.visible = true
-        popup.message = 'Configure profile:'
-        popup.closable = false,
-        popup.buttonText = 'Join',
-        popup.buttonDisabled = false,
-        popup.buttonAction = () => {
-            sendJoin(popup.inputValue!)
-        }
-        popup.input = true,
-        popup.login = true
+        popup.visible = true;
+        popup.message = 'Configure profile:';
+        (popup.closable = false),
+            (popup.buttonText = 'Join'),
+            (popup.buttonDisabled = false),
+            (popup.buttonAction = () => {
+                sendJoin(popup.inputValue!);
+            });
+        (popup.input = true), (popup.login = true);
     }
 
-    channel.disconnection(e => {
+    channel.disconnection((e) => {
         if (e.code === 1001) return;
-        popup.visible = true
-        popup.message = 'Lost connection'
-        popup.closable = true
-        popup.buttonText = 'Reload'
-        popup.buttonDisabled = false
+        popup.visible = true;
+        popup.message = 'Lost connection';
+        popup.closable = true;
+        popup.buttonText = 'Reload';
+        popup.buttonDisabled = false;
         popup.buttonAction = () => {
-            location.reload()
-        }
-        popup.input = false,
-        popup.login = false
-    })
+            location.reload();
+        };
+        (popup.input = false), (popup.login = false);
+    });
 
     const changeSetting = (setting: GameSetting) => () => {
-        console.log(setting.id, setting)
-        sendGameSettingChanged(setting)
-    }
+        console.log(setting.id, setting);
+        sendGameSettingChanged(setting);
+    };
 </script>
 
 <section class="title">
@@ -201,8 +204,12 @@
             you: you.id,
             host: lobby.host,
             admin: you.admin,
-            onPromote(id) { sendPromote(id) },
-            onKick(id) { sendKick(id) }
+            onPromote(id) {
+                sendPromote(id);
+            },
+            onKick(id) {
+                sendKick(id);
+            },
         }}
     />
     <select
@@ -238,7 +245,9 @@
             {/if}
         {/each}
     </div>
-    <button disabled={!isOperator() || gameRunning} onclick={() => sendBeginGame()}>{gameRunning ? 'Running' : 'Begin'}</button>
+    <button disabled={!isOperator() || gameRunning || !gameSettingsValid} onclick={() => sendBeginGame()}
+        >{gameRunning ? 'Running' : 'Begin'}</button
+    >
 </section>
 <Popup
     bind:visible={popup.visible}
