@@ -14,6 +14,9 @@
         type Transport,
         type Shape,
         roleNames,
+        teamNames,
+        type Team,
+        team,
     } from './scotland-yard';
     import Connection from './Connection.svelte';
     import Fullscreen from './Fullscreen.svelte';
@@ -90,33 +93,39 @@
     }
 
     interface Title {
-        misterXTicket?: Ticket
-        misterXRevealed?: number
-        misterXWon?: null
-        detectivesWon?: boolean
+        misterXTicket?: Ticket;
+        misterXRevealed?: number;
+        misterXWon?: null;
+        detectivesWon?: boolean;
     }
 
     let isFullscreen = $state(false);
 
     const roles: { [_ in Role]: PlayerId | null } = $state(getData('roles'));
-    const yourRole = $derived(
-        (Object.entries(roles).find(([_, id]) => id === you.id)?.[0] as Role | undefined) ?? null
+    // const yourRole = $derived(
+    //     (Object.entries(roles).find(([_, id]) => id === you.id)?.[0] as Role | undefined) ?? null
+    // );
+
+    const toTeam = (r: Role | null): Team =>
+        r === null ? team.NONE : r === role.MISTER_X ? team.MISTER_X : team.DETECTIVES;
+    const yourTeam = $derived(
+        toTeam((Object.entries(roles) as [Role, string | null][]).find(([_, id]) => id === you.id)?.[0] ?? null)
     );
 
     const tickets: { [_ in Role]: { [_ in Ticket]: number } } = $state(getData('tickets'));
     const infiniteCount = 2147483647;
     const positions: { [_ in Role]: number } = $state(getData('positions'));
-    let winner: boolean | null = $state(getData('winner'))
+    let winner: Team = $state(getData('winner'));
     let round: number = $state(getData('round'));
     const clues: [Ticket, number][] = $state(getData('clues'));
     let showClues = $state(false);
 
-    let title: Title | null = $state(null)
+    let title: Title | null = $state(null);
 
     let turn: Role = $state(getData('turn'));
     const yourTurn = $derived(
-        winner === null && (turn === yourRole || (roles[turn] === null && (yourRole?.startsWith('detective') ?? false)))
-    )
+        winner === team.NONE && (roles[turn] === you.id || (roles[turn] === null && yourTeam === team.DETECTIVES))
+    );
     let yourTurnMessage = $state(false);
 
     let showTickets = $state(false);
@@ -131,14 +140,14 @@
 
     const channel = connectGameChannel();
     const sendTakeConnection = channel.destinationWith(bcs.tuple([bcs.enumeration(ticket), bcs.int]));
-    const sendFinish = channel.destination()
+    const sendFinish = channel.destination();
     channel.receiverWith(onNextRound, bcs.int);
     channel.receiverWith(onNextTurn, bcsRole);
     channel.receiverWith(onBeginTurn, bcs.list(bcs.int));
     channel.receiverWith(onUseTicket, bcs.tuple([bcsRole, bcsTicket, bcs.int] as const));
     channel.receiverWith(onMove, bcs.tuple([bcsRole, bcs.int] as const));
     channel.receiverWith(onReveal, bcs.int);
-    channel.receiverWith(onWinner, bcs.boolean)
+    channel.receiverWith(onWinner, bcs.enumeration(team));
 
     const availableTickets: { [_ in Ticket]: boolean } = {
         [ticket.TAXI]: false,
@@ -196,7 +205,7 @@
 
     const chooseIntersection = (id: number) => () => {
         if (availableConnections === null || selectedTicket === null) return;
-        if (id === positions[turn]) return
+        if (id === positions[turn]) return;
 
         for (const c of availableConnections) {
             const connection = connections[c];
@@ -208,16 +217,16 @@
         }
     };
 
-    let titleTimeout: number | undefined = undefined
+    let titleTimeout: number | undefined = undefined;
     const showTitle = (t: Title) => {
-        title = t
+        title = t;
 
-        clearTimeout(titleTimeout)
+        clearTimeout(titleTimeout);
         titleTimeout = setTimeout(() => {
-            title = null
-            titleTimeout = undefined
-        }, 3000)
-    }
+            title = null;
+            titleTimeout = undefined;
+        }, 3000);
+    };
 
     function onNextRound(next: number) {
         round = next;
@@ -236,10 +245,10 @@
 
     function onUseTicket([r, t, count]: [Role, Ticket, number]) {
         tickets[r][t] = count;
-        if (r !== role.MISTER_X) return
+        if (r !== role.MISTER_X) return;
 
         clues.push([t, -1]);
-        showTitle({ misterXTicket: t })
+        showTitle({ misterXTicket: t });
     }
 
     function onMove([r, id]: [Role, number]) {
@@ -250,21 +259,20 @@
         positions[role.MISTER_X] = id;
         clues[round - 1][1] = id;
 
-        showTitle({ misterXRevealed: id })
+        showTitle({ misterXRevealed: id });
     }
 
-    function onWinner(detectivesWon: boolean) {
-        winner = detectivesWon;
-        console.log('winner', detectivesWon ? 'detectives' : 'misterX')
+    function onWinner(t: Team) {
+        winner = t;
 
-        if (detectivesWon) {
-            let caught = false
+        if (t === team.DETECTIVES) {
+            let caught = false;
             for (const [r, id] of Object.entries(positions))
-                if (r !== role.MISTER_X && positions[role.MISTER_X] === id) caught = true
-            
-            showTitle({ detectivesWon: caught })
+                if (r !== role.MISTER_X && positions[role.MISTER_X] === id) caught = true;
+
+            showTitle({ detectivesWon: caught });
         } else {
-            showTitle({ misterXWon: null })
+            showTitle({ misterXWon: null });
         }
     }
 
@@ -303,8 +311,13 @@
             {/each}
             {#each Object.entries(positions) as [r, id] (r)}
                 {#if id !== -1}
-                    {@const offset = r !== role.MISTER_X && positions[role.MISTER_X] === id ? 0.2 : 0 }
-                    <Player role={r as Role} position={intersections[id].position} size={map.intersectionRadius * 4} {offset} />
+                    {@const offset = r !== role.MISTER_X && positions[role.MISTER_X] === id ? 0.2 : 0}
+                    <Player
+                        role={r as Role}
+                        position={intersections[id].position}
+                        size={map.intersectionRadius * 4}
+                        {offset}
+                    />
                 {/if}
             {/each}
             <Message
@@ -336,14 +349,16 @@
             {/each}
         </div>
         <div class="overlay float info">
-            {#if winner === null}
+            {#if winner === team.NONE}
                 <h3>Round {round + 1}</h3>
                 <span
-                    >{roleNames[turn]}'s turn ({roles[turn] !== null ? playerById(roles[turn]!)!.name : 'Detectives'})</span
+                    >{roleNames[turn]}'s turn ({roles[turn] !== null
+                        ? playerById(roles[turn]!)!.name
+                        : teamNames[team.DETECTIVES]})</span
                 >
             {:else}
                 <h3>Game End</h3>
-                <span>{winner ? 'Detectives' : 'Mister X'}'s won</span>
+                <span>{teamNames[winner]} won</span>
             {/if}
         </div>
         {#if title !== null}
@@ -354,7 +369,7 @@
                 {/if}
                 {#if title.misterXRevealed !== undefined}
                     <h1>Mister X revealed</h1>
-                    <h3>Seen at {title.misterXRevealed /*TODO: render as intersection */}</h3>
+                    <h3>Seen at {title.misterXRevealed}</h3>
                 {/if}
                 {#if title.misterXWon !== undefined}
                     <h1>Mister X won</h1>
@@ -383,11 +398,11 @@
         </div>
     </div>
     <div class="actions">
-        <div>{yourRole !== null ? roleNames[yourRole] : 'Spectator'}</div>
+        <div>{teamNames[yourTeam]}</div>
         <div class="spacing"></div>
         <button class="stretch" onclick={() => (showClues = !showClues)}>Clues</button>
         <button class="stretch">Powerups</button>
-        {#if winner !== null && isOperator()}
+        {#if winner !== team.NONE && isOperator()}
             <button onclick={() => sendFinish()}>Finish</button>
         {/if}
         <div class="spacing"></div>
@@ -441,7 +456,7 @@
 
             &.enabled {
                 display: flex;
-                
+
                 @media (width < 40rem) {
                     &:has(> :last-child:nth-child(4)) {
                         display: grid;
@@ -492,7 +507,8 @@
             justify-content: center;
             align-items: center;
 
-            h1, h3 {
+            h1,
+            h3 {
                 -webkit-text-stroke: var(--decoration-thickness) var(--decoration);
             }
 

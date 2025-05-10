@@ -297,6 +297,13 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     }
 
     @Serializable
+    enum class Team {
+        @SerialName("none") NONE,
+        @SerialName("misterX") MISTER_X,
+        @SerialName("detectives") DETECTIVES
+    }
+
+    @Serializable
     enum class Role(val detective: Boolean = true) {
         @SerialName("misterX") MISTER_X(false),
         @SerialName("detective1") DETECTIVE1,
@@ -340,7 +347,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private val sendUseTicket = channel.destination<Triple<Role, Ticket, Count>>()
     private val sendMove = channel.destination<Pair<Role, Int>>()
     private val sendReveal = channel.destination<Int>()
-    private val sendWinner = channel.destination<Boolean>()
+    private val sendWinner = channel.destination<Team>()
 
     private val mapInfo = maps.single()
     private val map = mapInfo.versions[mapInfo.version]!!
@@ -368,7 +375,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
      */
     private var availableMoves: List<Pair<Int, Int>>
 
-    private var winner: Boolean? = null
+    private var winner: Team = Team.NONE
 
     init {
         roles[Role.MISTER_X] = settings.misterX.value
@@ -388,7 +395,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         val special = Count(3)
         val inf = Count.INFINITE
         tickets = Role.entries.associateWith {
-            if (!it.detective) mutableMapOf(
+            if (it == Role.MISTER_X) mutableMapOf(
                 Ticket.TAXI to inf,
                 Ticket.BUS to inf,
                 Ticket.TRAM to inf,
@@ -466,7 +473,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         updatePosition(turn)
 
         if (turn.detective && next == positions[Role.MISTER_X]) {
-            winGame(true)
+            winGame(Team.DETECTIVES)
         }
 
         nextTurn()
@@ -517,7 +524,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         turn = Role.entries[nextRole]
         availableMoves = findAvailableMoves()
         if (availableMoves.isEmpty()) {
-            if (turn == Role.MISTER_X) winGame(true)
+            if (turn == Role.MISTER_X) winGame(Team.DETECTIVES)
             else nextTurn()
             return
         }
@@ -537,18 +544,18 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         return unoccupied
     }
 
-    private fun winGame(detectivesWon: Boolean) {
+    private fun winGame(team: Team) {
         logger.info("Game won!")
-        winner = true
+        winner = team
 
-        if (detectivesWon)
+        if (team == Team.DETECTIVES)
             for (detective in detectives) gameWon(detective)
         else
             gameWon(roles[Role.MISTER_X]!!)
 
         lastKnownMisterX = positions[Role.MISTER_X]!!
         sendMove.toAll(Role.MISTER_X to lastKnownMisterX)
-        sendWinner.toAll(detectivesWon)
+        sendWinner.toAll(team)
     }
 
     private fun onFinish(ctx: Channel.Context) {

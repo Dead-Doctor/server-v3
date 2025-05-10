@@ -53,6 +53,19 @@ export const Points = {
     }),
 };
 
+export const team = {
+    NONE: 'none',
+    MISTER_X: 'misterX',
+    DETECTIVES: 'detectives',
+} as const;
+export type Team = Enum<typeof team>;
+
+export const teamNames: { [_ in Team]: string } = {
+    [team.NONE]: 'Spectators',
+    [team.MISTER_X]: 'Mister X',
+    [team.DETECTIVES]: 'Detectives',
+};
+
 export const role = {
     MISTER_X: 'misterX',
     DETECTIVE1: 'detective1',
