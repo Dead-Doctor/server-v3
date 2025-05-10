@@ -8,11 +8,13 @@ import io.ktor.server.application.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.delay
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.io.File
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.collections.Map as MapCollection
 
 class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings: Settings) :
@@ -342,7 +344,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     }
 
     private val sendNextRound = channel.destination<Int>()
-    private val sendNextTurn = channel.destination<Role>()
+    private val sendNextTurn = channel.destination<Role?>()
     private val sendBeginTurn = channel.destination<List<Int>>()
     private val sendUseTicket = channel.destination<Triple<Role, Ticket, Count>>()
     private val sendMove = channel.destination<Pair<Role, Int>>()
@@ -368,6 +370,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private val clues = mutableListOf<Pair<Ticket, Int>>()
 
     private var turn = Role.MISTER_X
+    private var turnOver = false
 
     /**
      * List of available moves for the current turn.
@@ -450,11 +453,12 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     }
 
     private fun isTheirTurn(user: TrackedUser): Boolean {
+        if (turnOver) return false
         val currentUser = roles[turn]
         return currentUser == user || (currentUser == null && user in detectives)
     }
 
-    private fun onTakeConnection(ctx: Channel.Context, data: Pair<Ticket, Int>) {
+    private suspend fun onTakeConnection(ctx: Channel.Context, data: Pair<Ticket, Int>) {
         val ticket: Ticket = data.first
         val id: Int = data.second
 
@@ -471,11 +475,14 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
         positions[turn] = next
         updatePosition(turn)
+        turnOver = true
+        sendNextTurn.toAll(null)
 
         if (turn.detective && next == positions[Role.MISTER_X]) {
             winGame(Team.DETECTIVES)
         }
 
+        delay(300.milliseconds)
         nextTurn()
     }
 
@@ -497,10 +504,10 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     }
 
     private fun updatePosition(role: Role) {
-        val position = positions[turn]!!
+        val position = positions[role]!!
 
         if (role.detective)
-            return sendMove.toAll(turn to position)
+            return sendMove.toAll(role to position)
 
         sendMove.toUser(roles[Role.MISTER_X]!!, role to position)
     }
@@ -522,6 +529,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             }
         }
         turn = Role.entries[nextRole]
+        turnOver = false
         availableMoves = findAvailableMoves()
         if (availableMoves.isEmpty()) {
             if (turn == Role.MISTER_X) winGame(Team.DETECTIVES)

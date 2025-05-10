@@ -102,9 +102,6 @@
     let isFullscreen = $state(false);
 
     const roles: { [_ in Role]: PlayerId | null } = $state(getData('roles'));
-    // const yourRole = $derived(
-    //     (Object.entries(roles).find(([_, id]) => id === you.id)?.[0] as Role | undefined) ?? null
-    // );
 
     const toTeam = (r: Role | null): Team =>
         r === null ? team.NONE : r === role.MISTER_X ? team.MISTER_X : team.DETECTIVES;
@@ -122,9 +119,9 @@
 
     let title: Title | null = $state(null);
 
-    let turn: Role = $state(getData('turn'));
+    let turn: Role | null = $state(getData('turn'));
     const yourTurn = $derived(
-        winner === team.NONE && (roles[turn] === you.id || (roles[turn] === null && yourTeam === team.DETECTIVES))
+        winner === team.NONE && turn !== null && (roles[turn] === you.id || (roles[turn] === null && yourTeam === team.DETECTIVES))
     );
     let yourTurnMessage = $state(false);
 
@@ -133,8 +130,6 @@
 
     let availableConnections: number[] | null = $state(getData('availableConnections'));
 
-    let chosenConnection: string | null = $state(null);
-
     const bcsRole = bcs.enumeration(role);
     const bcsTicket = bcs.enumeration(ticket);
 
@@ -142,7 +137,7 @@
     const sendTakeConnection = channel.destinationWith(bcs.tuple([bcs.enumeration(ticket), bcs.int]));
     const sendFinish = channel.destination();
     channel.receiverWith(onNextRound, bcs.int);
-    channel.receiverWith(onNextTurn, bcsRole);
+    channel.receiverWith(onNextTurn, bcs.nullable(bcsRole));
     channel.receiverWith(onBeginTurn, bcs.list(bcs.int));
     channel.receiverWith(onUseTicket, bcs.tuple([bcsRole, bcsTicket, bcs.int] as const));
     channel.receiverWith(onMove, bcs.tuple([bcsRole, bcs.int] as const));
@@ -205,7 +200,7 @@
 
     const chooseIntersection = (id: number) => () => {
         if (availableConnections === null || selectedTicket === null) return;
-        if (id === positions[turn]) return;
+        if (id === positions[turn!]) return;
 
         for (const c of availableConnections) {
             const connection = connections[c];
@@ -232,8 +227,8 @@
         round = next;
     }
 
-    function onNextTurn(next: Role) {
-        endTurn();
+    function onNextTurn(next: Role | null) {
+        if (next === null) endTurn();
         turn = next;
     }
 
@@ -296,7 +291,6 @@
                         (!isValidTicket(c.type, selectedTicket!) ||
                             (availableConnections !== null && !availableConnections.includes(parseInt(id))))}
                     onclick={canChooseConnection ? chooseConnection(parseInt(id)) : null}
-                    selected={chosenConnection === id}
                 ></Connection>
             {/each}
             {#each Object.entries(intersections) as [id, i] (id)}
@@ -315,20 +309,21 @@
                     <Player
                         role={r as Role}
                         position={intersections[id].position}
-                        size={map.intersectionRadius * 4}
+                        size={map.intersectionRadius * 16}
+                        scaleCompensationStrength={0.8}
                         {offset}
                     />
                 {/if}
             {/each}
             <Message
                 bind:visible={yourTurnMessage}
-                position={yourTurn ? intersections[positions[turn]].position : { lat: 0.0, lon: 0.0 }}
+                position={yourTurn ? intersections[positions[turn!]].position : { lat: 0.0, lon: 0.0 }}
                 content="It's your turn!"
             />
         </Map>
         <div class="overlay float tickets" class:enabled={showTickets}>
             {#each Object.values(ticket) as t}
-                {@const count = tickets[turn][t]}
+                {@const count = tickets[turn ?? role.MISTER_X][t]}
                 {#if count !== -1}
                     <button
                         class="ticket {t}"
@@ -351,11 +346,13 @@
         <div class="overlay float info">
             {#if winner === team.NONE}
                 <h3>Round {round + 1}</h3>
-                <span
-                    >{roleNames[turn]}'s turn ({roles[turn] !== null
-                        ? playerById(roles[turn]!)!.name
-                        : teamNames[team.DETECTIVES]})</span
-                >
+                {#if turn !== null}
+                    <span
+                        >{roleNames[turn]}'s turn ({roles[turn] !== null
+                            ? playerById(roles[turn]!)!.name
+                            : teamNames[team.DETECTIVES]})</span
+                    >
+                {/if}
             {:else}
                 <h3>Game End</h3>
                 <span>{teamNames[winner]} won</span>

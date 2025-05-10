@@ -9,11 +9,12 @@
         boundary: L.LatLngBounds;
         width: number;
         height: number;
+        zoom: { level: number, ratio: number };
         projectPoint(point: Point): { x: number; y: number };
         featureEventHandlers: ((target: string, event: L.LeafletMouseEvent) => void)[];
     }
 
-    export type MapContext = () => MapInfo
+    export type MapContext = () => MapInfo;
 
     interface Props {
         minZoom: number;
@@ -26,30 +27,42 @@
     let { minZoom, boundary: corners, onclick = null, cursor = 'grab', children }: Props = $props();
     const scale = 1000;
 
-    let map: L.Map | null = $state(null)
-    let boundary = $derived(L.latLngBounds([corners.from.lat, corners.from.lon], [corners.to.lat, corners.to.lon]))
-    
-    let size: L.Point = $derived.by(() => {
-        return map !== null ? L.bounds(
-            map.project(boundary.getNorthWest(), minZoom),
-            map.project(boundary.getSouthEast(), minZoom)
-        ).getSize() : L.point(10, 10)
-    })
-    let featureEventHandlers: ((target: string, event: L.LeafletMouseEvent) => void)[] = $state([])
+    let map: L.Map | null = $state(null);
+    let boundary = $derived(L.latLngBounds([corners.from.lat, corners.from.lon], [corners.to.lat, corners.to.lon]));
 
-    let info: MapInfo | null = $derived(map === null ? null : {
-        map,
-        boundary,
-        width: scale,
-        height: (size.y / size.x) * scale,
-        projectPoint: (point) => ({
-            x: ((point.lon - info!.boundary.getWest()) / (info!.boundary.getEast() - info!.boundary.getWest())) * info!.width,
-            y:
-                ((info!.boundary.getNorth() - point.lat) / (info!.boundary.getNorth() - info!.boundary.getSouth())) *
-                info!.height,
-        }),
-        featureEventHandlers,
+    let size: L.Point = $derived.by(() => {
+        return map !== null
+            ? L.bounds(
+                  map.project(boundary.getNorthWest(), minZoom),
+                  map.project(boundary.getSouthEast(), minZoom)
+              ).getSize()
+            : L.point(10, 10);
     });
+    let zoom = $state({ level: 0, ratio: 0 });
+    let featureEventHandlers: ((target: string, event: L.LeafletMouseEvent) => void)[] = $state([]);
+
+    let info: MapInfo | null = $derived(
+        map === null
+            ? null
+            : {
+                  map,
+                  boundary,
+                  width: scale,
+                  height: (size.y / size.x) * scale,
+                  zoom,
+                  projectPoint: (point) => ({
+                      x:
+                          ((point.lon - info!.boundary.getWest()) /
+                              (info!.boundary.getEast() - info!.boundary.getWest())) *
+                          info!.width,
+                      y:
+                          ((info!.boundary.getNorth() - point.lat) /
+                              (info!.boundary.getNorth() - info!.boundary.getSouth())) *
+                          info!.height,
+                  }),
+                  featureEventHandlers,
+              }
+    );
 
     let svgOverlay: L.SVGOverlay;
 
@@ -64,6 +77,10 @@
 
         map.on('click', (e) => {
             onclick?.(e);
+        });
+        map.on('zoomanim', (e) => {
+            zoom.level = e.zoom - minZoom;
+            zoom.ratio = zoom.level / (map?.getMaxZoom()! - minZoom);
         });
 
         L.tileLayer('https://tile.thunderforest.com/atlas/{z}/{x}/{y}.png?apikey=6a53e8b25d114a5e9216df5bf9b5e9c8', {
@@ -97,13 +114,13 @@
         });
 
         $effect(() => {
-            map?.setMaxBounds(boundary.pad(0.2))
-            svgOverlay.setBounds(boundary)
+            map?.setMaxBounds(boundary.pad(0.2));
+            svgOverlay.setBounds(boundary);
         });
-    }
+    };
 
     $effect(() => {
-        map?.setMinZoom(minZoom)
+        map?.setMinZoom(minZoom);
     });
 </script>
 
