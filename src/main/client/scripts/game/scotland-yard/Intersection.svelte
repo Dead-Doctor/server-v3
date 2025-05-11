@@ -10,6 +10,7 @@
         bus: boolean;
         tram: boolean;
         selected?: boolean;
+        marker?: string;
         onclick?: L.LeafletMouseEventHandlerFn | null;
         cursor?: string;
     }
@@ -23,15 +24,18 @@
         bus,
         tram,
         selected = false,
+        marker = '',
         onclick = null,
         cursor = onclick !== null ? 'pointer' : 'grab',
     }: Props = $props();
     let ctx: MapContext = getContext('map');
-    let info = ctx()
+    let info = ctx();
 
     let targetId = $derived(`i${id}`);
 
     let scale = $derived(radius / halfSize);
+    let markerStroke = $derived(1 / Math.pow(2, info.zoom.level * 0.5));
+    let markerScale = $derived(0.8 * (1 - info.zoom.ratio))
 
     let { x, y } = $derived(info.projectPoint(position));
 
@@ -48,28 +52,31 @@
     class:tram
     class:selected
     style="cursor: {cursor};"
-    transform="translate({x} {y}) scale({scale}) translate(-{halfSize} -{halfSize})"
+    transform="translate({x} {y}) scale({scale})"
 >
-    <path class="half" d="M 0 30 A 30 30 0 0 1 60 30" stroke="black" stroke-width="3" />
-    <path class="half bottom" d="M 0 30 A 30 30 0 0 0 60 30" stroke="black" stroke-width="3" />
-    <path d="M 0 30 H 60" stroke="black" stroke-width="3" />
-    <rect class="box" x="10" y="15" width="40" height="30" stroke="black" stroke-width="3" fill="white" />
+    <path class="half" d="M -30  0 A 30 30 0 0 1 30 0" stroke="black" stroke-width="3" />
+    <path class="half bottom" d="M -30 0 A 30 30 0 0 0 30 0" stroke="black" stroke-width="3" />
+    <path d="M -30 0 H 30" stroke="black" stroke-width="3" />
+    <rect class="box" x="-20" y="-15" width="40" height="30" stroke="black" stroke-width="3" fill="white" />
     <text
         class="number"
-        x="30"
-        y="30"
-        text-anchor="middle"
-        dominant-baseline="central"
-        font-family="Arial Narrow"
-        font-weight="700"
+        x="0"
+        y="-1"
         font-size="23"
-        fill="black"
+        letter-spacing="-1"
     >
         {id}
     </text>
+
+    {#if marker != ''}
+    <!-- transform="scale({markerScale})" -->
+        <circle cx="0" cy="0" r="35" fill="none" stroke={marker} stroke-width={10 * markerStroke} transform="scale({1 + markerScale})" />
+    {/if}
 </g>
 
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@200..700&display=swap');
+
     g {
         .half {
             fill: var(--taxi-color);
@@ -89,6 +96,15 @@
             }
         }
 
+
+        .number {
+            text-anchor: middle;
+            dominant-baseline: central;
+            font-family: 'Oswald', 'Arial Narrow', Arial, sans-serif;
+            font-weight: 500;
+            fill: black;
+        }
+
         &:hover {
             fill: red;
         }
@@ -102,6 +118,10 @@
             text {
                 fill: #002da8 !important;
             }
+        }
+
+        circle {
+            transition: all 250ms cubic-bezier(0, 0, 0.25, 1);
         }
     }
 </style>

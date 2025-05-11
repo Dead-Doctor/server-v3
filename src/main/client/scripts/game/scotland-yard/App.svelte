@@ -116,6 +116,7 @@
     let round: number = $state(getData('round'));
     const clues: [Ticket, number][] = $state(getData('clues'));
     let showClues = $state(false);
+    let possibleLocations: number[] = $state(getData('possibleLocations'))
 
     let title: Title | null = $state(null);
 
@@ -141,6 +142,7 @@
     channel.receiverWith(onBeginTurn, bcs.list(bcs.int));
     channel.receiverWith(onUseTicket, bcs.tuple([bcsRole, bcsTicket, bcs.int] as const));
     channel.receiverWith(onMove, bcs.tuple([bcsRole, bcs.int] as const));
+    channel.receiverWith(onPossibleLocations, bcs.list(bcs.int))
     channel.receiverWith(onReveal, bcs.int);
     channel.receiverWith(onWinner, bcs.enumeration(team));
 
@@ -250,9 +252,14 @@
         positions[r] = id;
     }
 
+    function onPossibleLocations(locations: number[]) {
+        possibleLocations = locations;
+    }
+
     function onReveal(id: number) {
         positions[role.MISTER_X] = id;
         clues[round - 1][1] = id;
+        possibleLocations = [id]
 
         showTitle({ misterXRevealed: id });
     }
@@ -300,6 +307,7 @@
                     radius={map.intersectionRadius}
                     bus={i.bus}
                     tram={i.tram}
+                    marker={possibleLocations.includes(parseInt(id)) ? '#000A' : ''}
                     onclick={canChooseConnection ? chooseIntersection(parseInt(id)) : null}
                 ></Intersection>
             {/each}

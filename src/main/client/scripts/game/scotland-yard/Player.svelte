@@ -46,7 +46,7 @@
 
 <style>
     g {
-        transition: transform 0.25s cubic-bezier(0, 0, 0.25, 1);
+        transition: transform 250ms cubic-bezier(0, 0, 0.25, 1);
     }
 
     .misterX {

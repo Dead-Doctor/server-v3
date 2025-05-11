@@ -348,6 +348,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private val sendBeginTurn = channel.destination<List<Int>>()
     private val sendUseTicket = channel.destination<Triple<Role, Ticket, Count>>()
     private val sendMove = channel.destination<Pair<Role, Int>>()
+    private val sendPossibleLocations = channel.destination<Set<Int>>()
     private val sendReveal = channel.destination<Int>()
     private val sendWinner = channel.destination<Team>()
 
@@ -368,6 +369,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private var lastKnownMisterX = -1
     private var round = 0
     private val clues = mutableListOf<Pair<Ticket, Int>>()
+    private var possibleLocations = mutableSetOf<Int>()
 
     private var turn = Role.MISTER_X
     private var turnOver = false
@@ -424,7 +426,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             positions[type] = position
         }
 
-        availableMoves = findAvailableMoves()
+        availableMoves = findAvailableMoves(positions[turn]!!)
     }
 
     override suspend fun get(call: ApplicationCall) {
@@ -441,6 +443,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             addData("positions", redacted)
             addData("round", round)
             addData("clues", clues)
+            addData("possibleLocations", possibleLocations)
 
             addData("turn", turn)
             val availableConnections =
@@ -471,7 +474,18 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         if (!isValidTicketFor(connection.type, ticket)) return
         if (!tryUseTicket(ticket)) return
 
-        if (turn == Role.MISTER_X) clues.add(ticket to -1)
+        if (turn == Role.MISTER_X) {
+            clues.add(ticket to -1)
+
+            possibleLocations = possibleLocations.flatMap { location ->
+                findAvailableMoves(location)
+                    .filter { isValidTicketFor(connections[it.first]!!.type, ticket) }
+                    .map { it.second }
+            }.toMutableSet()
+        } else {
+            possibleLocations.remove(next)
+        }
+        sendPossibleLocations.toAll(possibleLocations)
 
         positions[turn] = next
         updatePosition(turn)
@@ -525,12 +539,13 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             if (revealMisterX) {
                 lastKnownMisterX = positions[Role.MISTER_X]!!
                 clues[round - 1] = clues.last().first to lastKnownMisterX
+                possibleLocations = mutableSetOf(lastKnownMisterX)
                 sendReveal.toAll(lastKnownMisterX)
             }
         }
         turn = Role.entries[nextRole]
         turnOver = false
-        availableMoves = findAvailableMoves()
+        availableMoves = findAvailableMoves(positions[turn]!!)
         if (availableMoves.isEmpty()) {
             if (turn == Role.MISTER_X) winGame(Team.DETECTIVES)
             else nextTurn()
@@ -544,8 +559,11 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         else sendBeginTurn.toAll(availableConnections)
     }
 
-    private fun findAvailableMoves(): List<Pair<Int, Int>> {
-        val position = positions[turn]!!
+    /**
+     * Finds all possible moves from a given position.
+     * @return A list of connections and the respective intersection.
+     */
+    private fun findAvailableMoves(position: Int): List<Pair<Int, Int>> {
         val neighbours = intersections[position]!!.connections
         val detectivePositions = positions.filterKeys { it.detective }.values
         val unoccupied = neighbours.filterNot { it.second in detectivePositions }
