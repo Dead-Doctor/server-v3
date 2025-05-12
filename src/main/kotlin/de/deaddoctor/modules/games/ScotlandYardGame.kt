@@ -343,14 +343,23 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             if (isInfinite) this else Count(value - 1)
     }
 
-    private val sendNextRound = channel.destination<Int>()
+    @Serializable
+    data class Clue(
+        val position: Int,
+        var ticket: Ticket?,
+        val reveal: Boolean
+    ) {
+        fun encode(show: Boolean) = if (show || reveal) this else Clue(-1, ticket, false)
+    }
+
+    private val sendNextRound = channel.destination<Pair<Int, Boolean>>()
     private val sendNextTurn = channel.destination<Role?>()
     private val sendBeginTurn = channel.destination<List<Int>>()
     private val sendUseTicket = channel.destination<Triple<Role, Ticket, Count>>()
     private val sendMove = channel.destination<Pair<Role, Int>>()
     private val sendPossibleLocations = channel.destination<Set<Int>>()
     private val sendReveal = channel.destination<Int>()
-    private val sendWinner = channel.destination<Team>()
+    private val sendWinner = channel.destination<Pair<Team, List<Int>>>()
 
     private val mapInfo = maps.single()
     private val map = mapInfo.versions[mapInfo.version]!!
@@ -368,7 +377,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     private val positions = mutableMapOf<Role, Int>()
     private var lastKnownMisterX = -1
     private var round = 0
-    private val clues = mutableListOf<Pair<Ticket, Int>>()
+    private val clues = mutableListOf<Clue>()
     private var possibleLocations = mutableSetOf<Int>()
 
     private var turn = Role.MISTER_X
@@ -426,6 +435,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             positions[type] = position
         }
 
+        clues.add(Clue(positions[Role.MISTER_X]!!, null, revealMisterX(round)))
         availableMoves = findAvailableMoves(positions[turn]!!)
     }
 
@@ -435,14 +445,16 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             addData("lobbyInfo", lobbyInfo)
             addData("map", map)
             addData("roles", roles.mapValues { it.value?.id })
+
+            val isMisterX = call.user == roles[Role.MISTER_X]
+
             val redacted = positions.toMutableMap()
-            if (call.user != roles[Role.MISTER_X])
-                redacted[Role.MISTER_X] = lastKnownMisterX
+            if (!isMisterX) redacted[Role.MISTER_X] = lastKnownMisterX
 
             addData("tickets", tickets)
             addData("positions", redacted)
             addData("round", round)
-            addData("clues", clues)
+            addData("clues", clues.map { it.encode(isMisterX || winner != Team.NONE) })
             addData("possibleLocations", possibleLocations)
 
             addData("turn", turn)
@@ -475,7 +487,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         if (!tryUseTicket(ticket)) return
 
         if (turn == Role.MISTER_X) {
-            clues.add(ticket to -1)
+            clues[round].ticket = ticket
 
             possibleLocations = possibleLocations.flatMap { location ->
                 findAvailableMoves(location)
@@ -488,7 +500,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         sendPossibleLocations.toAll(possibleLocations)
 
         positions[turn] = next
-        updatePosition(turn)
+        updatePosition(turn, next)
         turnOver = true
         sendNextTurn.toAll(null)
 
@@ -517,28 +529,27 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         return true
     }
 
-    private fun updatePosition(role: Role) {
-        val position = positions[role]!!
-
+    private fun updatePosition(role: Role, position: Int) {
         if (role.detective)
             return sendMove.toAll(role to position)
 
         sendMove.toUser(roles[Role.MISTER_X]!!, role to position)
     }
 
-    private val revealMisterX
-        get() = round % 5 == 2
+    private fun revealMisterX(round: Int) = round % 5 == 2
 
     private fun nextTurn() {
         var nextRole = turn.ordinal + 1
         if (nextRole == Role.entries.count()) {
             round++
             nextRole = 0
-            sendNextRound.toAll(round)
 
-            if (revealMisterX) {
+            val reveal = revealMisterX(round)
+            clues.add(Clue(positions[Role.MISTER_X]!!, null, reveal))
+            sendNextRound.toAll(round to reveal)
+
+            if (reveal) {
                 lastKnownMisterX = positions[Role.MISTER_X]!!
-                clues[round - 1] = clues.last().first to lastKnownMisterX
                 possibleLocations = mutableSetOf(lastKnownMisterX)
                 sendReveal.toAll(lastKnownMisterX)
             }
@@ -571,7 +582,6 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     }
 
     private fun winGame(team: Team) {
-        logger.info("Game won!")
         winner = team
 
         if (team == Team.DETECTIVES)
@@ -581,7 +591,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
 
         lastKnownMisterX = positions[Role.MISTER_X]!!
         sendMove.toAll(Role.MISTER_X to lastKnownMisterX)
-        sendWinner.toAll(team)
+        sendWinner.toAll(team to clues.map { it.position })
     }
 
     private fun onFinish(ctx: Channel.Context) {

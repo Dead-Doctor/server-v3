@@ -42,6 +42,19 @@
         [ticket.MULTI]: 'Multi',
     };
 
+    interface Clue {
+        position: number;
+        ticket: Ticket | null;
+        reveal: boolean;
+    }
+
+    interface Title {
+        misterXTicket?: Ticket;
+        misterXRevealed?: number;
+        misterXWon?: null;
+        detectivesWon?: boolean;
+    }
+
     interface IntersectionData {
         position: Point;
         bus: boolean;
@@ -92,13 +105,6 @@
         };
     }
 
-    interface Title {
-        misterXTicket?: Ticket;
-        misterXRevealed?: number;
-        misterXWon?: null;
-        detectivesWon?: boolean;
-    }
-
     let isFullscreen = $state(false);
 
     const roles: { [_ in Role]: PlayerId | null } = $state(getData('roles'));
@@ -114,15 +120,17 @@
     const positions: { [_ in Role]: number } = $state(getData('positions'));
     let winner: Team = $state(getData('winner'));
     let round: number = $state(getData('round'));
-    const clues: [Ticket, number][] = $state(getData('clues'));
+    const clues: Clue[] = $state(getData('clues'));
     let showClues = $state(false);
-    let possibleLocations: number[] = $state(getData('possibleLocations'))
+    let possibleLocations: number[] = $state(getData('possibleLocations'));
 
     let title: Title | null = $state(null);
 
     let turn: Role | null = $state(getData('turn'));
     const yourTurn = $derived(
-        winner === team.NONE && turn !== null && (roles[turn] === you.id || (roles[turn] === null && yourTeam === team.DETECTIVES))
+        winner === team.NONE &&
+            turn !== null &&
+            (roles[turn] === you.id || (roles[turn] === null && yourTeam === team.DETECTIVES))
     );
     let yourTurnMessage = $state(false);
 
@@ -137,14 +145,14 @@
     const channel = connectGameChannel();
     const sendTakeConnection = channel.destinationWith(bcs.tuple([bcs.enumeration(ticket), bcs.int]));
     const sendFinish = channel.destination();
-    channel.receiverWith(onNextRound, bcs.int);
+    channel.receiverWith(onNextRound, bcs.tuple([bcs.int, bcs.boolean] as const));
     channel.receiverWith(onNextTurn, bcs.nullable(bcsRole));
     channel.receiverWith(onBeginTurn, bcs.list(bcs.int));
     channel.receiverWith(onUseTicket, bcs.tuple([bcsRole, bcsTicket, bcs.int] as const));
     channel.receiverWith(onMove, bcs.tuple([bcsRole, bcs.int] as const));
-    channel.receiverWith(onPossibleLocations, bcs.list(bcs.int))
+    channel.receiverWith(onPossibleLocations, bcs.list(bcs.int));
     channel.receiverWith(onReveal, bcs.int);
-    channel.receiverWith(onWinner, bcs.enumeration(team));
+    channel.receiverWith(onWinner, bcs.tuple([bcs.enumeration(team), bcs.list(bcs.int)] as const));
 
     const availableTickets: { [_ in Ticket]: boolean } = {
         [ticket.TAXI]: false,
@@ -225,8 +233,9 @@
         }, 3000);
     };
 
-    function onNextRound(next: number) {
+    function onNextRound([next, reveal]: [number, boolean]) {
         round = next;
+        clues.push({ position: yourTeam === role.MISTER_X ? positions[role.MISTER_X] : -1, ticket: null, reveal });
     }
 
     function onNextTurn(next: Role | null) {
@@ -244,7 +253,7 @@
         tickets[r][t] = count;
         if (r !== role.MISTER_X) return;
 
-        clues.push([t, -1]);
+        clues[round].ticket = t;
         showTitle({ misterXTicket: t });
     }
 
@@ -258,14 +267,15 @@
 
     function onReveal(id: number) {
         positions[role.MISTER_X] = id;
-        clues[round - 1][1] = id;
-        possibleLocations = [id]
+        clues[round].position = id;
+        possibleLocations = [id];
 
         showTitle({ misterXRevealed: id });
     }
 
-    function onWinner(t: Team) {
+    function onWinner([t, cluePositions]: [Team, number[]]) {
         winner = t;
+        cluePositions.forEach((position, i) => (clues[i].position = position));
 
         if (t === team.DETECTIVES) {
             let caught = false;
@@ -391,13 +401,17 @@
             <h3>Clues</h3>
             <div class="table">
                 <span>Round</span>
+                <span>Position</span>
                 <span>Ticket</span>
-                <span>To</span>
                 <div class="seperator"></div>
-                {#each clues as [t, id], i (i)}
+                {#each clues as clue, i (i)}
                     <span>{i + 1}</span>
-                    <div class="ticket {t}">{ticketNames[t]}</div>
-                    <span>{id !== -1 ? id : '-'}</span>
+                    <span>{clue.reveal ? clue.position : clue.position === -1 ? '?' : `(${clue.position})`}</span>
+                    {#if clue.ticket !== null}
+                        <div class="ticket {clue.ticket}">{ticketNames[clue.ticket]}</div>
+                    {:else}
+                        <div class="ticket">&nbsp;</div>
+                    {/if}
                 {/each}
             </div>
         </div>
