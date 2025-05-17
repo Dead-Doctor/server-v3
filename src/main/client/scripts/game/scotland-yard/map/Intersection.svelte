@@ -1,7 +1,7 @@
 <script lang="ts">
     import { getContext } from 'svelte';
     import type { MapContext } from './Map.svelte';
-    import type { Point } from './scotland-yard';
+    import type { Point } from '../scotland-yard';
 
     interface Props {
         id: string;

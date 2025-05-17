@@ -1,6 +1,6 @@
 <script lang="ts">
-    import { getContext, onMount } from "svelte";
-    import type { Point } from "./scotland-yard";
+    import { getContext } from "svelte";
+    import type { Point } from "../scotland-yard";
     import L from "leaflet";
     import type { MapContext } from "./Map.svelte";
 

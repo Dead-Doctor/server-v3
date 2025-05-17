@@ -51,6 +51,10 @@ export const Points = {
         lat: a.lat + b.lat,
         lon: a.lon + b.lon,
     }),
+    sub: (a: Point, b: Point): Point => ({
+        lat: a.lat - b.lat,
+        lon: a.lon - b.lon,
+    }),
 };
 
 export const team = {

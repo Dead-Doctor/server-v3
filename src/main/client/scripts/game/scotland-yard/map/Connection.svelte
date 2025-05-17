@@ -1,7 +1,7 @@
 <script lang="ts">
     import { getContext } from 'svelte';
     import type { MapContext } from './Map.svelte';
-    import { Points, transport, type Point, type Shape, type Transport } from './scotland-yard';
+    import { Points, transport, type Point, type Shape, type Transport } from '../scotland-yard';
 
     interface Props {
         id: string;
@@ -48,8 +48,8 @@
     <path
         d="M {start.x} {start.y} C {controlStart.x} {controlStart.y} {controlEndInverse.x} {controlEndInverse.y} {end.x} {end.y}"
         fill="none"
-        stroke="white"
-        stroke-width={width * 1.4}
+        stroke="#002da8"
+        stroke-width={width * 1.8}
     />
 {/if}
 <path
@@ -67,10 +67,6 @@
 />
 
 <style>
-    .target {
-        cursor: pointer !important;
-    }
-
     .taxi {
         stroke: var(--taxi-color);
     }

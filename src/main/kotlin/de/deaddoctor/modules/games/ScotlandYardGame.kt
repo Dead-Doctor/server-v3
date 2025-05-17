@@ -73,6 +73,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         private val sendUpdateMinZoom = editorChannel.destination<Int>()
         private val sendUpdateIntersectionRadius = editorChannel.destination<Double>()
         private val sendUpdateConnectionWidth = editorChannel.destination<Double>()
+        private val sendUpdateIntersection = editorChannel.destination<IntersectionData>()
+        private val sendUpdateConnection = editorChannel.destination<ConnectionData>()
         private val sendSave = editorChannel.destination<Int>()
         private val sendReset = editorChannel.destination<MutableMapData>()
 
@@ -165,7 +167,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                         val changes = changes ?: return closeConnection(reason)
                         changes.intersections.removeIf { it.id == intersection.id }
                         changes.intersections.add(intersection)
-                        //TODO: send updates
+                        sendUpdateIntersection.toAllExcept(this.connection, intersection)
                     }
 
                     suspend fun Channel.Context.changeConnections(connection: ConnectionData) {
@@ -173,7 +175,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                         val changes = changes ?: return closeConnection(reason)
                         changes.connections.removeIf { it.id == connection.id }
                         changes.connections.add(connection)
-                        //TODO: send updates
+                        sendUpdateConnection.toAllExcept(this.connection, connection)
                     }
 
                     suspend fun Channel.Context.save() {

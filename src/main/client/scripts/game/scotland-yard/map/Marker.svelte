@@ -5,7 +5,7 @@
 <script lang="ts">
     import { getContext, onDestroy, onMount } from 'svelte';
     import type { MapContext } from './Map.svelte';
-    import type { Point } from './scotland-yard';
+    import type { Point } from '../scotland-yard';
     import L from 'leaflet';
 
     interface Props {
@@ -13,7 +13,7 @@
         ondrag?(position: Point): void;
     }
 
-    let { position, ondrag }: Props = $props();
+    let { position = $bindable(), ondrag }: Props = $props();
     let ctx: MapContext = getContext('map');
     let info = ctx()
 
@@ -27,8 +27,9 @@
 
         if (ondrag)
             marker.on('drag', (e) => {
-                const position = marker.getLatLng();
-                ondrag({ lat: position.lat, lon: position.lng });
+                const { lat, lng } = marker.getLatLng();
+                position = { lat, lon: lng };
+                ondrag(position);
             });
     })
 

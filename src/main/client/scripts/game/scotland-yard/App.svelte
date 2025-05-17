@@ -1,7 +1,7 @@
 <script lang="ts">
     import Icon from '../../Icon.svelte';
-    import Map from './Map.svelte';
-    import Intersection from './Intersection.svelte';
+    import Map from './map/Map.svelte';
+    import Intersection from './map/Intersection.svelte';
     import { getData } from '../../routing';
     import '../../lobby.svelte';
     import {
@@ -18,13 +18,13 @@
         type Team,
         team,
     } from './scotland-yard';
-    import Connection from './Connection.svelte';
+    import Connection from './map/Connection.svelte';
     import Fullscreen from './Fullscreen.svelte';
     import { connectGameChannel } from '../game.svelte';
-    import Player from './Player.svelte';
+    import Player from './map/Player.svelte';
     import { isOperator, playerById, you, type PlayerId } from '../../lobby.svelte';
     import { bcs } from '../../bcs';
-    import Message from './Message.svelte';
+    import Message from './map/Message.svelte';
     import { onMount } from 'svelte';
 
     const ticket = {

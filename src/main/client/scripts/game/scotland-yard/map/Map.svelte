@@ -2,7 +2,7 @@
     import L from 'leaflet';
     import 'leaflet/dist/leaflet.css';
     import { setContext, type Snippet } from 'svelte';
-    import type { Point, Shape } from './scotland-yard';
+    import type { Point, Shape } from '../scotland-yard';
 
     export interface MapInfo {
         map: L.Map;

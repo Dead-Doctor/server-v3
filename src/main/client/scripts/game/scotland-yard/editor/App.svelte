@@ -1,20 +1,47 @@
 <script lang="ts">
     import Icon from '../../../Icon.svelte';
     import { getData } from '../../../routing';
-    import Map from '../Map.svelte';
-    import Connection from '../Connection.svelte';
+    import Map from '../map/Map.svelte';
+    import Connection from '../map/Connection.svelte';
     import Fullscreen from '../Fullscreen.svelte';
-    import Intersection from '../Intersection.svelte';
-    import { transport, type Enum, type MapData, type MapInfo, type Point, type Shape, type Transport } from '../scotland-yard';
+    import Intersection from '../map/Intersection.svelte';
+    import {
+        Points,
+        transport,
+        type ConnectionData,
+        type Enum,
+        type IntersectionData,
+        type MapData,
+        type MapInfo,
+        type Point,
+        type Shape,
+        type Transport,
+    } from '../scotland-yard';
     import { connectChannel } from '../../../channel';
     import { bcs } from '../../../bcs';
-    import Marker from '../Marker.svelte';
+    import Marker from '../map/Marker.svelte';
     import Popup from '../../../Popup.svelte';
+
+    interface IntersectionDerived {
+        position: Point;
+        bus: boolean;
+        tram: boolean;
+    }
+
+    interface ConnectionDerived {
+        from: number;
+        to: number;
+        type: Transport;
+        shape: Shape;
+    }
 
     let isFullscreen = $state(false);
 
-    let info: MapInfo = $state(getData('map'))
+    let info: MapInfo = $state(getData('map'));
     let map: MapData = $state(getData('changes'));
+
+    let intersections: { [id: number]: IntersectionDerived } = $state({});
+    let connections: { [id: number]: ConnectionDerived } = $state({});
 
     const tools = {
         SELECT: 'select',
@@ -25,20 +52,51 @@
     let tool: Tool | null = $state(null);
     let selection:
         | { type: 'boundary' }
-        | { type: 'intersection'; id: number; intersection: IntersectionData }
-        | { type: 'connection'; id: number; connection: ConnectionData }
+        | { type: 'intersection'; id: number; position: Point }
+        | { type: 'connection'; id: number; from: Point; to: Point }
         | null = $state(null);
 
     //Settings
     let showSettings = $state(false);
-    
+
     let popup = $state({
         visible: false,
         message: '',
         closable: false,
         buttonText: '',
-        buttonAction() {}
-    })
+        buttonAction() {},
+    });
+
+    const deriveMap = () => {
+        intersections = {};
+        connections = {};
+        for (const i of map.intersections) {
+            intersections[i.id] = {
+                position: i.pos,
+                bus: false,
+                tram: false,
+            };
+        }
+        for (const c of map.connections) {
+            const from = intersections[c.from];
+            const to = intersections[c.to];
+            if (c.type === transport.BUS) {
+                from.bus = true;
+                to.bus = true;
+            } else if (c.type === transport.TRAM) {
+                from.tram = true;
+                to.tram = true;
+            }
+
+            connections[c.id] = {
+                from: c.from,
+                to: c.to,
+                type: c.type,
+                shape: c.shape,
+            };
+        }
+    };
+    deriveMap();
 
     const channel = connectChannel();
     const bcsPoint = bcs.struct({
@@ -66,8 +124,8 @@
         intersectionRadius: bcs.double,
         connectionWidth: bcs.double,
         intersections: bcs.list(bcsIntersection),
-        connections: bcs.list(bcsConnection)
-    })
+        connections: bcs.list(bcsConnection),
+    });
     const sendChangeBoundary = channel.destinationWith(bcsShape);
     const sendChangeMinZoom = channel.destinationWith(bcs.int);
     const sendChangeIntersectionRadius = channel.destinationWith(bcs.double);
@@ -76,66 +134,27 @@
     const sendChangeConnection = channel.destinationWith(bcsConnection);
     const sendSave = channel.destination();
     const sendReset = channel.destination();
-    channel.receiverWith(onUpdateBoundary, bcsShape)
-    channel.receiverWith(onUpdateMinZoom, bcs.int)
-    channel.receiverWith(onUpdateIntersectionRadius, bcs.double)
-    channel.receiverWith(onUpdateConnectionWidth, bcs.double)
-    channel.receiverWith(onSave, bcs.int)
-    channel.receiverWith(onReset, bcsMap)
-
-    interface IntersectionData {
-        position: Point;
-        bus: boolean;
-        tram: boolean;
-    }
-
-    interface ConnectionData {
-        from: number;
-        to: number;
-        type: Transport;
-        shape: Shape;
-    }
-
-    let intersections: { [id: number]: IntersectionData } = $state({});
-    let connections: { [id: number]: ConnectionData } = $state({});
-
-    const deriveMap = () => {
-        intersections = {}
-        connections = {}
-        for (const i of map.intersections) {
-            intersections[i.id] = {
-                position: i.pos,
-                bus: false,
-                tram: false,
-            };
-        }
-        for (const c of map.connections) {
-            const from = intersections[c.from];
-            const to = intersections[c.to];
-            if (c.type === transport.BUS) {
-                from.bus = true;
-                to.bus = true;
-            } else if (c.type === transport.TRAM) {
-                from.tram = true;
-                to.tram = true;
-            }
-
-            connections[c.id] = {
-                from: c.from,
-                to: c.to,
-                type: c.type,
-                shape: c.shape,
-            };
-        }
-    }
-    deriveMap()
+    channel.receiverWith(onUpdateBoundary, bcsShape);
+    channel.receiverWith(onUpdateMinZoom, bcs.int);
+    channel.receiverWith(onUpdateIntersectionRadius, bcs.double);
+    channel.receiverWith(onUpdateConnectionWidth, bcs.double);
+    channel.receiverWith(onUpdateIntersection, bcsIntersection);
+    channel.receiverWith(onUpdateConnection, bcsConnection);
+    channel.receiverWith(onSave, bcs.int);
+    channel.receiverWith(onReset, bcsMap);
 
     const positionById = (id: number) => intersections[id].position;
 
     const swapTool = (next: Tool) => {
         tool = tool === next ? null : next;
 
-        if (tool !== 'select') selection = null
+        if (tool !== 'select') selection = null;
+    };
+
+    const clickIntersection = (id: number) => {
+        if (tool === 'select') {
+            selection = { type: 'intersection', id, position: intersections[id]!.position };
+        }
     };
 
     const editBoundary = () => {
@@ -144,61 +163,90 @@
         selection = { type: 'boundary' };
     };
 
-    type Side = 'from' | 'to'
+    type Side = 'from' | 'to';
     const corners: [Side, Side][] = [
         ['from', 'from'],
         ['to', 'from'],
         ['to', 'to'],
-        ['from', 'to']
-    ]
-    const moveBoundary = (latIdentifier: Side, lonIdentifier: Side) => ({ lat, lon }: Point) => {
-        map.boundary[latIdentifier].lat = lat
-        map.boundary[lonIdentifier].lon = lon
-        sendChangeBoundary(map.boundary)
-    }
+        ['from', 'to'],
+    ];
+
+    //TODO: buffer boundary/connection/intersection move updates
+    const moveBoundary =
+        (latIdentifier: Side, lonIdentifier: Side) =>
+        ({ lat, lon }: Point) => {
+            map.boundary[latIdentifier].lat = lat;
+            map.boundary[lonIdentifier].lon = lon;
+            sendChangeBoundary(map.boundary);
+        };
 
     function onUpdateBoundary(boundary: Shape) {
-        map.boundary = boundary
+        map.boundary = boundary;
     }
 
     const changeMinZoom = () => {
-        sendChangeMinZoom(map.minZoom)
-    }
+        sendChangeMinZoom(map.minZoom);
+    };
     const changeIntersectionRadius = () => {
-        sendChangeIntersectionRadius(map.intersectionRadius)
-    }
+        sendChangeIntersectionRadius(map.intersectionRadius);
+    };
     const changeConnectionWidth = () => {
-        sendChangeConnectionWidth(map.connectionWidth)
-    }
+        sendChangeConnectionWidth(map.connectionWidth);
+    };
 
     function onUpdateMinZoom(minZoom: number) {
         map.minZoom = minZoom;
     }
     function onUpdateIntersectionRadius(intersectionRadius: number) {
-        map.intersectionRadius = intersectionRadius
+        map.intersectionRadius = intersectionRadius;
     }
     function onUpdateConnectionWidth(connectionWidth: number) {
-        map.connectionWidth = connectionWidth
+        map.connectionWidth = connectionWidth;
+    }
+
+    const editIntersectionPosition = () => {
+        if (selection?.type !== 'intersection') return;
+        const intersection = intersections[selection.id]!
+        intersection.position = selection.position;
+        sendChangeIntersection({id: selection.id, pos: intersection.position })
+    }
+
+    function onUpdateIntersection(intersection: IntersectionData) {
+        intersections[intersection.id].position = intersection.pos;
+    }
+
+    const editConnectionShape = () => {
+        if (selection?.type !== 'connection') return;
+        const connection = connections[selection.id]!;
+        const from = Points.sub(selection.from, intersections[connection.from]!.position);
+        const to = Points.sub(selection.to, intersections[connection.to]!.position);
+        connection.shape = { from, to };
+        sendChangeConnection({ id: selection.id, ...connection });
+    };
+
+    function onUpdateConnection(connection: ConnectionData) {
+        connections[connection.id] = connection
+        //TODO: Updated derived info
     }
 
     //TODO: show playericons of currently editing (connected) users
     // -> maybe message in corner 'Editing v65 (dd) (user)'
 
     const save = () => {
-        sendSave()
-    }
+        sendSave();
+    };
 
     function onSave(version: number) {
-        info.version = version
+        info.version = version;
         popup = {
             visible: true,
             message: `Saved changes as version ${version}.`,
             closable: false,
             buttonText: 'Ok',
             buttonAction() {
-                popup.visible = false
-            }
-        }
+                popup.visible = false;
+            },
+        };
     }
 
     const reset = () => {
@@ -208,51 +256,73 @@
             closable: true,
             buttonText: 'Reset',
             buttonAction() {
-                sendReset()
-            }
-        }
-    }
+                sendReset();
+            },
+        };
+    };
 
     function onReset(data: MapData) {
-        map.boundary = data.boundary
-        map.minZoom = data.minZoom
-        map.intersectionRadius = data.intersectionRadius
-        map.connectionWidth = data.connectionWidth
-        map.intersections = data.intersections
-        map.connections = data.connections
-        deriveMap()
-        popup.visible = false
+        map.boundary = data.boundary;
+        map.minZoom = data.minZoom;
+        map.intersectionRadius = data.intersectionRadius;
+        map.connectionWidth = data.connectionWidth;
+        map.intersections = data.intersections;
+        map.connections = data.connections;
+        deriveMap();
+        popup.visible = false;
     }
 </script>
 
 <Fullscreen bind:isFullscreen>
     <div class="map">
         <Map minZoom={map.minZoom} boundary={map.boundary} cursor={tool === 'add' ? 'crosshair' : 'grab'}>
-            {#each Object.entries(connections) as [id, c] (id)}
+            {#each Object.entries(connections) as [key, c] (key)}
+                {@const id = parseInt(key)}
                 <Connection
-                    {id}
+                    id={key}
                     from={positionById(c.from)}
                     to={positionById(c.to)}
                     width={map.connectionWidth}
                     shape={c.shape}
                     type={c.type}
                     cursor={tool === 'select' ? 'pointer' : 'grab'}
+                    onclick={() =>
+                        tool === 'select' &&
+                        (selection = {
+                            type: 'connection',
+                            id,
+                            from: Points.add(intersections[c.from]!.position, c.shape.from),
+                            to: Points.add(intersections[c.to]!.position, c.shape.to),
+                        })}
+                    selected={selection?.type === 'connection' && selection.id === id}
                 />
             {/each}
-            {#each Object.entries(intersections) as [id, i] (id)}
+            {#each Object.entries(intersections) as [key, i] (key)}
+                {@const id = parseInt(key)}
                 <Intersection
-                    {id}
+                    id={key}
                     position={i.position}
                     radius={map.intersectionRadius}
                     bus={i.bus}
                     tram={i.tram}
                     cursor={tool !== null ? 'pointer' : 'grab'}
+                    onclick={() => clickIntersection(id)}
+                    selected={selection?.type === 'intersection' && selection.id === id}
                 />
             {/each}
             {#if selection?.type === 'boundary'}
                 {#each corners as corner}
-                    <Marker position={{ lat: map.boundary[corner[0]].lat, lon: map.boundary[corner[1]].lon }} ondrag={moveBoundary(...corner)} />
+                    <Marker
+                        position={{ lat: map.boundary[corner[0]].lat, lon: map.boundary[corner[1]].lon }}
+                        ondrag={moveBoundary(...corner)}
+                    />
                 {/each}
+            {:else if selection?.type === 'intersection'}
+                <Marker bind:position={selection.position} ondrag={editIntersectionPosition} />
+            {:else if selection?.type === 'connection'}
+                {@const connection = connections[selection.id]!}
+                <Marker bind:position={selection.from} ondrag={editConnectionShape} />
+                <Marker bind:position={selection.to} ondrag={editConnectionShape} />
             {/if}
         </Map>
         <span class="info">Editing {info.name} v{info.version}</span>
@@ -337,7 +407,9 @@
             margin: 1rem;
             color: white;
             font-weight: 600;
-            text-shadow: black 0 0 4px, black 0 0 6px;
+            text-shadow:
+                black 0 0 4px,
+                black 0 0 6px;
             pointer-events: none;
             z-index: 400;
         }
