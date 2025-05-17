@@ -171,13 +171,26 @@
         ['from', 'to'],
     ];
 
-    //TODO: buffer boundary/connection/intersection move updates
+    const createUpdateBuffer = (updater: () => void, interval: number) => {
+        let sender: number | null = null;
+
+        return () => {
+            if (sender === null) {
+                sender = setTimeout(() => {
+                    updater();
+                    sender = null;
+                }, interval);
+            }
+        };
+    };
+
+    const moveBoundaryBuffer = createUpdateBuffer(() => sendChangeBoundary(map.boundary), 500);
     const moveBoundary =
         (latIdentifier: Side, lonIdentifier: Side) =>
         ({ lat, lon }: Point) => {
             map.boundary[latIdentifier].lat = lat;
             map.boundary[lonIdentifier].lon = lon;
-            sendChangeBoundary(map.boundary);
+            moveBoundaryBuffer();
         };
 
     function onUpdateBoundary(boundary: Shape) {
@@ -204,28 +217,34 @@
         map.connectionWidth = connectionWidth;
     }
 
+    let lastIntersectionData: IntersectionData
+    const intersectionMoveBuffer = createUpdateBuffer(() => sendChangeIntersection(lastIntersectionData), 500);
     const editIntersectionPosition = () => {
         if (selection?.type !== 'intersection') return;
-        const intersection = intersections[selection.id]!
+        const intersection = intersections[selection.id]!;
         intersection.position = selection.position;
-        sendChangeIntersection({id: selection.id, pos: intersection.position })
-    }
+        lastIntersectionData = { id: selection.id, pos: intersection.position }
+        intersectionMoveBuffer();
+    };
 
     function onUpdateIntersection(intersection: IntersectionData) {
         intersections[intersection.id].position = intersection.pos;
     }
 
+    let lastConnectionData: ConnectionData
+    const editConnectionBuffer = createUpdateBuffer(() => sendChangeConnection(lastConnectionData), 500);
     const editConnectionShape = () => {
         if (selection?.type !== 'connection') return;
         const connection = connections[selection.id]!;
         const from = Points.sub(selection.from, intersections[connection.from]!.position);
         const to = Points.sub(selection.to, intersections[connection.to]!.position);
         connection.shape = { from, to };
-        sendChangeConnection({ id: selection.id, ...connection });
+        lastConnectionData = { id: selection.id, ...connection };
+        editConnectionBuffer()
     };
 
     function onUpdateConnection(connection: ConnectionData) {
-        connections[connection.id] = connection
+        connections[connection.id] = connection;
         //TODO: Updated derived info
     }
 
