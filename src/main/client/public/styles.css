@@ -123,7 +123,10 @@ a {
 
 svg {
     fill: currentColor;
-    width: 1em;
+
+    &.icon {
+        width: 1em;
+    }
 }
 
 button {

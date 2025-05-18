@@ -17,7 +17,7 @@
     let polyline: L.Polyline
 
     onMount(() => {
-        polyline = L.polyline([[from.lat, from.lon], [to.lat, to.lon]]).addTo(info.map);
+        polyline = L.polyline([[from.lat, from.lon], [to.lat, to.lon]], { color: 'black', weight: 1 }).addTo(info.map);
     })
 
     $effect(() => {

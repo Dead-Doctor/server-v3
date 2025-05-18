@@ -21,6 +21,7 @@
     import { bcs } from '../../../bcs';
     import Marker from '../map/Marker.svelte';
     import Popup from '../../../Popup.svelte';
+    import Line from '../map/Line.svelte';
 
     interface IntersectionDerived {
         position: Point;
@@ -342,6 +343,8 @@
                 {@const connection = connections[selection.id]!}
                 <Marker bind:position={selection.from} ondrag={editConnectionShape} />
                 <Marker bind:position={selection.to} ondrag={editConnectionShape} />
+                <Line from={intersections[connection.from]!.position} to={selection.from} />
+                <Line from={intersections[connection.to]!.position} to={selection.to} />
             {/if}
         </Map>
         <span class="info">Editing {info.name} v{info.version}</span>

@@ -117,7 +117,7 @@ class PageLayout(private val user: User?, private val uri: String, private val t
 
     private val icon: FlowOrPhrasingContent.(String) -> Unit = { name ->
         val paths = svgs[name] ?: throw IllegalArgumentException("The svg-icon '$name' does not exist!")
-        svg {
+        svg("icon") {
             attributes["viewBox"] = "0 0 16 16"
 
             for (d in paths) {
