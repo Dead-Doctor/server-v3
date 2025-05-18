@@ -218,13 +218,13 @@
         map.connectionWidth = connectionWidth;
     }
 
-    let lastIntersectionData: IntersectionData
+    let lastIntersectionData: IntersectionData;
     const intersectionMoveBuffer = createUpdateBuffer(() => sendChangeIntersection(lastIntersectionData), 500);
     const editIntersectionPosition = () => {
         if (selection?.type !== 'intersection') return;
         const intersection = intersections[selection.id]!;
         intersection.position = selection.position;
-        lastIntersectionData = { id: selection.id, pos: intersection.position }
+        lastIntersectionData = { id: selection.id, pos: intersection.position };
         intersectionMoveBuffer();
     };
 
@@ -232,7 +232,7 @@
         intersections[intersection.id].position = intersection.pos;
     }
 
-    let lastConnectionData: ConnectionData
+    let lastConnectionData: ConnectionData;
     const editConnectionBuffer = createUpdateBuffer(() => sendChangeConnection(lastConnectionData), 500);
     const editConnectionShape = () => {
         if (selection?.type !== 'connection') return;
@@ -241,7 +241,7 @@
         const to = Points.sub(selection.to, intersections[connection.to]!.position);
         connection.shape = { from, to };
         lastConnectionData = { id: selection.id, ...connection };
-        editConnectionBuffer()
+        editConnectionBuffer();
     };
 
     function onUpdateConnection(connection: ConnectionData) {
@@ -264,6 +264,7 @@
             closable: false,
             buttonText: 'Ok',
             buttonAction() {
+                showSettings = false;
                 popup.visible = false;
             },
         };
@@ -289,13 +290,19 @@
         map.intersections = data.intersections;
         map.connections = data.connections;
         deriveMap();
+        showSettings = false;
         popup.visible = false;
     }
 </script>
 
 <Fullscreen bind:isFullscreen>
     <div class="map">
-        <Map minZoom={map.minZoom} boundary={map.boundary} cursor={tool === 'add' ? 'crosshair' : 'grab'}>
+        <Map
+            minZoom={map.minZoom}
+            boundary={map.boundary}
+            cursor={tool === 'add' ? 'crosshair' : 'grab'}
+            onclick={() => tool === 'select' && (selection = null)}
+        >
             {#each Object.entries(connections) as [key, c] (key)}
                 {@const id = parseInt(key)}
                 <Connection
@@ -353,7 +360,7 @@
         <button class:active={tool === 'select'} onclick={() => swapTool('select')}>Select Tool</button>
         <button class:active={tool === 'add'} onclick={() => swapTool('add')}>Add Tool</button>
         <div class="spacing"></div>
-        <button onclick={() => (showSettings = true)}><Icon id="gear" /></button>
+        <button onclick={() => ((showSettings = true), (selection = null))}><Icon id="gear" /></button>
         <button onclick={() => (isFullscreen = !isFullscreen)}
             ><Icon id={!isFullscreen ? 'fullscreen' : 'fullscreen-exit'} /></button
         >
