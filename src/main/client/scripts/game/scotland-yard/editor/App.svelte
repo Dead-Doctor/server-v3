@@ -152,9 +152,20 @@
         if (tool !== 'select') selection = null;
     };
 
-    const clickIntersection = (id: number) => {
+    const clickIntersection = (id: number, i: IntersectionDerived) => {
         if (tool === 'select') {
-            selection = { type: 'intersection', id, position: intersections[id]!.position };
+            selection = { type: 'intersection', id, position: i.position };
+        }
+    };
+
+    const clickConnection = (id: number, c: ConnectionDerived) => {
+        if (tool === 'select') {
+            selection = {
+                type: 'connection',
+                id,
+                from: Points.add(intersections[c.from]!.position, c.shape.from),
+                to: Points.add(intersections[c.to]!.position, c.shape.to),
+            };
         }
     };
 
@@ -230,6 +241,7 @@
 
     function onUpdateIntersection(intersection: IntersectionData) {
         intersections[intersection.id].position = intersection.pos;
+        //TODO: Updated derived info
     }
 
     let lastConnectionData: ConnectionData;
@@ -313,14 +325,7 @@
                     shape={c.shape}
                     type={c.type}
                     cursor={tool === 'select' ? 'pointer' : 'grab'}
-                    onclick={() =>
-                        tool === 'select' &&
-                        (selection = {
-                            type: 'connection',
-                            id,
-                            from: Points.add(intersections[c.from]!.position, c.shape.from),
-                            to: Points.add(intersections[c.to]!.position, c.shape.to),
-                        })}
+                    onclick={() => clickConnection(id, c)}
                     selected={selection?.type === 'connection' && selection.id === id}
                 />
             {/each}
@@ -333,7 +338,7 @@
                     bus={i.bus}
                     tram={i.tram}
                     cursor={tool !== null ? 'pointer' : 'grab'}
-                    onclick={() => clickIntersection(id)}
+                    onclick={() => clickIntersection(id, i)}
                     selected={selection?.type === 'intersection' && selection.id === id}
                 />
             {/each}
@@ -355,6 +360,33 @@
             {/if}
         </Map>
         <span class="info">Editing {info.name} v{info.version}</span>
+        {#if selection !== null && selection.type !== 'boundary'}
+            <div class="selection">
+                {#if selection.type === 'intersection'}
+                    {@const [id, i] = [selection.id, intersections[selection.id]]}
+                    <h4>Intersection #{id}</h4>
+                    <label for="intersectionLabel">
+                        Label:
+                        <input type="number" name="intersectionLabel" id="intersectionLabel" value="id" />
+                    </label>
+                    <!-- test if this works -->
+                    {@const cs = Object.values(connections).filter((c) => c.to === id || c.from === id)}
+                    <button disabled={cs.length >= 1}>Delete</button>
+                {:else if selection.type === 'connection'}
+                    {@const [id, c] = [selection.id, connections[selection.id]]}
+                    <h4>Connection #{id}</h4>
+                    <label for="connectionType">
+                        Type:
+                        <select name="connectionType" id="connectionType">
+                            {#each Object.values(transport) as t}
+                                <option value={t}>{t}</option>
+                            {/each}
+                        </select>
+                    </label>
+                    <button>Delete</button>
+                {/if}
+            </div>
+        {/if}
     </div>
     <div class="tools">
         <button class:active={tool === 'select'} onclick={() => swapTool('select')}>Select Tool</button>
@@ -441,6 +473,19 @@
                 black 0 0 6px;
             pointer-events: none;
             z-index: 400;
+        }
+
+        .selection {
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 1rem;
+            gap: 0.2rem;
+            backdrop-filter: brightness(50%) blur(4px);
+            z-index: 1500;
         }
     }
 
