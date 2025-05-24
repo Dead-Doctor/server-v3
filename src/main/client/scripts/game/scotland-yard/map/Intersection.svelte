@@ -6,6 +6,7 @@
     interface Props {
         id: string;
         position: Point;
+        label: number;
         radius: number;
         bus: boolean;
         tram: boolean;
@@ -20,6 +21,7 @@
     let {
         id,
         position,
+        label,
         radius,
         bus,
         tram,
@@ -65,7 +67,7 @@
         font-size="23"
         letter-spacing="-1"
     >
-        {id}
+        {label}
     </text>
 
     {#if marker != ''}

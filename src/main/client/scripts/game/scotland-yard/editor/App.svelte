@@ -25,6 +25,7 @@
 
     interface IntersectionDerived {
         position: Point;
+        label: number;
         bus: boolean;
         tram: boolean;
     }
@@ -74,6 +75,7 @@
         for (const i of map.intersections) {
             intersections[i.id] = {
                 position: i.pos,
+                label: i.label,
                 bus: false,
                 tram: false,
             };
@@ -111,6 +113,7 @@
     const bcsIntersection = bcs.struct({
         id: bcs.int,
         pos: bcsPoint,
+        label: bcs.int,
     });
     const bcsConnection = bcs.struct({
         id: bcs.int,
@@ -235,7 +238,7 @@
         if (selection?.type !== 'intersection') return;
         const intersection = intersections[selection.id]!;
         intersection.position = selection.position;
-        lastIntersectionData = { id: selection.id, pos: intersection.position };
+        lastIntersectionData = { id: selection.id, pos: intersection.position, label: intersection.label };
         intersectionMoveBuffer();
     };
 
@@ -334,6 +337,7 @@
                 <Intersection
                     id={key}
                     position={i.position}
+                    label={i.label}
                     radius={map.intersectionRadius}
                     bus={i.bus}
                     tram={i.tram}

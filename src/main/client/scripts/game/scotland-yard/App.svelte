@@ -57,6 +57,7 @@
 
     interface IntersectionData {
         position: Point;
+        label: number;
         bus: boolean;
         tram: boolean;
         connections: number[];
@@ -77,6 +78,7 @@
     for (const i of map.intersections) {
         intersections[i.id] = {
             position: i.pos,
+            label: i.label,
             bus: false,
             tram: false,
             connections: [],
@@ -314,6 +316,7 @@
                 <Intersection
                     id={id.toString()}
                     position={i.position}
+                    label={i.label}
                     radius={map.intersectionRadius}
                     bus={i.bus}
                     tram={i.tram}

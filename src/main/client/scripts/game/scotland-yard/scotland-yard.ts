@@ -18,6 +18,7 @@ export interface MapData {
 export interface IntersectionData {
     id: number;
     pos: Point;
+    label: number;
 }
 
 export interface ConnectionData {

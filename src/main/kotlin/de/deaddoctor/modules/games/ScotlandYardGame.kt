@@ -271,7 +271,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
     )
 
     @Serializable
-    data class IntersectionData(val id: Int, @SerialName("pos") val position: Point)
+    data class IntersectionData(val id: Int, @SerialName("pos") val position: Point, val label: Int)
 
     @Serializable
     data class ConnectionData(val id: Int, val from: Int, val to: Int, val type: Transport, val shape: Shape)
