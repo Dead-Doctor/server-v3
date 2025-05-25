@@ -54,8 +54,8 @@
     let tool: Tool | null = $state(null);
     let selection:
         | { type: 'boundary' }
-        | { type: 'intersection'; id: number; position: Point }
-        | { type: 'connection'; id: number; from: Point; to: Point }
+        | { type: 'intersection'; id: number; position: Point; label: number }
+        | { type: 'connection'; id: number; from: Point; to: Point; transport: Transport }
         | null = $state(null);
 
     //Settings
@@ -157,7 +157,7 @@
 
     const clickIntersection = (id: number, i: IntersectionDerived) => {
         if (tool === 'select') {
-            selection = { type: 'intersection', id, position: i.position };
+            selection = { type: 'intersection', id, position: i.position, label: i.label };
         }
     };
 
@@ -168,6 +168,7 @@
                 id,
                 from: Points.add(intersections[c.from]!.position, c.shape.from),
                 to: Points.add(intersections[c.to]!.position, c.shape.to),
+                transport: c.type,
             };
         }
     };
@@ -242,9 +243,16 @@
         intersectionMoveBuffer();
     };
 
+    const changeIntersectionLabel = () => {
+        if (selection?.type !== 'intersection') return;
+        const intersection = intersections[selection.id]!;
+        intersection.label = selection.label;
+        sendChangeIntersection({ id: selection.id, pos: intersection.position, label: intersection.label });
+    };
+
     function onUpdateIntersection(intersection: IntersectionData) {
         intersections[intersection.id].position = intersection.pos;
-        //TODO: Updated derived info
+        intersections[intersection.id].label = intersection.label;
     }
 
     let lastConnectionData: ConnectionData;
@@ -259,9 +267,33 @@
         editConnectionBuffer();
     };
 
+    const changeConnectionType = () => {
+        if (selection?.type !== 'connection') return;
+        const connection = connections[selection.id]!;
+        connection.type = selection.transport;
+        refreshIntersectionTypes(connection.from)
+        refreshIntersectionTypes(connection.to)
+        sendChangeConnection({ id: selection.id, ...connection });
+    };
+
     function onUpdateConnection(connection: ConnectionData) {
         connections[connection.id] = connection;
-        //TODO: Updated derived info
+        refreshIntersectionTypes(connection.from)
+        refreshIntersectionTypes(connection.to)
+    }
+
+    const refreshIntersectionTypes = (id: number) => {
+        const intersection = intersections[id]
+        intersection.bus = false
+        intersection.tram = false
+        for (const c of Object.values(connections)) {
+            if (c.from !== id && c.to !== id) continue
+            if (c.type === transport.BUS) {
+                intersection.bus = true;
+            } else if (c.type === transport.TRAM) {
+                intersection.tram = true;
+            }
+        }
     }
 
     //TODO: show playericons of currently editing (connected) users
@@ -367,11 +399,17 @@
         {#if selection !== null && selection.type !== 'boundary'}
             <div class="selection">
                 {#if selection.type === 'intersection'}
-                    {@const [id, i] = [selection.id, intersections[selection.id]]}
+                    {@const id = selection.id}
                     <h4>Intersection #{id}</h4>
                     <label for="intersectionLabel">
                         Label:
-                        <input type="number" name="intersectionLabel" id="intersectionLabel" value="id" />
+                        <input
+                            type="number"
+                            name="intersectionLabel"
+                            id="intersectionLabel"
+                            bind:value={selection.label}
+                            onchange={changeIntersectionLabel}
+                        />
                     </label>
                     <!-- test if this works -->
                     {@const cs = Object.values(connections).filter((c) => c.to === id || c.from === id)}
@@ -381,7 +419,12 @@
                     <h4>Connection #{id}</h4>
                     <label for="connectionType">
                         Type:
-                        <select name="connectionType" id="connectionType">
+                        <select
+                            name="connectionType"
+                            id="connectionType"
+                            bind:value={selection.transport}
+                            onchange={changeConnectionType}
+                        >
                             {#each Object.values(transport) as t}
                                 <option value={t}>{t}</option>
                             {/each}
