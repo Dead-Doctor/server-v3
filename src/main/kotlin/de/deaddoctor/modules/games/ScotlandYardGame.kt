@@ -75,6 +75,8 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         private val sendUpdateConnectionWidth = editorChannel.destination<Double>()
         private val sendUpdateIntersection = editorChannel.destination<IntersectionData>()
         private val sendUpdateConnection = editorChannel.destination<ConnectionData>()
+        private val sendDeleteIntersection = editorChannel.destination<Int>()
+        private val sendDeleteConnection = editorChannel.destination<Int>()
         private val sendSave = editorChannel.destination<Int>()
         private val sendReset = editorChannel.destination<MutableMapData>()
 
@@ -162,7 +164,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                         sendUpdateConnectionWidth.toAllExcept(connection, width)
                     }
 
-                    suspend fun Channel.Context.changeIntersections(intersection: IntersectionData) {
+                    suspend fun Channel.Context.changeIntersection(intersection: IntersectionData) {
                         if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.intersections.removeIf { it.id == intersection.id }
@@ -170,12 +172,26 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                         sendUpdateIntersection.toAllExcept(this.connection, intersection)
                     }
 
-                    suspend fun Channel.Context.changeConnections(connection: ConnectionData) {
+                    suspend fun Channel.Context.changeConnection(connection: ConnectionData) {
                         if (user !is AccountUser || !user.admin) return closeConnection(reason)
                         val changes = changes ?: return closeConnection(reason)
                         changes.connections.removeIf { it.id == connection.id }
                         changes.connections.add(connection)
                         sendUpdateConnection.toAllExcept(this.connection, connection)
+                    }
+
+                    suspend fun Channel.Context.deleteIntersection(id: Int) {
+                        if (user !is AccountUser || !user.admin) return closeConnection(reason)
+                        val changes = changes ?: return closeConnection(reason)
+                        changes.intersections.removeIf { it.id == id }
+                        sendDeleteIntersection.toAllExcept(connection, id)
+                    }
+
+                    suspend fun Channel.Context.deleteConnection(id: Int) {
+                        if (user !is AccountUser || !user.admin) return closeConnection(reason)
+                        val changes = changes ?: return closeConnection(reason)
+                        changes.connections.removeIf { it.id == id }
+                        sendDeleteConnection.toAllExcept(connection, id)
                     }
 
                     suspend fun Channel.Context.save() {
@@ -213,8 +229,10 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                     editorChannel.receiver(Channel.Context::changeMinZoom)
                     editorChannel.receiver(Channel.Context::changeIntersectionRadius)
                     editorChannel.receiver(Channel.Context::changeConnectionWidth)
-                    editorChannel.receiver(Channel.Context::changeIntersections)
-                    editorChannel.receiver(Channel.Context::changeConnections)
+                    editorChannel.receiver(Channel.Context::changeIntersection)
+                    editorChannel.receiver(Channel.Context::changeConnection)
+                    editorChannel.receiver(Channel.Context::deleteIntersection)
+                    editorChannel.receiver(Channel.Context::deleteConnection)
                     editorChannel.receiver(Channel.Context::save)
                     editorChannel.receiver(Channel.Context::reset)
                 }

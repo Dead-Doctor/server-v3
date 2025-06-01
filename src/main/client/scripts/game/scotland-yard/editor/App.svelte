@@ -136,6 +136,8 @@
     const sendChangeConnectionWidth = channel.destinationWith(bcs.double);
     const sendChangeIntersection = channel.destinationWith(bcsIntersection);
     const sendChangeConnection = channel.destinationWith(bcsConnection);
+    const sendDeleteIntersection = channel.destinationWith(bcs.int);
+    const sendDeleteConnection = channel.destinationWith(bcs.int);
     const sendSave = channel.destination();
     const sendReset = channel.destination();
     channel.receiverWith(onUpdateBoundary, bcsShape);
@@ -144,6 +146,8 @@
     channel.receiverWith(onUpdateConnectionWidth, bcs.double);
     channel.receiverWith(onUpdateIntersection, bcsIntersection);
     channel.receiverWith(onUpdateConnection, bcsConnection);
+    channel.receiverWith(onDeleteIntersection, bcs.int);
+    channel.receiverWith(onDeleteConnection, bcs.int);
     channel.receiverWith(onSave, bcs.int);
     channel.receiverWith(onReset, bcsMap);
 
@@ -296,6 +300,32 @@
         }
     }
 
+    const deleteIntersection = () => {
+        if (selection?.type !== 'intersection') return;
+        delete intersections[selection.id];
+        sendDeleteIntersection(selection.id)
+        selection = null
+    }
+
+    function onDeleteIntersection(id: number) {
+        if (selection?.type === 'intersection' && selection.id === id)
+            selection = null;
+        delete intersections[id];
+    }
+
+    const deleteConnection = () => {
+        if (selection?.type !== 'connection') return;
+        delete connections[selection.id];
+        sendDeleteConnection(selection.id)
+        selection = null
+    }
+
+    function onDeleteConnection(id: number) {
+        if (selection?.type === 'connection' && selection.id === id)
+            selection = null;
+        delete connections[id];
+    }
+
     //TODO: show playericons of currently editing (connected) users
     // -> maybe message in corner 'Editing v65 (dd) (user)'
 
@@ -413,7 +443,7 @@
                     </label>
                     <!-- test if this works -->
                     {@const cs = Object.values(connections).filter((c) => c.to === id || c.from === id)}
-                    <button disabled={cs.length >= 1}>Delete</button>
+                    <button class="danger" disabled={cs.length >= 1} onclick={deleteIntersection}>Delete</button>
                 {:else if selection.type === 'connection'}
                     {@const [id, c] = [selection.id, connections[selection.id]]}
                     <h4>Connection #{id}</h4>
@@ -430,7 +460,7 @@
                             {/each}
                         </select>
                     </label>
-                    <button>Delete</button>
+                    <button class="danger" onclick={deleteConnection}>Delete</button>
                 {/if}
             </div>
         {/if}
@@ -601,10 +631,11 @@
 
         .actions {
             align-self: end;
-
-            .danger:not(:hover):not(:focus-visible) {
-                background-color: hsl(0, 60%, 43%);
-            }
         }
+    }
+
+    button.danger:not(:hover):not(:focus-visible),
+    button.danger:disabled {
+        background-color: hsl(0, 60%, 43%);
     }
 </style>
