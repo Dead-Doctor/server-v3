@@ -134,7 +134,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
                             }
                         }
                     }
-                    openChannel("channel", editorChannel)
+                    openChannel("channel") { editorChannel }
 
                     val reason = CloseReason(CloseReason.Codes.NORMAL, "Not allowed.")
                     suspend fun Channel.Context.changeBoundary(boundary: Shape) {

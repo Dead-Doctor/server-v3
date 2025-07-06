@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import kotlin.collections.isNotEmpty
 import kotlin.reflect.KVisibility
 import kotlin.reflect.full.memberProperties
 import kotlin.time.Duration.Companion.seconds
@@ -23,20 +24,6 @@ object LobbyModule : Module {
 
     private val idCharacters = 'A'..'Z'
     private fun generateId() = (0 until 4).joinToString("") { idCharacters.random().toString() }
-
-    private val channel = Channel()
-    private val sendCheckedName = channel.destination<List<String>>()
-    private val sendJoin = channel.destination<String>()
-    private val sendPlayerJoined = channel.destination<Lobby.Player.Info>()
-    private val sendPlayerActiveChanged = channel.destination<Lobby.PlayerActiveChanged>()
-    private val sendPlayerScoreChanged = channel.destination<Pair<String, Int>>()
-    private val sendHostChanged = channel.destination<String>()
-    private val sendKicked = channel.destination<String>()
-    private val sendGameSelected = channel.destination<Pair<String, Pair<List<GameSetting.Info>, Boolean>>>()
-    private val sendGameSettingChanged = channel.destination<Pair<GameSetting.Info, Boolean>>()
-    private val sendGameStarted = channel.destination<String>()
-    private val sendGameEnded = channel.destination<Unit>()
-    private val sendGame = channel.destinationRaw(100u)
 
     private val lobbies = mutableMapOf<String, Lobby>()
 
@@ -105,9 +92,52 @@ object LobbyModule : Module {
                 }
             }
 
-            //TODO: separate channels that contain path parameters
-            openChannel("channel", channel) { it.parameters["id"] ?: "" }
+            openChannel("channel") { it.lobby?.channel }
+        }
+    }
 
+    private fun destroyLobby(lobby: Lobby) {
+        lobbies.remove(lobby.id)
+    }
+
+    @Serializable
+    data class YouInfo(
+        val id: String,
+        val admin: Boolean
+    ) {
+        constructor(user: TrackedUser) : this(
+            user.id,
+            user is AccountUser && user.admin
+        )
+    }
+
+    class Lobby(val id: String, var gameSelected: GameType<*>) {
+        private val players = mutableMapOf<TrackedUser, Player>()
+        private var host: TrackedUser? = null
+        private var gameSettings = gameSelected.settings()
+        val settingsInfo = mutableListOf<GameSetting.Info>()
+        var settingsValid = false
+        var game: Game<*>? = null
+        fun joined(user: TrackedUser) = players.containsKey(user)
+
+        val activePlayers
+            get() = players.filter { it.value.state.active }
+
+        val channel = Channel()
+        val sendCheckedName = channel.destination<List<String>>()
+        val sendJoin = channel.destination<String>()
+        private val sendPlayerJoined = channel.destination<Lobby.Player.Info>()
+        private val sendPlayerActiveChanged = channel.destination<Lobby.PlayerActiveChanged>()
+        private val sendPlayerScoreChanged = channel.destination<Pair<String, Int>>()
+        private val sendHostChanged = channel.destination<String>()
+        private val sendKicked = channel.destination<String>()
+        private val sendGameSelected = channel.destination<Pair<String, Pair<List<GameSetting.Info>, Boolean>>>()
+        private val sendGameSettingChanged = channel.destination<Pair<GameSetting.Info, Boolean>>()
+        private val sendGameStarted = channel.destination<String>()
+        private val sendGameEnded = channel.destination<Unit>()
+        private val sendGame = channel.destinationRaw(100u)
+
+        init {
             suspend fun Channel.Context.connect() {
                 val lobby = connection.lobby
                 if (lobby == null || user !is TrackedUser) {
@@ -137,8 +167,9 @@ object LobbyModule : Module {
             }
 
             fun Channel.Context.checkName(name: String) {
+                val lobby = connection.lobby ?: return
                 val errors = checkName(name)
-                sendCheckedName.toConnection(connection, errors)
+                lobby.sendCheckedName.toConnection(connection, errors)
             }
 
             fun Channel.Context.join(name: String) {
@@ -146,7 +177,7 @@ object LobbyModule : Module {
                 if (user !is TrackedUser || user is AccountUser || lobby.joined(user) || checkName(name).isNotEmpty()) return
                 val player = lobby.joinActivate(user, name)
                 lobby.activeConnect(player)
-                sendJoin.toUser(user, user.id)
+                lobby.sendJoin.toUser(user, user.id)
             }
 
             fun Channel.Context.disconnect() {
@@ -204,37 +235,7 @@ object LobbyModule : Module {
             channel.receiver(Channel.Context::gameSettingChanged)
             channel.receiver(Channel.Context::beginGame)
             channel.rawReceiver(Channel.Context::game, 100u)
-        }
-    }
 
-    private fun destroyLobby(lobby: Lobby) {
-        lobbies.remove(lobby.id)
-    }
-
-    @Serializable
-    data class YouInfo(
-        val id: String,
-        val admin: Boolean
-    ) {
-        constructor(user: TrackedUser) : this(
-            user.id,
-            user is AccountUser && user.admin
-        )
-    }
-
-    class Lobby(val id: String, var gameSelected: GameType<*>) {
-        private val players = mutableMapOf<TrackedUser, Player>()
-        private var host: TrackedUser? = null
-        private var gameSettings = gameSelected.settings()
-        val settingsInfo = mutableListOf<GameSetting.Info>()
-        var settingsValid = false
-        var game: Game<*>? = null
-        fun joined(user: TrackedUser) = players.containsKey(user)
-
-        val activePlayers
-            get() = players.filter { it.value.state.active }
-
-        init {
             constructSettings()
         }
 
@@ -312,7 +313,6 @@ object LobbyModule : Module {
             settingsInfo.clear()
             constructSettings()
 
-            //TODO: example of toAll that would go out to all lobbies instead of just the correct one
             sendGameSelected.toAll(gameType.id() to (settingsInfo to settingsValid))
         }
 

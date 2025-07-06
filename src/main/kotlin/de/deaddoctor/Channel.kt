@@ -1,5 +1,6 @@
 package de.deaddoctor
 
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
@@ -39,7 +40,8 @@ open class ChannelEvents {
     }
 
     inline fun <reified U> receiver(crossinline handler: suspend (Channel.Context, U) -> Unit) {
-        receivers[receivers.size.toUByte()] = { context, data: ByteArray -> handler(context, Bcs.decodeFromBytes<U>(data)) }
+        receivers[receivers.size.toUByte()] =
+            { context, data: ByteArray -> handler(context, Bcs.decodeFromBytes<U>(data)) }
     }
 
     fun rawReceiver(handler: suspend (Channel.Context, ByteArray) -> Unit, id: UByte) {
@@ -58,6 +60,7 @@ interface Destination<T> {
 
 class Channel : ChannelEvents() {
     val connections = mutableListOf<Connection>()
+    //TODO: use mutexes to prevent concurrency errors
 
     private var destinationCount: UByte = 0u
 
@@ -74,7 +77,11 @@ class Channel : ChannelEvents() {
         return ChannelDestination(this, id) { it }
     }
 
-    class ChannelDestination<T>(private val channel: Channel, private val i: UByte, private val serializer: (T) -> ByteArray) : Destination<T> {
+    class ChannelDestination<T>(
+        private val channel: Channel,
+        private val i: UByte,
+        private val serializer: (T) -> ByteArray
+    ) : Destination<T> {
         override fun toAll(content: T) =
             toAll(channel.connections, content)
 
@@ -111,11 +118,11 @@ class Channel : ChannelEvents() {
         }
     }
 
-    class Context(private val socket: Channel, val connection: Connection) {
+    class Context(private val channel: Channel, val connection: Connection) {
         val user = connection.user
 
         //TODO: maybe error when modified while executed?
-        fun countConnections(user: User = connection.user) = socket.connections.count { it.user == user }
+        fun countConnections(user: User = connection.user) = channel.connections.count { it.user == user }
 
         suspend fun closeConnection(reason: CloseReason) {
             connection.session.close(reason)
@@ -123,8 +130,10 @@ class Channel : ChannelEvents() {
     }
 }
 
-fun Route.openChannel(path: String, channel: Channel) {
+fun Route.openChannel(path: String, channelGenerator: (ApplicationCall) -> Channel?) {
     webSocket(path) {
+        val channel = channelGenerator(call)
+            ?: return@webSocket close(CloseReason(CloseReason.Codes.NORMAL, "Invalid endpoint."))
         val user = call.user
         val connection = Connection(this, user)
         channel.connections.add(connection)

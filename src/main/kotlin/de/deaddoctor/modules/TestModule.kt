@@ -26,6 +26,6 @@ object TestModule : Module {
 
         channel.connection(Channel.Context::onConnection)
 
-        openChannel("channel", channel)
+        openChannel("channel") { channel }
     }
 }
