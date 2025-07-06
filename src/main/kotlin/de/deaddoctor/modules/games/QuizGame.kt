@@ -88,7 +88,6 @@ class QuizGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<QuizGame>(
     }
 
     private fun checkReveal() {
-        println(guesses.entries.joinToString("\n"))
         if (guesses.size < players.size) return
 
         showResults = true

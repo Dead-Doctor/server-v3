@@ -180,7 +180,7 @@ object LobbyModule : Module {
                 lobby.sendJoin.toUser(user, user.id)
             }
 
-            fun Channel.Context.disconnect() {
+            suspend fun Channel.Context.disconnect() {
                 val lobby = connection.lobby ?: return
                 if (user !is TrackedUser || !lobby.joined(user) || countConnections() != 0) return
                 lobby.activeDisconnect(lobby.getPlayer(user)!!)

@@ -4,6 +4,9 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.serializer
 import org.slf4j.LoggerFactory
@@ -59,8 +62,8 @@ interface Destination<T> {
 }
 
 class Channel : ChannelEvents() {
-    val connections = mutableListOf<Connection>()
-    //TODO: use mutexes to prevent concurrency errors
+    private val connections = mutableListOf<Connection>()
+    private val mutex = Mutex()
 
     private var destinationCount: UByte = 0u
 
@@ -77,16 +80,34 @@ class Channel : ChannelEvents() {
         return ChannelDestination(this, id) { it }
     }
 
+    suspend fun addConnection(connection: Connection) = mutex.withLock {
+        connections.add(connection)
+    }
+
+    suspend fun removeConnection(connection: Connection) = mutex.withLock {
+        connections.remove(connection)
+    }
+
+    suspend fun getConnections() = mutex.withLock {
+        connections.toSet()
+    }
+
     class ChannelDestination<T>(
         private val channel: Channel,
         private val i: UByte,
         private val serializer: (T) -> ByteArray
     ) : Destination<T> {
-        override fun toAll(content: T) =
-            toAll(channel.connections, content)
+        override fun toAll(content: T) {
+            server.application.launch {
+                toAll(channel.getConnections().toList(), content)
+            }
+        }
 
-        override fun toUser(user: User, content: T) =
-            toAll(channel.connections.filter { it.user == user }, content)
+        override fun toUser(user: User, content: T) {
+            server.application.launch {
+                toAll(channel.getConnections().filter { it.user == user }, content)
+            }
+        }
 
         private fun encodePacket(content: T): ByteArray {
             return byteArrayOf(i.toByte()) + serializer(content)
@@ -96,12 +117,20 @@ class Channel : ChannelEvents() {
             connections.forEach { rawToConnection(it, this) }
         }
 
-        override fun toAllExcept(connection: Connection, content: T) = with(encodePacket(content)) {
-            channel.connections.forEach { if (it != connection) rawToConnection(it, this) }
+        override fun toAllExcept(connection: Connection, content: T) {
+            server.application.launch {
+                with(encodePacket(content)) {
+                    channel.getConnections().forEach { if (it != connection) rawToConnection(it, this) }
+                }
+            }
         }
 
-        override fun toAllExceptUser(user: User, content: T) = with(encodePacket(content)) {
-            channel.connections.forEach { if (it.user != user) rawToConnection(it, this) }
+        override fun toAllExceptUser(user: User, content: T) {
+            server.application.launch {
+                with(encodePacket(content)) {
+                    channel.getConnections().forEach { if (it.user != user) rawToConnection(it, this) }
+                }
+            }
         }
 
         override fun toConnection(connection: Connection, content: T) =
@@ -121,8 +150,7 @@ class Channel : ChannelEvents() {
     class Context(private val channel: Channel, val connection: Connection) {
         val user = connection.user
 
-        //TODO: maybe error when modified while executed?
-        fun countConnections(user: User = connection.user) = channel.connections.count { it.user == user }
+        suspend fun countConnections(user: User = connection.user) = channel.getConnections().count { it.user == user }
 
         suspend fun closeConnection(reason: CloseReason) {
             connection.session.close(reason)
@@ -136,7 +164,7 @@ fun Route.openChannel(path: String, channelGenerator: (ApplicationCall) -> Chann
             ?: return@webSocket close(CloseReason(CloseReason.Codes.NORMAL, "Invalid endpoint."))
         val user = call.user
         val connection = Connection(this, user)
-        channel.connections.add(connection)
+        channel.addConnection(connection)
 
         val context = Channel.Context(channel, connection)
 
@@ -149,7 +177,7 @@ fun Route.openChannel(path: String, channelGenerator: (ApplicationCall) -> Chann
             }
         }
 
-        channel.connections.remove(connection)
+        channel.removeConnection(connection)
         channel.handleDisconnection(context)
     }
 }
