@@ -89,6 +89,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
             }
         private val Channel.Context.changes: MutableMapData?
             get() = connection.session.call.id?.let { currentChanges[it] }
+        //TODO: editor completely breaks when editing multiple maps at once! like what?
 
         override fun Route.staticRoutes() {
             route("editor") {

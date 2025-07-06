@@ -22,9 +22,7 @@ object LobbyModule : Module {
     private val logger = LoggerFactory.getLogger(LobbyModule::class.java)
 
     private val idCharacters = 'A'..'Z'
-    private fun generateId() = buildString {
-        for (i in 0 until 4) append(idCharacters.random())
-    }
+    private fun generateId() = (0 until 4).joinToString("") { idCharacters.random().toString() }
 
     private val channel = Channel()
     private val sendCheckedName = channel.destination<List<String>>()
@@ -107,7 +105,8 @@ object LobbyModule : Module {
                 }
             }
 
-            openChannel("channel", channel)
+            //TODO: separate channels that contain path parameters
+            openChannel("channel", channel) { it.parameters["id"] ?: "" }
 
             suspend fun Channel.Context.connect() {
                 val lobby = connection.lobby
@@ -239,7 +238,7 @@ object LobbyModule : Module {
             constructSettings()
         }
 
-        fun active(user: TrackedUser) = players[user]?.state?.active ?: false
+        fun active(user: TrackedUser) = players[user]?.state?.active == true
         fun getPlayer(user: TrackedUser) = players[user]
         fun joinActivate(user: TrackedUser, name: String? = null): Player {
             val player = Player(user, Player.State.ACTIVE, name)
@@ -313,6 +312,7 @@ object LobbyModule : Module {
             settingsInfo.clear()
             constructSettings()
 
+            //TODO: example of toAll that would go out to all lobbies instead of just the correct one
             sendGameSelected.toAll(gameType.id() to (settingsInfo to settingsValid))
         }
 
