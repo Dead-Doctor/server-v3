@@ -37,6 +37,7 @@ lateinit var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngi
 lateinit var frontendPath: String
 val manifestPath
     get() = "$frontendPath$MANIFEST_LOCATION"
+lateinit var persistentDir: File
 
 var envVars: Map<String, String> = mapOf()
 private fun tryGetConfig(name: String) = System.getenv(name) ?: envVars[name]
@@ -61,6 +62,8 @@ fun Application.module() {
     val logger = LoggerFactory.getLogger(javaClass)
 
     frontendPath = if (!developmentMode) "dist" else "debug"
+    persistentDir = if (!developmentMode) File("/app/run") else File("run")
+    persistentDir.mkdirs()
 
     install(ForwardedHeaders)
     install(XForwardedHeaders)
@@ -69,7 +72,7 @@ fun Application.module() {
         json()
     }
     install(Sessions) {
-        cookie<UserSession>("user_session", directorySessionStorage(File(".sessions"), false)) {
+        cookie<UserSession>("user_session", directorySessionStorage(File(persistentDir, ".sessions"), false)) {
             cookie.path = "/"
         }
     }

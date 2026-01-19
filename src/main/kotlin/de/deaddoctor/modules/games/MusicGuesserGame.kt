@@ -63,9 +63,9 @@ class MusicGuesserGame(
         private val cacheDuration = 30L.days
 
         private var ready = false
-        private val tracksCache = File("${id()}/tracks.json")
+        private val tracksCache = File(persistentDir, "${id()}/tracks.json")
         private lateinit var tracks: MutableList<Track>
-        private val overridesFile = File("${id()}/overrides.json")
+        private val overridesFile = File(persistentDir, "${id()}/overrides.json")
         private lateinit var overrides: MutableMap<Long, Int>
 
         @Serializable(with = TrackSerializer::class)
@@ -138,6 +138,7 @@ class MusicGuesserGame(
                         }
                         ready = true
                         logger.info("Successfully loaded ${tracks.size} tracks!")
+                        tracksCache.parentFile.mkdirs()
                         jsonParser.encodeToResource(tracks, tracksCache.outputStream())
                     } else {
                         tracks = jsonParser.decodeFromResource(tracksCache.inputStream())
@@ -148,6 +149,7 @@ class MusicGuesserGame(
             }
             //TODO: save every few... hours?
             server.monitor.subscribe(ApplicationStopped) {
+                overridesFile.parentFile.mkdirs()
                 jsonParser.encodeToResource(overrides, overridesFile.outputStream())
                 logger.info("Saved overrides!")
             }

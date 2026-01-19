@@ -36,7 +36,7 @@ class ScotlandYardGame(channel: GameChannel, lobby: LobbyModule.Lobby, settings:
         private val jsonParser = Json
 
         private var maps = mutableListOf<Map>()
-        private val folder = File(id())
+        private val folder = File(persistentDir, id())
         private val mapsFolder = File(folder, "maps")
 
         init {

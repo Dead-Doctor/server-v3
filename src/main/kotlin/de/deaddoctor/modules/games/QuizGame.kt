@@ -33,7 +33,7 @@ class QuizGame(channel: GameChannel, lobby: LobbyModule.Lobby) : Game<QuizGame>(
         private val logger = LoggerFactory.getLogger(QuizGame::class.java)
         private val jsonParser = Json
 
-        private val dataFile = File("quiz.json")
+        private val dataFile = File(persistentDir, "quiz.json")
         private var errorMsg: String? = null
         private val questions: Array<Question>?
 
