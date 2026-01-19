@@ -51,3 +51,12 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+
+ktor {
+    docker {
+        localImageName = "server-v3"
+        imageTag = version.toString()
+
+        jreVersion = JavaVersion.VERSION_24
+    }
+}
