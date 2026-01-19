@@ -7,7 +7,7 @@ import io.ktor.server.plugins.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import kotlinx.css.CSSBuilder
+import kotlinx.css.CssBuilder
 import kotlinx.html.FlowOrMetaDataOrPhrasingContent
 import kotlinx.html.link
 import kotlinx.html.script
@@ -59,8 +59,8 @@ suspend fun ApplicationCall.respondPage(title: String? = null, body: PageLayout.
     respondHtmlTemplate(PageLayout(user, request.uri, title), HttpStatusCode.OK, body)
 }
 
-class CSSRules(rules: CSSBuilder.() -> Unit) {
-    private val styles = CSSBuilder().apply(rules).toString()
+class CSSRules(rules: CssBuilder.() -> Unit) {
+    private val styles = CssBuilder().apply(rules).toString()
     operator fun getValue(thisRef: Any?, property: KProperty<*>) = CSSResource(property.name, styles)
 }
 

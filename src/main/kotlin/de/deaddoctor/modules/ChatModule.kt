@@ -59,11 +59,11 @@ object ChatModule : Module {
             display = Display.flex
             flexDirection = FlexDirection.column
             height = LinearDimension("200px")
-            padding(0.2.rem)
+            padding = Padding(0.2.rem)
             backgroundColor = Color("var(--secondary)")
             color = Color.white
-            border = "var(--border)"
-            borderBottom = "none"
+            put("border", "var(--border)")
+            borderBottom = Border.none
             wordWrap = WordWrap.breakWord
             overflowY = Overflow.scroll
         }

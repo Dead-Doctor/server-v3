@@ -66,7 +66,7 @@ object WebsocketModule : Module {
         rule(".accounts") {
             height = LinearDimension("128px")
             display = Display.flex
-            gap = Gap("16px")
+            gap = 16.px
         }
 
         rule(".accounts > img") {

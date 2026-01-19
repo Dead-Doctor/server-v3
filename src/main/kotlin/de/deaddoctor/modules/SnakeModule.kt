@@ -234,7 +234,7 @@ object SnakeModule : Module {
             display = Display.flex
             declarations["aspect-ratio"] = ASPECT_RATIO.toString()
             maxHeight = 100.pct
-            margin = "0 auto"
+            margin = Margin(0.px, LinearDimension.auto)
             overflow = Overflow.hidden
             declarations["touch-action"] = "none"
         }
@@ -251,7 +251,7 @@ object SnakeModule : Module {
 
         rule(".players") {
             display = Display.flex
-            gap = Gap("16px")
+            gap = 16.px
         }
 
         rule(".players img") {
